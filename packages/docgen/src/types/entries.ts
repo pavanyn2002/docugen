@@ -9,7 +9,12 @@ import type { EntryBase, ExtractResult, SourceRef } from './core.js';
 
 // ── routes ───────────────────────────────────────────────────────────────────
 
-export type RouteKind = 'page' | 'layout' | 'template' | 'error' | 'redirect';
+/**
+ * `loading` is listed separately rather than folded into `template` because
+ * "what does the user see while this is loading" is a question QA actually
+ * asks, and collapsing it would lose that.
+ */
+export type RouteKind = 'page' | 'layout' | 'template' | 'loading' | 'error' | 'redirect';
 
 export interface RouteEntry extends EntryBase {
   /** Normalised URL path, e.g. '/orders/[id]'. Framework syntax preserved. */

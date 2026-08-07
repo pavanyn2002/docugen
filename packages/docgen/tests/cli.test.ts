@@ -130,19 +130,24 @@ describe('docgen extract', () => {
 
     const result = await runExtractCommand({ cwd: root, json: false, logger });
 
-    expect(result.results.size).toBe(0);
+    // routes is registered and correctly reports the technology as absent.
+    expect(result.results.get('routes')).toMatchObject({ applicable: false, entries: [] });
     expect(stderr.join('')).toContain('docgen extract');
   });
 
-  // No extractor is registered yet. The command must say so rather than
-  // implying it scanned the repo and found nothing.
+  // Unbuilt extractors must be named, rather than the command implying it
+  // scanned the repo for them and found nothing.
   it('names the extractors that are not implemented yet', async () => {
     const root = await makeRepo();
     const { logger, stderr } = captureLogger();
 
     const result = await runExtractCommand({ cwd: root, json: false, logger });
 
-    expect([...result.unimplemented].sort()).toEqual([...EXTRACTOR_IDS].sort());
+    const registered = new Set(result.results.keys());
+    expect([...result.unimplemented].sort()).toEqual(
+      EXTRACTOR_IDS.filter((id) => !registered.has(id)).sort(),
+    );
+    expect(result.unimplemented).not.toContain('routes');
     expect(stderr.join('')).toContain('not implemented yet');
   });
 
@@ -162,9 +167,11 @@ describe('docgen extract', () => {
     const root = await makeRepo();
     const { logger } = captureLogger();
 
-    const result = await runExtractCommand({ cwd: root, only: 'routes', json: false, logger });
+    const result = await runExtractCommand({ cwd: root, only: 'schema', json: false, logger });
 
-    expect(result.unimplemented).toEqual(['routes']);
+    // Only the named extractor is considered: routes is registered but was not asked for.
+    expect(result.unimplemented).toEqual(['schema']);
+    expect(result.results.has('routes')).toBe(false);
   });
 
   it('lets --out override the configured output directory', async () => {

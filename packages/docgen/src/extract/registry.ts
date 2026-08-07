@@ -1,15 +1,15 @@
 import type { ExtractorId } from '../types/core.js';
 import type { Extractor } from './types.js';
+import { routesExtractor } from './routes/index.js';
 
 /**
  * The extractor registry.
  *
- * Deliberately empty at this stage of the build. Extractors are added here one
- * at a time as they are implemented and tested (SPEC rule 2), so `docgen
- * extract` reports honestly that nothing is registered rather than pretending
- * to have scanned a repo it never parsed.
+ * Extractors are added here one at a time as they are implemented and tested
+ * (SPEC rule 2), so `docgen extract` reports honestly which are missing rather
+ * than implying it scanned for something it cannot yet parse.
  */
-const REGISTERED: readonly Extractor[] = Object.freeze([]);
+const REGISTERED: readonly Extractor[] = Object.freeze([routesExtractor as Extractor]);
 
 export function getExtractors(): readonly Extractor[] {
   return REGISTERED;
