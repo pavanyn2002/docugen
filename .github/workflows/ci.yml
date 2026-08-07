@@ -36,6 +36,10 @@ jobs:
           npm install /tmp/tatvaops-docgen-*.tgz
           npx docgen --version
           npx docgen extract --cwd "$GITHUB_WORKSPACE" --dry-run
+          # The prompt pack is loaded from the installed package, not the repo.
+          # A missing `prompts/` in the tarball only shows up here — every
+          # in-repo test resolves it from the source tree and passes regardless.
+          npx docgen bootstrap --cwd "$GITHUB_WORKSPACE" --dry-run
 
   determinism:
     runs-on: ubuntu-latest
@@ -55,3 +59,12 @@ jobs:
           cp -r packages/docgen/tests/fixtures/express-service/docs/generated /tmp/first
           node packages/docgen/dist/cli.js extract --cwd packages/docgen/tests/fixtures/express-service --quiet
           diff -r /tmp/first packages/docgen/tests/fixtures/express-service/docs/generated
+
+      - name: The CI gate agrees with what extract just wrote
+        run: |
+          node packages/docgen/dist/cli.js check --cwd packages/docgen/tests/fixtures/express-service --quiet
+
+      - name: sync is a no-op on already-current output
+        run: |
+          node packages/docgen/dist/cli.js sync --cwd packages/docgen/tests/fixtures/express-service --json > /tmp/sync.json
+          grep -q '"written": \[\]' /tmp/sync.json

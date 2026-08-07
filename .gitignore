@@ -3,3 +3,8 @@ dist/
 coverage/
 *.tsbuildinfo
 .DS_Store
+
+# Output the CI determinism job generates inside the test fixtures. Committing
+# it would mean a fixture change silently passes review as a docs diff.
+packages/docgen/tests/fixtures/*/docs/generated/
+packages/docgen/tests/fixtures/*/.gitattributes
