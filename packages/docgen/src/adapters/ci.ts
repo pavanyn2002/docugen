@@ -76,3 +76,36 @@ ${steps.join('\n')}
 }
 
 export const GITHUB_WORKFLOW_PATH = '.github/workflows/docgen.yml';
+
+export const DEPENDABOT_PATH = '.github/dependabot.yml';
+
+/**
+ * Keep the pinned engine moving.
+ *
+ * The CI gate pins a docgen version deliberately, which is correct — an engine
+ * upgrade can legitimately change the output, and that should be a reviewed
+ * commit. The cost of pinning is that a fleet quietly ends up on a dozen
+ * different versions. A weekly update PR is what stops that without making an
+ * upgrade something anyone has to remember.
+ *
+ * Only written when a repo has no dependabot config: overwriting a team's own
+ * update policy to add one ecosystem would be a hostile thing for an install
+ * command to do.
+ */
+export function renderDependabotConfig(): string {
+  return `version: 2
+
+updates:
+  # Keeps @tatvaops/docgen moving so the fleet does not drift onto a dozen
+  # different engine versions. Review the diff: an engine upgrade can change
+  # the generated output, which is exactly why the version is pinned.
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    allow:
+      - dependency-name: "@tatvaops/docgen"
+    commit-message:
+      prefix: chore
+`;
+}

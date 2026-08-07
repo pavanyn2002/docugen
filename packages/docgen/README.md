@@ -177,7 +177,19 @@ docgen check --strict    # also fail on unanswered questions and untriaged answe
 
 `check` is the same computation without writing, and exits non-zero on any difference. It never calls a model, so it costs nothing per pull request and cannot be flaky. Three kinds of drift are reported separately — `changed`, `missing`, and `orphaned`. Orphaned matters most: a page describing something that no longer exists is worse than a stale one, because nothing about it looks wrong.
 
-`docgen init` writes a GitHub Actions workflow where the repo already uses Actions, pinned to the docgen version that installed it — an engine upgrade can legitimately change the output, and that should be a deliberate commit rather than a build that fails one morning for no reason anyone changed.
+`docgen init` writes a GitHub Actions workflow where the repo already uses Actions, pinned to the docgen version that installed it — an engine upgrade can legitimately change the output, and that should be a deliberate commit rather than a build that fails one morning for no reason anyone changed. Where docgen is a local dependency it also adds a weekly Dependabot rule so the pin still moves, unless the repo already has an update policy of its own.
+
+## Across many repositories
+
+```bash
+docgen status            # this repo's health, in one screen
+docgen status --json     # the same, for a script
+docgen fleet ../*/       # one dashboard over every repo
+```
+
+`status` pairs every count with what it is a count of. "12 requirements" says nothing on its own; "12 requirements across 40 surfaces, 34 of which nobody has described" says what to do next — and it ends by naming that next step.
+
+`fleet` runs the same collection over many repo roots and writes a single page. It is deliberately not a score: one number invites ranking teams against each other, which is how a documentation effort becomes something people game or resent. It shows the size of each gap and the next action per repo. A repo that cannot be read is listed as such rather than omitted — an absent row reads as "nothing to do here". Neither command calls a model, so running them over forty repositories costs nothing.
 
 ## Configuration
 

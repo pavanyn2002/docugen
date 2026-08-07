@@ -150,6 +150,29 @@ describe('installing adapters', () => {
     ]);
   });
 
+  it('adds an update policy only where docgen is a pinned dependency', async () => {
+    const local = await makeRepo({ '.github/workflows/test.yml': 'name: test\n' });
+    const outcomes = await installAdapters({ root: local, invocation: 'npx docgen' });
+    expect(outcomes.map((outcome) => outcome.file)).toContain('.github/dependabot.yml');
+
+    // Installed globally, so there is no dependency for dependabot to bump.
+    const globalInstall = await makeRepo({ '.github/workflows/test.yml': 'name: test\n' });
+    const none = await installAdapters({ root: globalInstall, invocation: 'docgen' });
+    expect(none.map((outcome) => outcome.file)).not.toContain('.github/dependabot.yml');
+  });
+
+  it('never overwrites an existing update policy', async () => {
+    const existing = 'version: 2\nupdates:\n  - package-ecosystem: docker\n';
+    const root = await makeRepo({
+      '.github/workflows/test.yml': 'name: test\n',
+      '.github/dependabot.yml': existing,
+    });
+
+    await installAdapters({ root, invocation: 'npx docgen' });
+
+    expect(await fs.readFile(path.join(root, '.github/dependabot.yml'), 'utf8')).toBe(existing);
+  });
+
   it('adds the CI gate only where GitHub Actions is already in use', async () => {
     const withActions = await makeRepo({ '.github/workflows/test.yml': 'name: test\n' });
     const outcomes = await installAdapters({ root: withActions, invocation: 'docgen' });

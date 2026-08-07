@@ -14,6 +14,8 @@ import { runTriageCommand } from './commands/triage.js';
 import { runSyncCommand } from './commands/sync.js';
 import { runCheckCommand } from './commands/check.js';
 import { runTraceCommand } from './commands/trace.js';
+import { runStatusCommand } from './commands/status.js';
+import { runFleetCommand } from './commands/fleet.js';
 import { createLogger } from './util/logger.js';
 import type { LogLevel } from './util/logger.js';
 import { describeUnknownError, isDocgenError } from './util/errors.js';
@@ -230,6 +232,36 @@ export function buildCli(): Command {
         cwd: globals.cwd ?? process.cwd(),
         ...(globals.config === undefined ? {} : { configFile: globals.config }),
         strict: commandOptions.strict === true,
+        json: commandOptions.json === true,
+        logger: createLogger({ level: resolveLogLevel(globals) }),
+      });
+    });
+
+  program
+    .command('status')
+    .description('documentation health for this repo, in one screen — no model, no cost')
+    .option('--json', 'machine-readable output on stdout', false)
+    .action(async (commandOptions: { json?: boolean }) => {
+      const globals = program.opts<GlobalOptions>();
+      await runStatusCommand({
+        cwd: globals.cwd ?? process.cwd(),
+        ...(globals.config === undefined ? {} : { configFile: globals.config }),
+        json: commandOptions.json === true,
+        logger: createLogger({ level: resolveLogLevel(globals) }),
+      });
+    });
+
+  program
+    .command('fleet')
+    .argument('<paths...>', 'repository roots to inspect')
+    .description('one dashboard across every repository docgen is installed in')
+    .option('-o, --out <path>', 'where to write the dashboard (default: docgen-fleet.md)')
+    .option('--json', 'machine-readable output on stdout', false)
+    .action(async (paths: string[], commandOptions: { out?: string; json?: boolean }) => {
+      const globals = program.opts<GlobalOptions>();
+      await runFleetCommand({
+        paths,
+        ...(commandOptions.out === undefined ? {} : { out: commandOptions.out }),
         json: commandOptions.json === true,
         logger: createLogger({ level: resolveLogLevel(globals) }),
       });

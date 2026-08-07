@@ -27,6 +27,14 @@ async function exists(candidate: string): Promise<boolean> {
   }
 }
 
+async function isDirectory(candidate: string): Promise<boolean> {
+  try {
+    return (await fs.stat(candidate)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 /** Find the config file in `root`, or undefined when the repo has none. */
 export async function findConfigFile(root: string): Promise<string | undefined> {
   const found: string[] = [];
@@ -96,6 +104,18 @@ export async function loadConfig(options: {
   configFile?: string;
 }): Promise<ResolvedConfig> {
   const root = path.resolve(options.root);
+
+  // Without this, a mistyped --cwd runs happily against nothing: every
+  // extractor finds zero entries, and the output looks like a repo that
+  // genuinely has no routes rather than a path that does not exist.
+  if (!(await isDirectory(root))) {
+    throw new DocgenError({
+      code: 'root-not-found',
+      message: `Not a directory: ${root}`,
+      remedy: 'Check the --cwd path. docgen needs the root of a repository that exists.',
+      file: root,
+    });
+  }
 
   let file: string | undefined;
   if (options.configFile !== undefined) {

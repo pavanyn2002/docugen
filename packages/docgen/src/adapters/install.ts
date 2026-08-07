@@ -3,7 +3,12 @@ import path from 'node:path';
 import { compareStrings } from '../util/sort.js';
 import { upsertManagedBlock } from './block.js';
 import { renderAgentInstructions, renderCursorRule } from './instructions.js';
-import { GITHUB_WORKFLOW_PATH, renderGithubWorkflow } from './ci.js';
+import {
+  DEPENDABOT_PATH,
+  GITHUB_WORKFLOW_PATH,
+  renderDependabotConfig,
+  renderGithubWorkflow,
+} from './ci.js';
 
 /**
  * Install the agent adapters.
@@ -15,7 +20,7 @@ import { GITHUB_WORKFLOW_PATH, renderGithubWorkflow } from './ci.js';
  * clutter is how a tool gets uninstalled.
  */
 
-export type AdapterId = 'agents' | 'claude' | 'cursor' | 'ci';
+export type AdapterId = 'agents' | 'claude' | 'cursor' | 'ci' | 'updates';
 
 export interface AdapterOutcome {
   readonly id: AdapterId;
@@ -76,6 +81,17 @@ export async function installAdapters(args: InstallArgs): Promise<readonly Adapt
         }),
       ),
     );
+  }
+
+  // Only where docgen is a pinned dependency, and only when the repo has no
+  // update policy of its own. Rewriting a team's dependabot config to add one
+  // ecosystem is not something an install command should do.
+  if (
+    args.invocation.startsWith('npx ') &&
+    (await exists(path.join(args.root, '.github'))) &&
+    !(await exists(path.join(args.root, DEPENDABOT_PATH)))
+  ) {
+    outcomes.push(await writeWholeFile(args.root, DEPENDABOT_PATH, 'updates', renderDependabotConfig()));
   }
 
   return outcomes.sort((a, b) => compareStrings(a.file, b.file));
