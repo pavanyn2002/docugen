@@ -140,6 +140,30 @@ Each classification gets a stable id — `REQ-checkout-01`, `BUG-checkout-01`, `
 
 The result is `docs/generated/requirements.md`: the only generated page that is `verified` end to end, and the only one that can be read as a specification. It states its own coverage — if answers are still untriaged, the page says how many and that whatever they establish is missing.
 
+## Traceability: what actually checks it
+
+```bash
+docgen trace             # link requirements to the tests citing them
+docgen trace --strict    # exit non-zero when any gap is non-empty
+docgen trace --json
+```
+
+A developer links a test by putting the requirement id in the test name or a comment — nothing else has to be maintained:
+
+```ts
+it('REQ-checkout-01: the user must resubmit after a provider timeout', () => { /* … */ });
+```
+
+This produces `test-cases.md` (one case per confirmed requirement or defect) and `traceability.md`. The matrix is not the point; the three gaps it exposes are, and each needs a different person:
+
+| Gap | Means |
+|---|---|
+| Requirement with no test | Behaviour someone agreed to, that nothing checks |
+| Test citing an unknown id | A broken link — a typo, or a requirement deleted out from under it |
+| Behaviour mapping to neither | A surface the model described and nobody confirmed. The largest gap, and the least visible. |
+
+Test cases state what must be true and leave the steps blank. docgen was never told how to reach those states, and invented steps send a tester down a path that does not exist — worse than an empty field.
+
 ## Keeping it current
 
 ```bash

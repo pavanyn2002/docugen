@@ -39,16 +39,6 @@ afterEach(async () => {
 });
 
 describe('CLI shape', () => {
-  it('registers every command named in the SPEC', () => {
-    const names = buildCli()
-      .commands.map((command) => command.name())
-      .sort();
-
-    expect(names).toEqual(
-      ['extract', 'report', 'bootstrap', 'ask', 'answer', 'triage', 'sync', 'check', 'init'].sort(),
-    );
-  });
-
   it('exposes the global options adapters will depend on', () => {
     const flags = buildCli()
       .options.map((option) => option.long)
@@ -59,9 +49,9 @@ describe('CLI shape', () => {
 });
 
 describe('command surface', () => {
-  // Adapters, CI jobs, and the instructions docgen writes into AGENTS.md all
-  // name these commands. Losing or renaming one silently breaks every repo the
-  // plugin has been installed into.
+  // Every command named in the SPEC, and the exact set that adapters, CI jobs,
+  // and the instructions docgen writes into AGENTS.md depend on. Losing or
+  // renaming one silently breaks every repo the plugin is installed into.
   it('registers every documented command', () => {
     const names = buildCli()
       .commands.map((command) => command.name())
@@ -76,6 +66,7 @@ describe('command surface', () => {
       'init',
       'report',
       'sync',
+      'trace',
       'triage',
     ]);
   });

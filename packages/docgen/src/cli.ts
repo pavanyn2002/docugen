@@ -13,6 +13,7 @@ import { runInitCommand } from './commands/init.js';
 import { runTriageCommand } from './commands/triage.js';
 import { runSyncCommand } from './commands/sync.js';
 import { runCheckCommand } from './commands/check.js';
+import { runTraceCommand } from './commands/trace.js';
 import { createLogger } from './util/logger.js';
 import type { LogLevel } from './util/logger.js';
 import { describeUnknownError, isDocgenError } from './util/errors.js';
@@ -217,6 +218,22 @@ export function buildCli(): Command {
         });
       },
     );
+
+  program
+    .command('trace')
+    .description('link requirements to the tests that check them, and report what is not covered')
+    .option('--strict', 'exit non-zero when any traceability gap is non-empty', false)
+    .option('--json', 'machine-readable output on stdout', false)
+    .action(async (commandOptions: { strict?: boolean; json?: boolean }) => {
+      const globals = program.opts<GlobalOptions>();
+      await runTraceCommand({
+        cwd: globals.cwd ?? process.cwd(),
+        ...(globals.config === undefined ? {} : { configFile: globals.config }),
+        strict: commandOptions.strict === true,
+        json: commandOptions.json === true,
+        logger: createLogger({ level: resolveLogLevel(globals) }),
+      });
+    });
 
   program
     .command('init')

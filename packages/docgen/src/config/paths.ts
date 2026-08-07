@@ -16,3 +16,22 @@ export const ANSWERS_DIR = 'docs/.answers';
 
 /** Triaged requirements, bugs, and decisions. Also human-authored. */
 export const REQUIREMENTS_DIR = 'docs/.requirements';
+
+/**
+ * Where tests that cite a requirement id are looked for.
+ *
+ * Broad on purpose: docgen runs on any stack, and a test directory this misses
+ * is reported as a requirement nothing covers — a false alarm that makes the
+ * whole traceability matrix untrustworthy.
+ */
+export const DEFAULT_TEST_GLOBS: readonly string[] = Object.freeze([
+  '**/*.{test,spec}.{ts,tsx,js,jsx,mjs,cjs}',
+  '**/test_*.py',
+  '**/*_test.{py,go,rb}',
+  '**/*Test.{java,kt,cs}',
+  '**/*Spec.{java,kt,scala}',
+  '**/tests/**/*.{ts,js,py,go,rb,java,kt,cs,php}',
+  '**/__tests__/**/*.{ts,tsx,js,jsx}',
+  '**/spec/**/*.{rb,ts,js}',
+  '**/*.feature',
+]);

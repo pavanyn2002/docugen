@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DEFAULT_TEST_GLOBS } from './paths.js';
 import { EXTRACTOR_IDS } from '../types/core.js';
 
 /**
@@ -28,6 +29,7 @@ export const ALWAYS_EXCLUDE: readonly string[] = Object.freeze([
   // are docgen's own bookkeeping, not source material to be documented.
   '**/docs/.cards/**',
   '**/docs/.answers/**',
+  '**/docs/.requirements/**',
 ]);
 
 /** Node-count ceiling above which a diagram aggregates instead of emitting a hairball (SPEC 6.3). */
@@ -122,6 +124,20 @@ export const docgenConfigSchema = z
 
     /** Append `docs/generated/** linguist-generated=true` to .gitattributes (SPEC 6.2). */
     gitattributes: z.boolean().default(true),
+
+    /**
+     * Where to look for tests citing a requirement id.
+     *
+     * Overridable because "what counts as a test" varies enormously across
+     * stacks, and a test directory this misses is reported as a requirement
+     * nothing covers — a false alarm that makes the whole matrix untrustworthy.
+     */
+    trace: z
+      .object({
+        include: globList.default([...DEFAULT_TEST_GLOBS]),
+      })
+      .strict()
+      .default({}),
 
     /**
      * Phase 1 inference. Every setting here costs money when `docgen bootstrap`

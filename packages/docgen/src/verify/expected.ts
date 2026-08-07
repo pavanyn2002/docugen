@@ -9,9 +9,13 @@ import { loadAnswers } from '../questions/store.js';
 import { loadRequirements } from '../requirements/store.js';
 import { buildPending } from '../requirements/pending.js';
 import { renderRequirementsPage } from '../requirements/render.js';
+import { scanTestReferences } from '../trace/scan.js';
+import { buildMatrix } from '../trace/matrix.js';
+import { renderTestCasesPage, renderTraceabilityPage } from '../trace/render.js';
 import type { RunResult } from '../pipeline.js';
 import { compareStrings } from '../util/sort.js';
 import { toPosix } from '../util/paths.js';
+import { ALWAYS_EXCLUDE } from '../config/schema.js';
 
 /**
  * Every file docgen would write, given the current code and the current stores.
@@ -69,6 +73,27 @@ export async function computeExpectedFiles(run: RunResult): Promise<readonly Ren
         pendingCount: buildPending({ cards, answers, requirements }).length,
       }),
     });
+
+    // Traceability only exists once something has been triaged. Emitting an
+    // empty matrix beforehand would read as "nothing is traced" rather than
+    // "nothing has been decided yet", which are very different problems.
+    const references = await scanTestReferences({
+      root,
+      globs: run.config.trace.include,
+      exclude: [...run.config.exclude, ...ALWAYS_EXCLUDE],
+    });
+    const matrix = buildMatrix({ requirements, cards, references, answers });
+
+    files.push(
+      {
+        path: `${outDir}/test-cases.md`,
+        contents: renderTestCasesPage({ matrix, context: run.context, outDir }),
+      },
+      {
+        path: `${outDir}/traceability.md`,
+        contents: renderTraceabilityPage({ matrix, context: run.context, outDir }),
+      },
+    );
   }
 
   return files.sort((a, b) => compareStrings(a.path, b.path));
