@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    strategy:
+      # docgen ships to developers on whatever Node they have, and its output
+      # must be byte-identical across all of them.
+      matrix:
+        node: ['20.11', '22', '24']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+      # The package must contain a working binary, not just pass its tests.
+      - name: Verify the published artifact runs
+        run: |
+          npm pack --workspace @tatvaops/docgen --pack-destination /tmp
+          mkdir -p /tmp/consumer && cd /tmp/consumer
+          npm init -y >/dev/null
+          npm install /tmp/tatvaops-docgen-*.tgz
+          npx docgen --version
+          npx docgen extract --cwd "$GITHUB_WORKSPACE" --dry-run
+
+  determinism:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+      # Output that differs between runs would make every regeneration a diff.
+      - name: Generated output is byte-identical across runs
+        run: |
+          node packages/docgen/dist/cli.js extract --cwd packages/docgen/tests/fixtures/express-service --quiet
+          cp -r packages/docgen/tests/fixtures/express-service/docs/generated /tmp/first
+          node packages/docgen/dist/cli.js extract --cwd packages/docgen/tests/fixtures/express-service --quiet
+          diff -r /tmp/first packages/docgen/tests/fixtures/express-service/docs/generated

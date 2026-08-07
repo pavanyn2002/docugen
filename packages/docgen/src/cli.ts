@@ -68,13 +68,15 @@ export function buildCli(): Command {
 
   program
     .command('report')
-    .description('coverage summary, counts, and gap lists')
+    .description('coverage summary, counts, and cross-extractor findings')
+    .option('--full', 'list every finding item rather than a preview', false)
     .option('--json', 'machine-readable output on stdout', false)
-    .action(async (commandOptions: { json?: boolean }) => {
+    .action(async (commandOptions: { json?: boolean; full?: boolean }) => {
       const globals = program.opts<GlobalOptions>();
       await runReportCommand({
         cwd: globals.cwd ?? process.cwd(),
         ...(globals.config === undefined ? {} : { configFile: globals.config }),
+        full: commandOptions.full === true,
         json: commandOptions.json === true,
         logger: createLogger({ level: resolveLogLevel(globals) }),
       });
@@ -93,7 +95,38 @@ export function buildCli(): Command {
   return program;
 }
 
+/** Lowest Node that supports the language features and APIs used here. */
+const MINIMUM_NODE_MAJOR = 20;
+const MINIMUM_NODE_MINOR = 11;
+
+/**
+ * Check the runtime before doing anything.
+ *
+ * On an older Node the failure would otherwise be a syntax error deep in a
+ * dependency, which tells a developer nothing about what to fix.
+ */
+export function checkNodeVersion(version: string): string | undefined {
+  const match = /^v?(\d+)\.(\d+)/.exec(version);
+  if (match === null) return undefined;
+
+  const major = Number(match[1]);
+  const minor = Number(match[2]);
+  if (major > MINIMUM_NODE_MAJOR) return undefined;
+  if (major === MINIMUM_NODE_MAJOR && minor >= MINIMUM_NODE_MINOR) return undefined;
+
+  return (
+    `docgen requires Node ${MINIMUM_NODE_MAJOR}.${MINIMUM_NODE_MINOR} or newer, but this is ${version}. ` +
+    'Upgrade Node, or run it with npx from a newer runtime.'
+  );
+}
+
 export async function main(argv: readonly string[]): Promise<number> {
+  const versionProblem = checkNodeVersion(process.version);
+  if (versionProblem !== undefined) {
+    process.stderr.write(`error ${versionProblem}\n`);
+    return 1;
+  }
+
   // Must run before buildCli(), which builds coloured command descriptions.
   configureColors(
     resolveColorEnabled({ argv, env: process.env, stream: process.stderr }),

@@ -20,6 +20,10 @@ export const ALWAYS_EXCLUDE: readonly string[] = Object.freeze([
   '**/coverage/**',
   '**/__snapshots__/**',
   '**/*.min.js',
+  // docgen must never document its own output. Without this a second run reads
+  // the first run's files, and any `.env`-shaped or code-shaped content in them
+  // feeds back into the results.
+  '**/docs/generated/**',
 ]);
 
 /** Node-count ceiling above which a diagram aggregates instead of emitting a hairball (SPEC 6.3). */

@@ -18,6 +18,8 @@ import { renderSchemaPage } from './pages/schema.js';
 import { renderErd, renderIntegrations, renderModules, renderSitemap } from './diagrams.js';
 import { chunkSurfaces } from '../surface/chunk.js';
 import { compareStrings } from '../util/sort.js';
+import { computeFindings } from '../analysis/findings.js';
+import type { FindingsReport } from '../analysis/findings.js';
 
 /** A file to write: repo-relative POSIX path and its full contents. */
 export interface RenderedFile {
@@ -31,7 +33,7 @@ export interface RenderedFile {
  * Pure: it performs no I/O, so the same run always produces the same bytes and
  * a test can assert that without touching a disk.
  */
-export function renderAll(run: RunResult): readonly RenderedFile[] {
+export function renderAll(run: RunResult, findings?: FindingsReport): readonly RenderedFile[] {
   const outDir = run.config.outDir.split(path.sep).join('/').replace(/\/+$/, '');
   const context = run.context;
   const stack = run.stack;
@@ -62,7 +64,7 @@ export function renderAll(run: RunResult): readonly RenderedFile[] {
   });
 
   const files: RenderedFile[] = [
-    { path: `${outDir}/README.md`, contents: renderReadme(run) },
+    { path: `${outDir}/README.md`, contents: renderReadme(run, findings) },
   ];
 
   // A section whose extractor did not run is omitted rather than written empty:
@@ -133,7 +135,8 @@ export interface WriteReport {
  * different bytes on different machines and defeat the whole point.
  */
 export async function writeAll(run: RunResult): Promise<WriteReport> {
-  const files = renderAll(run);
+  const findings = await computeFindings(run);
+  const files = renderAll(run, findings);
   const written: string[] = [];
 
   for (const file of files) {

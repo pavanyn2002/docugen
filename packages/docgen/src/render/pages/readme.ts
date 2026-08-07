@@ -1,7 +1,9 @@
 import type { ExtractorId } from '../../types/core.js';
 import type { RunResult } from '../../pipeline.js';
 import { EXTRACTOR_IDS } from '../../types/core.js';
-import { cell, renderFrontMatter, section, table, warning } from '../markdown.js';
+import { cell, renderFrontMatter, section, sourceLink, table, warning } from '../markdown.js';
+import type { FindingsReport } from '../../analysis/findings.js';
+import { sortItems } from '../../analysis/findings.js';
 
 /** Page filenames, so the index and the writer cannot disagree. */
 export const PAGE_FILES: Readonly<Record<ExtractorId, string | undefined>> = Object.freeze({
@@ -29,7 +31,7 @@ const PAGE_TITLES: Readonly<Record<ExtractorId, string>> = Object.freeze({
  * It also carries the coverage summary, because this is where a reader arrives
  * first and therefore where the limits of the documentation have to be stated.
  */
-export function renderReadme(run: RunResult): string {
+export function renderReadme(run: RunResult, findings?: FindingsReport): string {
   const head = renderFrontMatter({
     title: 'Generated documentation',
     confidence: 'verified',
@@ -137,6 +139,10 @@ export function renderReadme(run: RunResult): string {
     );
   }
 
+  if (findings !== undefined) {
+    body += renderFindingsSection(findings, run.config.outDir);
+  }
+
   body += section(
     'How to read this',
     [
@@ -151,4 +157,60 @@ export function renderReadme(run: RunResult): string {
   );
 
   return body;
+}
+
+/**
+ * Cross-extractor findings (SPEC 6.4).
+ *
+ * Rendered as observations with their evidence. Each says what it compared and
+ * what it cannot prove, because a list of "dead code" that turns out to be
+ * loaded dynamically destroys trust in every other line on the page.
+ */
+function renderFindingsSection(report: FindingsReport, outDir: string): string {
+  let body = '';
+
+  for (const finding of report.findings) {
+    if (finding.unavailable !== undefined) {
+      body += section(finding.title, `_Not run: ${finding.unavailable}_
+`, 3);
+      continue;
+    }
+    if (finding.items.length === 0) {
+      body += section(finding.title, `${finding.description}
+
+_None found._
+`, 3);
+      continue;
+    }
+
+    const rows = sortItems(finding.items);
+    body += section(
+      `${finding.title} (${rows.length})`,
+      `${finding.description}
+
+${table(
+        [
+          { header: 'Item', render: (item: (typeof rows)[number]) => `\`${item.label}\`` },
+          { header: 'Detail', render: (item: (typeof rows)[number]) => cell(item.detail) },
+          {
+            header: 'Source',
+            render: (item: (typeof rows)[number]) =>
+              item.source === undefined || item.source.file === item.label
+                ? '—'
+                : sourceLink(item.source, outDir),
+          },
+        ],
+        rows,
+      )}`,
+      3,
+    );
+  }
+
+  return section(
+    `Findings (${report.totalItems})`,
+    `These compare one extractor's output against another's. They are observations for a human to
+judge, not defects.
+
+${body}`,
+  );
 }
