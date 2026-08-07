@@ -31,7 +31,12 @@ const PAGE_TITLES: Readonly<Record<ExtractorId, string>> = Object.freeze({
  * It also carries the coverage summary, because this is where a reader arrives
  * first and therefore where the limits of the documentation have to be stated.
  */
-export function renderReadme(run: RunResult, findings?: FindingsReport): string {
+export function renderReadme(
+  run: RunResult,
+  findings?: FindingsReport,
+  /** Whether inferred behaviour pages exist alongside this one. */
+  hasBehaviour = false,
+): string {
   const head = renderFrontMatter({
     title: 'Generated documentation',
     confidence: 'verified',
@@ -96,6 +101,22 @@ export function renderReadme(run: RunResult, findings?: FindingsReport): string 
       ],
       rows,
     ),
+  );
+
+  // Linked, but kept firmly separate from the table above. The statement that
+  // nothing here was model-generated is true of every page in that table, and
+  // it must stay true — so the inferred lane gets its own section with its own
+  // warning rather than a row that would quietly contradict it.
+  body += section(
+    'Behaviour (inferred, not verified)',
+    hasBehaviour
+      ? '[Behaviour documentation](behaviour.md) describes what each surface *does*, as inferred ' +
+        'by a language model reading the code. It is **not** covered by the statement above: ' +
+        'nothing in it has been verified except lines a developer answered explicitly.\n'
+      : 'Not generated. `docgen extract` documents structure — what routes, endpoints, tables and ' +
+        'jobs exist. It cannot say what any of them *do*.\n\n' +
+        'Run `docgen bootstrap` to infer behaviour, which costs money and produces unverified ' +
+        'content that must be reviewed.\n',
   );
 
   body += section(

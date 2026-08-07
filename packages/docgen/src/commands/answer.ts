@@ -1,6 +1,10 @@
 import { colors } from '../util/colors.js';
 import { loadConfig } from '../config/load.js';
 import { loadCards } from '../infer/store.js';
+import { writeBehaviourPages } from '../infer/write-behaviour.js';
+import { resolveCommitInfo } from '../util/git.js';
+import { ENGINE_VERSION } from '../util/version.js';
+import { toPosix } from '../util/paths.js';
 import { loadAnswers, recordAnswer } from '../questions/store.js';
 import { currentGitEmail } from '../questions/queue.js';
 import { DocgenError } from '../util/errors.js';
@@ -85,6 +89,21 @@ export async function runAnswerCommand(options: AnswerCommandOptions): Promise<v
     },
   });
 
+  // Re-render immediately, so the answer is visible as `verified` in the docs
+  // without waiting for the next (paid) bootstrap. Nothing here calls a model:
+  // the cards already exist, and only the answer overlay has changed.
+  const commit = await resolveCommitInfo(config.root);
+  await writeBehaviourPages({
+    root: config.root,
+    outDir: toPosix(config.outDir),
+    cards: [...cards.values()],
+    answers: await loadAnswers(config.root),
+    context: {
+      engineVersion: ENGINE_VERSION,
+      ...(commit === undefined ? {} : { sourceCommit: commit.sha, generatedAt: commit.committedAt }),
+    },
+  });
+
   options.logger.heading('Answer recorded');
   options.logger.info(`  surface   ${card.slug}`);
   options.logger.info(`  question  ${unknown.question}`);
@@ -92,7 +111,12 @@ export async function runAnswerCommand(options: AnswerCommandOptions): Promise<v
   if (previous !== undefined) {
     options.logger.info(`  ${colors().dim(`replaced a previous answer: ${previous.answer}`)}`);
   }
-  options.logger.info(`\n  ${colors().dim(`written to docs/.answers/${card.slug}.yaml`)}`);
+  options.logger.info(
+    `\n  ${colors().dim(
+      `recorded in docs/.answers/${card.slug}.yaml, and now shown as verified in ` +
+        `${toPosix(config.outDir)}/behaviour/${card.slug}.md`,
+    )}`,
+  );
   options.logger.info(
     `  ${colors().dim(
       'This is now ground truth: it will be shown as verified, injected into every future ' +

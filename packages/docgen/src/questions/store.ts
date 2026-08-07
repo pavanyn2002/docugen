@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import YAML from 'yaml';
 import { DocgenError, describeUnknownError } from '../util/errors.js';
+import { ANSWERS_DIR } from '../config/paths.js';
 import { toPosix } from '../util/paths.js';
 import { compareStrings } from '../util/sort.js';
 
@@ -37,7 +38,7 @@ export interface SurfaceAnswers {
 }
 
 /** Answers live beside the docs but are authored by humans, not generated. */
-export const ANSWERS_DIR = 'docs/.answers';
+export { ANSWERS_DIR } from '../config/paths.js';
 
 function answerFile(root: string, slug: string): string {
   return path.join(root, ANSWERS_DIR, `${slug}.yaml`);

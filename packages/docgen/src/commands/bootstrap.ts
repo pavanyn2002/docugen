@@ -5,6 +5,8 @@ import { chunkSurfaces } from '../surface/chunk.js';
 import { resolveBackend, probeBackends } from '../agents/registry.js';
 import { inferCards } from '../infer/cards.js';
 import { loadCards, saveCards } from '../infer/store.js';
+import { writeBehaviourPages } from '../infer/write-behaviour.js';
+import { writeAll } from '../render/index.js';
 import { loadAnswers } from '../questions/store.js';
 import { buildQueue, resolveOwners } from '../questions/queue.js';
 import type {
@@ -14,6 +16,7 @@ import type {
   RoutesResult,
   SchemaResult,
 } from '../types/entries.js';
+import { toPosix } from '../util/paths.js';
 import type { Logger } from '../util/logger.js';
 
 export interface BootstrapCommandOptions {
@@ -127,6 +130,18 @@ export async function runBootstrapCommand(options: BootstrapCommandOptions): Pro
   });
 
   const written = await saveCards(config.root, result.cards);
+  const pages = await writeBehaviourPages({
+    root: config.root,
+    outDir: toPosix(config.outDir),
+    cards: result.cards,
+    answers,
+    context: run.context,
+  });
+
+  // Rewrite the static docs too, so the README links the behaviour pages in the
+  // same run that created them. This is the static lane doing static work — it
+  // reads only that the card directory is non-empty, never what is in it.
+  await writeAll(run);
 
   const filesBySurface = new Map(surfaceSet.surfaces.map((s) => [s.id, s.sourceFiles]));
   const owners = await resolveOwners({ root: config.root, cards: result.cards, filesBySurface });
@@ -134,7 +149,8 @@ export async function runBootstrapCommand(options: BootstrapCommandOptions): Pro
 
   options.logger.heading('Result');
   options.logger.info(`  cards     ${result.cards.length} (${result.reused.length} reused unchanged)`);
-  options.logger.info(`  written   ${written.length} files under docs/.cards/`);
+  options.logger.info(`  written   ${written.length} card(s) under docs/.cards/`);
+  options.logger.info(`  pages     ${pages.length} under ${toPosix(config.outDir)}/`);
   options.logger.info(`  questions ${queue.questions.length} open`);
 
   if (result.failures.length > 0) {

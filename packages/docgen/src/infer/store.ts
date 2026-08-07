@@ -5,6 +5,7 @@ import YAML from 'yaml';
 import { DocgenError, describeUnknownError } from '../util/errors.js';
 import { toPosix } from '../util/paths.js';
 import { compareStrings } from '../util/sort.js';
+import { CARDS_DIR } from '../config/paths.js';
 import { featureCardSchema } from './types.js';
 import type { FeatureCard } from './types.js';
 
@@ -16,7 +17,7 @@ import type { FeatureCard } from './types.js';
  * regeneration. Keeping them in the repo means CI reuses a developer's work
  * instead of re-running every surface on every build.
  */
-export const CARDS_DIR = 'docs/.cards';
+export { CARDS_DIR } from '../config/paths.js';
 
 export async function loadCards(root: string): Promise<ReadonlyMap<string, FeatureCard>> {
   const files = (await fg([`${CARDS_DIR}/*.yaml`], { cwd: root, onlyFiles: true }))

@@ -19,6 +19,8 @@ export interface PageMeta {
   readonly context: GenerationContext;
   /** Only README carries a timestamp; every other page must stay stable. */
   readonly includeTimestamp?: boolean;
+  /** Command that regenerates this page. Defaults to the static-lane one. */
+  readonly regenerateWith?: string;
 }
 
 /**
@@ -41,7 +43,9 @@ export function renderFrontMatter(meta: PageMeta): string {
   }
   lines.push('---', '', GENERATED_MARKER, '');
   lines.push(
-    `<!-- Do not edit by hand. Regenerate with \`docgen extract\`; changes here will be lost. -->`,
+    `<!-- Do not edit by hand. Regenerate with \`${
+      meta.regenerateWith ?? 'docgen extract'
+    }\`; changes here will be lost. -->`,
     '',
     '',
   );

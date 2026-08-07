@@ -17,6 +17,7 @@ import { renderRoutesPage } from './pages/routes.js';
 import { renderSchemaPage } from './pages/schema.js';
 import { renderErd, renderIntegrations, renderModules, renderSitemap } from './diagrams.js';
 import { chunkSurfaces } from '../surface/chunk.js';
+import { CARDS_DIR } from '../config/paths.js';
 import { compareStrings } from '../util/sort.js';
 import { computeFindings } from '../analysis/findings.js';
 import type { FindingsReport } from '../analysis/findings.js';
@@ -33,7 +34,11 @@ export interface RenderedFile {
  * Pure: it performs no I/O, so the same run always produces the same bytes and
  * a test can assert that without touching a disk.
  */
-export function renderAll(run: RunResult, findings?: FindingsReport): readonly RenderedFile[] {
+export function renderAll(
+  run: RunResult,
+  findings?: FindingsReport,
+  hasBehaviour = false,
+): readonly RenderedFile[] {
   const outDir = run.config.outDir.split(path.sep).join('/').replace(/\/+$/, '');
   const context = run.context;
   const stack = run.stack;
@@ -64,7 +69,7 @@ export function renderAll(run: RunResult, findings?: FindingsReport): readonly R
   });
 
   const files: RenderedFile[] = [
-    { path: `${outDir}/README.md`, contents: renderReadme(run, findings) },
+    { path: `${outDir}/README.md`, contents: renderReadme(run, findings, hasBehaviour) },
   ];
 
   // A section whose extractor did not run is omitted rather than written empty:
@@ -136,7 +141,7 @@ export interface WriteReport {
  */
 export async function writeAll(run: RunResult): Promise<WriteReport> {
   const findings = await computeFindings(run);
-  const files = renderAll(run, findings);
+  const files = renderAll(run, findings, await hasInferredCards(run.config.root));
   const written: string[] = [];
 
   for (const file of files) {
@@ -150,6 +155,22 @@ export async function writeAll(run: RunResult): Promise<WriteReport> {
     run.config.gitattributes && (await ensureGitattributes(run.config.root, run.config.outDir));
 
   return { written, outDir: run.config.outDir, gitattributesUpdated };
+}
+
+/**
+ * Whether any surface has been described by the LLM lane.
+ *
+ * Checked on the filesystem rather than by importing the card store, which
+ * lives on the other side of the import boundary. The README only needs to know
+ * that inferred pages exist, not what is in them.
+ */
+async function hasInferredCards(root: string): Promise<boolean> {
+  try {
+    const entries = await fs.readdir(path.join(root, CARDS_DIR));
+    return entries.some((entry) => entry.endsWith('.yaml'));
+  } catch {
+    return false;
+  }
 }
 
 function normaliseLineEndings(contents: string): string {
