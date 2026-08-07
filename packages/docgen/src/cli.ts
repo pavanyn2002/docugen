@@ -11,7 +11,8 @@ import { runAskCommand } from './commands/ask.js';
 import { runAnswerCommand } from './commands/answer.js';
 import { runInitCommand } from './commands/init.js';
 import { runTriageCommand } from './commands/triage.js';
-import { PLANNED_COMMANDS, runStub } from './commands/stub.js';
+import { runSyncCommand } from './commands/sync.js';
+import { runCheckCommand } from './commands/check.js';
 import { createLogger } from './util/logger.js';
 import type { LogLevel } from './util/logger.js';
 import { describeUnknownError, isDocgenError } from './util/errors.js';
@@ -155,6 +156,38 @@ export function buildCli(): Command {
     );
 
   program
+    .command('sync')
+    .description('bring every generated file up to date — no model, no cost')
+    .option('--dry-run', 'report what would change without writing', false)
+    .option('--json', 'machine-readable output on stdout', false)
+    .action(async (commandOptions: { dryRun?: boolean; json?: boolean }) => {
+      const globals = program.opts<GlobalOptions>();
+      await runSyncCommand({
+        cwd: globals.cwd ?? process.cwd(),
+        ...(globals.config === undefined ? {} : { configFile: globals.config }),
+        dryRun: commandOptions.dryRun === true,
+        json: commandOptions.json === true,
+        logger: createLogger({ level: resolveLogLevel(globals) }),
+      });
+    });
+
+  program
+    .command('check')
+    .description('CI gate: fail when the committed documentation is out of date')
+    .option('--strict', 'also fail on unanswered questions and untriaged answers', false)
+    .option('--json', 'machine-readable output on stdout', false)
+    .action(async (commandOptions: { strict?: boolean; json?: boolean }) => {
+      const globals = program.opts<GlobalOptions>();
+      await runCheckCommand({
+        cwd: globals.cwd ?? process.cwd(),
+        ...(globals.config === undefined ? {} : { configFile: globals.config }),
+        strict: commandOptions.strict === true,
+        json: commandOptions.json === true,
+        logger: createLogger({ level: resolveLogLevel(globals) }),
+      });
+    });
+
+  program
     .command('triage')
     .argument('[surface]', 'surface slug — omit for an interactive walk')
     .argument('[question-id]', 'question id, as shown by `docgen triage --list`')
@@ -198,16 +231,6 @@ export function buildCli(): Command {
         logger: createLogger({ level: resolveLogLevel(globals) }),
       });
     });
-
-  // Planned commands are registered now so the CLI surface is stable for
-  // adapters and CI wiring, and so `--help` documents the roadmap honestly.
-  for (const [name, planned] of Object.entries(PLANNED_COMMANDS)) {
-    program
-      .command(name)
-      .description(`${colors().dim(`[${planned.phase}]`)} ${planned.summary}`)
-      .allowUnknownOption(true)
-      .action(() => runStub(name));
-  }
 
   return program;
 }

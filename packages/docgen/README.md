@@ -140,7 +140,20 @@ Each classification gets a stable id — `REQ-checkout-01`, `BUG-checkout-01`, `
 
 The result is `docs/generated/requirements.md`: the only generated page that is `verified` end to end, and the only one that can be read as a specification. It states its own coverage — if answers are still untriaged, the page says how many and that whatever they establish is missing.
 
-Commands for later phases (`sync`, `check`) are registered but exit non-zero with a "not implemented" message, so CI wired against them fails rather than silently passing.
+## Keeping it current
+
+```bash
+docgen sync              # bring every generated file up to date — no model, no cost
+docgen sync --dry-run    # what would change
+docgen check             # CI gate: fail when the committed docs are out of date
+docgen check --strict    # also fail on unanswered questions and untriaged answers
+```
+
+`sync` re-renders from the current code and the committed cards and answers, writes only the files whose bytes actually differ, and deletes pages for surfaces that no longer exist. It deliberately does not re-infer: inference costs money and belongs to `bootstrap`, which caches per surface. The routine command has to be the cheap one, or it gets removed from CI.
+
+`check` is the same computation without writing, and exits non-zero on any difference. It never calls a model, so it costs nothing per pull request and cannot be flaky. Three kinds of drift are reported separately — `changed`, `missing`, and `orphaned`. Orphaned matters most: a page describing something that no longer exists is worse than a stale one, because nothing about it looks wrong.
+
+`docgen init` writes a GitHub Actions workflow where the repo already uses Actions, pinned to the docgen version that installed it — an engine upgrade can legitimately change the output, and that should be a deliberate commit rather than a build that fails one morning for no reason anyone changed.
 
 ## Configuration
 

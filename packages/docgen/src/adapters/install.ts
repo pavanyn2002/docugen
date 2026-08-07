@@ -3,6 +3,7 @@ import path from 'node:path';
 import { compareStrings } from '../util/sort.js';
 import { upsertManagedBlock } from './block.js';
 import { renderAgentInstructions, renderCursorRule } from './instructions.js';
+import { GITHUB_WORKFLOW_PATH, renderGithubWorkflow } from './ci.js';
 
 /**
  * Install the agent adapters.
@@ -14,7 +15,7 @@ import { renderAgentInstructions, renderCursorRule } from './instructions.js';
  * clutter is how a tool gets uninstalled.
  */
 
-export type AdapterId = 'agents' | 'claude' | 'cursor';
+export type AdapterId = 'agents' | 'claude' | 'cursor' | 'ci';
 
 export interface AdapterOutcome {
   readonly id: AdapterId;
@@ -27,6 +28,10 @@ export interface InstallArgs {
   readonly invocation: string;
   /** Install every adapter, not only the ones this repo shows evidence of. */
   readonly all?: boolean;
+  /** Default branch, for the CI workflow's triggers. */
+  readonly defaultBranch?: string;
+  /** Version to pin in CI when docgen is not a repo dependency. */
+  readonly version?: string;
 }
 
 export async function installAdapters(args: InstallArgs): Promise<readonly AdapterOutcome[]> {
@@ -48,6 +53,27 @@ export async function installAdapters(args: InstallArgs): Promise<readonly Adapt
         path.posix.join('.cursor', 'rules', 'docgen.mdc'),
         'cursor',
         renderCursorRule({ invocation: args.invocation }),
+      ),
+    );
+  }
+
+  // The gate goes in only where GitHub Actions is already the CI. Writing a
+  // workflow into a repo that uses something else is a file nobody runs and
+  // nobody deletes.
+  if (args.all === true || (await exists(path.join(args.root, '.github', 'workflows')))) {
+    outcomes.push(
+      await writeWholeFile(
+        args.root,
+        GITHUB_WORKFLOW_PATH,
+        'ci',
+        renderGithubWorkflow({
+          defaultBranch: args.defaultBranch ?? 'main',
+          // `npx docgen` is what `resolveInvocation` produces for a repo that
+          // declares docgen as a dependency; anything else means CI has to
+          // fetch it.
+          local: args.invocation.startsWith('npx '),
+          version: args.version ?? 'latest',
+        }),
       ),
     );
   }

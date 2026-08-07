@@ -144,9 +144,40 @@ describe('installing adapters', () => {
 
     expect(outcomes.map((outcome) => outcome.file).sort()).toEqual([
       '.cursor/rules/docgen.mdc',
+      '.github/workflows/docgen.yml',
       'AGENTS.md',
       'CLAUDE.md',
     ]);
+  });
+
+  it('adds the CI gate only where GitHub Actions is already in use', async () => {
+    const withActions = await makeRepo({ '.github/workflows/test.yml': 'name: test\n' });
+    const outcomes = await installAdapters({ root: withActions, invocation: 'docgen' });
+    expect(outcomes.map((outcome) => outcome.file)).toContain('.github/workflows/docgen.yml');
+
+    const without = await makeRepo();
+    const none = await installAdapters({ root: without, invocation: 'docgen' });
+    expect(none.map((outcome) => outcome.file)).not.toContain('.github/workflows/docgen.yml');
+  });
+
+  it('targets the branch the repo actually uses', async () => {
+    const root = await makeRepo({ '.github/workflows/test.yml': 'name: test\n' });
+    await installAdapters({ root, invocation: 'npx docgen', defaultBranch: 'develop' });
+
+    const workflow = await fs.readFile(path.join(root, '.github/workflows/docgen.yml'), 'utf8');
+    expect(workflow).toContain('branches: [develop]');
+    expect(workflow).toContain('npx docgen check');
+  });
+
+  it('fetches and pins docgen in CI when it is not a repo dependency', async () => {
+    // Otherwise the workflow runs `npm ci` in a repo that may have no manifest,
+    // then calls a `docgen` the runner never installed.
+    const root = await makeRepo({ '.github/workflows/test.yml': 'name: test\n' });
+    await installAdapters({ root, invocation: 'docgen', version: '1.2.3' });
+
+    const workflow = await fs.readFile(path.join(root, '.github/workflows/docgen.yml'), 'utf8');
+    expect(workflow).toContain('npx --yes @tatvaops/docgen@1.2.3 check');
+    expect(workflow).not.toContain('npm ci');
   });
 
   it('is idempotent', async () => {

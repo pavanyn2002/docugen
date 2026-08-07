@@ -4,7 +4,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { buildCli, main } from '../src/cli.js';
 import { parseOnly, runExtractCommand } from '../src/commands/extract.js';
-import { PLANNED_COMMANDS, runStub } from '../src/commands/stub.js';
 import { EXTRACTOR_IDS } from '../src/types/core.js';
 import { createLogger } from '../src/util/logger.js';
 import { DocgenError } from '../src/util/errors.js';
@@ -59,15 +58,31 @@ describe('CLI shape', () => {
   });
 });
 
-describe('planned command stubs', () => {
-  it.each(Object.keys(PLANNED_COMMANDS))('`%s` fails loudly rather than silently succeeding', (name) => {
-    // A CI job calling `docgen check` must not pass just because the gate is unbuilt.
-    expect(() => runStub(name)).toThrow(DocgenError);
-    try {
-      runStub(name);
-    } catch (error) {
-      expect((error as DocgenError).code).toBe('not-implemented');
-      expect((error as DocgenError).message).toContain('not implemented yet');
+describe('command surface', () => {
+  // Adapters, CI jobs, and the instructions docgen writes into AGENTS.md all
+  // name these commands. Losing or renaming one silently breaks every repo the
+  // plugin has been installed into.
+  it('registers every documented command', () => {
+    const names = buildCli()
+      .commands.map((command) => command.name())
+      .sort();
+
+    expect(names).toEqual([
+      'answer',
+      'ask',
+      'bootstrap',
+      'check',
+      'extract',
+      'init',
+      'report',
+      'sync',
+      'triage',
+    ]);
+  });
+
+  it('describes every command, so --help is usable', () => {
+    for (const command of buildCli().commands) {
+      expect(command.description()).not.toBe('');
     }
   });
 });
