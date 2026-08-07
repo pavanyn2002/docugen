@@ -24,6 +24,10 @@ export const ALWAYS_EXCLUDE: readonly string[] = Object.freeze([
   // the first run's files, and any `.env`-shaped or code-shaped content in them
   // feeds back into the results.
   '**/docs/generated/**',
+  // Same reason, for the Phase 1 stores: inferred cards and recorded answers
+  // are docgen's own bookkeeping, not source material to be documented.
+  '**/docs/.cards/**',
+  '**/docs/.answers/**',
 ]);
 
 /** Node-count ceiling above which a diagram aggregates instead of emitting a hairball (SPEC 6.3). */
@@ -118,6 +122,31 @@ export const docgenConfigSchema = z
 
     /** Append `docs/generated/** linguist-generated=true` to .gitattributes (SPEC 6.2). */
     gitattributes: z.boolean().default(true),
+
+    /**
+     * Phase 1 inference. Every setting here costs money when `docgen bootstrap`
+     * runs, so the defaults are conservative and the backend is whatever CLI
+     * the developer already has signed in.
+     */
+    infer: z
+      .object({
+        /**
+         * 'auto' picks the first available coding CLI. An explicitly named
+         * backend that is unavailable is an error rather than a silent
+         * downgrade — switching models changes both output and cost.
+         */
+        agent: z.enum(['auto', 'claude', 'codex', 'cursor', 'api']).default('auto'),
+        /** Model override. Omit to use whatever the backend defaults to. */
+        model: z.string().min(1).optional(),
+        /** Source files sent per surface. */
+        maxFilesPerSurface: z.number().int().positive().max(100).default(12),
+        maxBytesPerFile: z.number().int().positive().default(24_000),
+        maxBytesPerSurface: z.number().int().positive().default(120_000),
+        /** A large surface on a slow backend legitimately takes minutes. */
+        timeoutMs: z.number().int().positive().default(180_000),
+      })
+      .strict()
+      .default({}),
   })
   .strict();
 

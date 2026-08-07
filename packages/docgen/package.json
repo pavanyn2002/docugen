@@ -25,6 +25,7 @@
   },
   "files": [
     "dist",
+    "prompts",
     "LICENSE",
     "README.md"
   ],
@@ -44,6 +45,7 @@
     "picocolors": "^1.1.1",
     "picomatch": "^4.0.5",
     "typescript": "^5.9.3",
+    "yaml": "^2.9.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {

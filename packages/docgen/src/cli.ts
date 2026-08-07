@@ -6,6 +6,9 @@ import { Command } from 'commander';
 import { colors, configureColors, resolveColorEnabled } from './util/colors.js';
 import { runExtractCommand } from './commands/extract.js';
 import { runReportCommand } from './commands/report.js';
+import { runBootstrapCommand } from './commands/bootstrap.js';
+import { runAskCommand } from './commands/ask.js';
+import { runAnswerCommand } from './commands/answer.js';
 import { PLANNED_COMMANDS, runStub } from './commands/stub.js';
 import { createLogger } from './util/logger.js';
 import type { LogLevel } from './util/logger.js';
@@ -81,6 +84,73 @@ export function buildCli(): Command {
         logger: createLogger({ level: resolveLogLevel(globals) }),
       });
     });
+
+  program
+    .command('bootstrap')
+    .description('infer a feature card per surface using an LLM — this one costs money')
+    .option('--force', 'regenerate every surface, even unchanged ones', false)
+    .option('--limit <n>', 'only process the first N surfaces', (value: string) => Number(value))
+    .option('--dry-run', 'report what would run, and which backends are available', false)
+    .action(async (commandOptions: { force?: boolean; limit?: number; dryRun?: boolean }) => {
+      const globals = program.opts<GlobalOptions>();
+      await runBootstrapCommand({
+        cwd: globals.cwd ?? process.cwd(),
+        ...(globals.config === undefined ? {} : { configFile: globals.config }),
+        ...(commandOptions.limit === undefined ? {} : { limit: commandOptions.limit }),
+        force: commandOptions.force === true,
+        dryRun: commandOptions.dryRun === true,
+        logger: createLogger({ level: resolveLogLevel(globals) }),
+      });
+    });
+
+  program
+    .command('ask')
+    .description('list the open questions the model could not answer')
+    .option('--mine', 'only questions on code you last touched', false)
+    .option('--surface <slug>', 'only questions for one surface')
+    .option('--limit <n>', 'show at most N questions', (value: string) => Number(value))
+    .option('--json', 'machine-readable output on stdout', false)
+    .action(
+      async (commandOptions: { mine?: boolean; surface?: string; limit?: number; json?: boolean }) => {
+        const globals = program.opts<GlobalOptions>();
+        await runAskCommand({
+          cwd: globals.cwd ?? process.cwd(),
+          ...(globals.config === undefined ? {} : { configFile: globals.config }),
+          ...(commandOptions.surface === undefined ? {} : { surface: commandOptions.surface }),
+          ...(commandOptions.limit === undefined ? {} : { limit: commandOptions.limit }),
+          mine: commandOptions.mine === true,
+          json: commandOptions.json === true,
+          logger: createLogger({ level: resolveLogLevel(globals) }),
+        });
+      },
+    );
+
+  program
+    .command('answer')
+    .argument('<surface>', 'surface slug, as shown by `docgen ask`')
+    .argument('<question-id>', 'question id, as shown by `docgen ask`')
+    .argument('<answer>', 'the answer, or the number of one of the offered options')
+    .description('record an answer as ground truth — this is what makes a claim verified')
+    .option('--note <text>', 'additional context to record alongside the answer')
+    .action(
+      async (
+        surface: string,
+        questionId: string,
+        answer: string,
+        commandOptions: { note?: string },
+      ) => {
+        const globals = program.opts<GlobalOptions>();
+        await runAnswerCommand({
+          cwd: globals.cwd ?? process.cwd(),
+          ...(globals.config === undefined ? {} : { configFile: globals.config }),
+          ...(commandOptions.note === undefined ? {} : { note: commandOptions.note }),
+          surface,
+          questionId,
+          answer,
+          logger: createLogger({ level: resolveLogLevel(globals) }),
+        });
+      },
+    );
 
   // Planned commands are registered now so the CLI surface is stable for
   // adapters and CI wiring, and so `--help` documents the roadmap honestly.
