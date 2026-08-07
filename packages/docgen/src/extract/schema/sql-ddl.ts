@@ -6,6 +6,7 @@ import type { SchemaEntry, SchemaField, SchemaIndex, SchemaRelation } from '../.
 import { toPosix } from '../../util/paths.js';
 import { EMPTY_RESULT } from './types.js';
 import type { SchemaProvider, SchemaProviderContext, SchemaProviderResult } from './types.js';
+import { compareStrings } from '../../util/sort.js';
 
 /**
  * SQL DDL in migration files.
@@ -55,7 +56,7 @@ export const sqlDdlProvider: SchemaProvider = {
         indexes: table.indexes,
         relations: table.relations,
       }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .sort((a, b) =>compareStrings(a.name, b.name));
 
     return { entries, gaps };
   },

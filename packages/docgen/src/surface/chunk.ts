@@ -5,6 +5,7 @@ import { DocgenError } from '../util/errors.js';
 import { detectServicePrefix, endpointGroupKey, normalisePath } from './group.js';
 import { assignSlugs } from './slug.js';
 import type { Surface, SurfaceKind, SurfaceSet, UnassignedEntry } from './types.js';
+import { compareStrings } from '../util/sort.js';
 
 /** Route kinds that are a screen in their own right, versus ones that support screens. */
 const SCREEN_ROUTE_KINDS = new Set(['page', 'redirect']);
@@ -299,7 +300,7 @@ function finalise(
   notes: readonly string[],
 ): SurfaceSet {
   const ordered = [...drafts.values()].sort(
-    (a, b) => KIND_RANK[a.kind] - KIND_RANK[b.kind] || a.id.localeCompare(b.id),
+    (a, b) => KIND_RANK[a.kind] - KIND_RANK[b.kind] ||compareStrings(a.id, b.id),
   );
   const slugs = assignSlugs(ordered.map((draft) => draft.id));
 
@@ -318,8 +319,8 @@ function finalise(
 
   return {
     surfaces,
-    unassigned: [...unassigned].sort((a, b) => a.entryId.localeCompare(b.entryId)),
-    gaps: [...gaps].sort((a, b) => a.kind.localeCompare(b.kind) || a.message.localeCompare(b.message)),
+    unassigned: [...unassigned].sort((a, b) =>compareStrings(a.entryId, b.entryId)),
+    gaps: [...gaps].sort((a, b) =>compareStrings(a.kind, b.kind) ||compareStrings(a.message, b.message)),
     notes: [...notes].sort(),
   };
 }

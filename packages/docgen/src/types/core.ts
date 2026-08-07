@@ -129,6 +129,13 @@ export interface GenerationContext {
   readonly engineVersion: string;
   /** Full git SHA of the target repo, or undefined when not a git checkout. */
   readonly sourceCommit?: string;
-  /** ISO-8601. Rendered only into README.md — see SPEC 6.2. */
-  readonly generatedAt: string;
+  /**
+   * ISO-8601 date of the source commit, rendered only into README.md.
+   *
+   * Deliberately the commit date rather than the run time: a wall-clock stamp
+   * changes on every invocation and would produce a README diff even when the
+   * repository has not moved. Absent outside a git checkout, where there is no
+   * commit to date the documentation against.
+   */
+  readonly generatedAt?: string;
 }

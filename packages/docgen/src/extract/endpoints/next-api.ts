@@ -7,6 +7,7 @@ import { toPosix } from '../../util/paths.js';
 import { parseSourceFile, positionOf, ts, walk } from '../../util/ts-ast.js';
 import { parseAppSegments, parsePagesSegments, stripRouteExtension } from '../routes/segments.js';
 import { paramsOf } from './paths.js';
+import { compareStrings } from '../../util/sort.js';
 
 /**
  * Next.js API endpoints.
@@ -164,7 +165,7 @@ function exportedHandlerMethods(
     }
   }
 
-  return methods.sort((a, b) => a.method.localeCompare(b.method));
+  return methods.sort((a, b) =>compareStrings(a.method, b.method));
 }
 
 /** Exposed for tests. */

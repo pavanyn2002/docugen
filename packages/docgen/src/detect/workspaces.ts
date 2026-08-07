@@ -2,6 +2,7 @@ import fg from 'fast-glob';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { toPosix } from '../util/paths.js';
+import { compareStrings } from '../util/sort.js';
 
 /**
  * Sub-project discovery.
@@ -71,7 +72,7 @@ export async function findWorkspaces(
 
   return [...byDir.entries()]
     .map(([dir, manifests]) => ({ dir, manifests: [...manifests].sort() }))
-    .sort((a, b) => a.dir.localeCompare(b.dir));
+    .sort((a, b) =>compareStrings(a.dir, b.dir));
 }
 
 /** Read a file, returning undefined when it is absent. */

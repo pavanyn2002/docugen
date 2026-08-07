@@ -7,6 +7,7 @@ import { toPosix } from '../../util/paths.js';
 import { getProperty, literalString, parseSourceFile, positionOf, ts, walk } from '../../util/ts-ast.js';
 import { EMPTY_RESULT } from './types.js';
 import type { SchemaProvider, SchemaProviderContext, SchemaProviderResult } from './types.js';
+import { compareStrings } from '../../util/sort.js';
 
 /**
  * TypeORM entities and Sequelize models.
@@ -164,9 +165,9 @@ export function parseTypeormFile(
       name: tableName,
       kind: 'table',
       ...(tableName === className ? {} : { modelName: className }),
-      fields: [...fields].sort((a, b) => a.name.localeCompare(b.name)),
+      fields: [...fields].sort((a, b) =>compareStrings(a.name, b.name)),
       indexes: [],
-      relations: [...relations].sort((a, b) => a.field.localeCompare(b.field)),
+      relations: [...relations].sort((a, b) =>compareStrings(a.field, b.field)),
     });
   });
 
@@ -282,9 +283,9 @@ export function parseSequelizeFile(
       name: tableName,
       kind: 'table',
       ...(tableName === modelName ? {} : { modelName }),
-      fields: [...fields].sort((a, b) => a.name.localeCompare(b.name)),
+      fields: [...fields].sort((a, b) =>compareStrings(a.name, b.name)),
       indexes: [],
-      relations: [...relations].sort((a, b) => a.field.localeCompare(b.field)),
+      relations: [...relations].sort((a, b) =>compareStrings(a.field, b.field)),
     });
   });
 

@@ -8,6 +8,7 @@ import { detectRouters } from './detect.js';
 import { extractAppRoutes, extractPagesRoutes } from './next-fs.js';
 import { readMiddleware } from './middleware.js';
 import { extractReactRouterRoutes } from './react-router.js';
+import { compareStrings } from '../../util/sort.js';
 
 /**
  * Every user-facing route in the repo.
@@ -181,15 +182,12 @@ function resolveDuplicateIds(entries: readonly RouteEntry[]): {
 /** Deterministic ordering: path, then kind, then id. */
 function sortEntries(entries: readonly RouteEntry[]): readonly RouteEntry[] {
   return [...entries].sort(
-    (a, b) => a.path.localeCompare(b.path) || a.kind.localeCompare(b.kind) || a.id.localeCompare(b.id),
+    (a, b) =>compareStrings(a.path, b.path) ||compareStrings(a.kind, b.kind) ||compareStrings(a.id, b.id),
   );
 }
 
 function sortGaps(gaps: readonly Gap[]): readonly Gap[] {
   return [...gaps].sort(
-    (a, b) =>
-      a.kind.localeCompare(b.kind) ||
-      (a.source?.file ?? '').localeCompare(b.source?.file ?? '') ||
-      a.message.localeCompare(b.message),
+    (a, b) =>compareStrings(a.kind, b.kind) ||compareStrings((a.source?.file ?? ''), b.source?.file ?? '') ||compareStrings(a.message, b.message),
   );
 }

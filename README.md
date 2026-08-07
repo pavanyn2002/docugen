@@ -57,9 +57,25 @@ Requires Node 20.11 or newer.
 ## Usage
 
 ```bash
-docgen extract           # static analysis only — no LLM, no network, no cost
+docgen extract           # analyse and write docs/generated/ — no LLM, no network, no cost
+docgen extract --dry-run # report what would be generated, writing nothing
 docgen report            # coverage summary, counts, and gap lists
 ```
+
+`docgen extract` writes:
+
+```
+docs/generated/
+  README.md      index, coverage summary, detected stack
+  routes.md      every screen, with auth and params
+  api.md         every endpoint, grouped by resource
+  schema.md      tables and collections, fields, relations, indexes
+  jobs.md        queue consumers, crons, scheduled tasks
+  config.md      env vars: where read, where declared
+  diagrams/      sitemap, erd, modules, integrations (Mermaid .mmd)
+```
+
+Output is byte-identical across runs, so regenerating produces no diff unless the code changed. The date in `README.md` comes from the source commit, not the clock, for the same reason.
 
 Useful flags:
 
@@ -69,6 +85,7 @@ Useful flags:
 | `-c, --config <path>` | explicit config path (default: auto-discover) |
 | `--only <ids>` | restrict to certain extractors, e.g. `routes,schema` |
 | `-o, --out <path>` | override the output directory |
+| `--dry-run` | analyse and report without writing files |
 | `--json` | machine-readable output on stdout |
 | `--verbose` / `--quiet` | diagnostic level |
 

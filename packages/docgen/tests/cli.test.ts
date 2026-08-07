@@ -201,13 +201,25 @@ describe('docgen extract', () => {
     expect(stdout.join('')).not.toMatch(/durationMs/i);
   });
 
-  it('performs no writes to the target repo', async () => {
+  // --dry-run must leave the repo untouched, so it is safe to run anywhere.
+  it('performs no writes with --dry-run', async () => {
     const root = await makeRepo({ 'package.json': '{"name":"x"}' });
     const before = (await fs.readdir(root)).sort();
     const { logger } = captureLogger();
 
-    await runExtractCommand({ cwd: root, json: false, logger });
+    await runExtractCommand({ cwd: root, dryRun: true, json: false, logger });
 
     expect((await fs.readdir(root)).sort()).toEqual(before);
+  });
+
+  it('writes the documentation set by default', async () => {
+    const root = await makeRepo({ 'package.json': '{"name":"x"}' });
+    const { logger } = captureLogger();
+
+    await runExtractCommand({ cwd: root, json: false, logger });
+
+    await expect(fs.readFile(path.join(root, 'docs/generated/README.md'), 'utf8')).resolves.toContain(
+      'Generated documentation',
+    );
   });
 });

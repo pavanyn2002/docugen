@@ -5,7 +5,7 @@ import { getExtractors, getUnimplementedIds } from './extract/registry.js';
 import type { ExtractorContext } from './extract/types.js';
 import { detectStack } from './detect/stack.js';
 import type { StackReport } from './detect/stack.js';
-import { resolveSourceCommit } from './util/git.js';
+import { resolveCommitInfo } from './util/git.js';
 import { ENGINE_VERSION } from './util/version.js';
 import type { Logger } from './util/logger.js';
 
@@ -32,8 +32,6 @@ export interface RunOptions {
   readonly logger: Logger;
   /** Restrict the run to these extractors (`--only`). Undefined means "all enabled". */
   readonly only?: readonly ExtractorId[];
-  /** Injectable clock so tests can assert byte-determinism. */
-  readonly now?: () => Date;
 }
 
 /**
@@ -68,14 +66,12 @@ export async function runExtraction(options: RunOptions): Promise<RunResult> {
     results.set(extractor.id, result);
   }
 
-  const sourceCommit = await resolveSourceCommit(config.root);
-  const now = options.now?.() ?? new Date();
+  const commit = await resolveCommitInfo(config.root);
 
   return {
     context: {
       engineVersion: ENGINE_VERSION,
-      ...(sourceCommit === undefined ? {} : { sourceCommit }),
-      generatedAt: now.toISOString(),
+      ...(commit === undefined ? {} : { sourceCommit: commit.sha, generatedAt: commit.committedAt }),
     },
     config,
     stack,

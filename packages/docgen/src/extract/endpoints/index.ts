@@ -7,6 +7,7 @@ import { extractExpressEndpoints } from './express.js';
 import { extractNextApiEndpoints } from './next-api.js';
 import { extractNestEndpoints } from './nest.js';
 import { crossCheckAgainstSpec } from './openapi.js';
+import { compareStrings } from '../../util/sort.js';
 
 /**
  * Every API endpoint the repo serves.
@@ -81,13 +82,10 @@ export const endpointsExtractor: Extractor<EndpointEntry> = {
       applicable: true,
       detected: [...detected].sort(),
       entries: [...crossCheck.annotated].sort(
-        (a, b) => a.path.localeCompare(b.path) || a.method.localeCompare(b.method),
+        (a, b) =>compareStrings(a.path, b.path) ||compareStrings(a.method, b.method),
       ),
       gaps: [...gaps, ...duplicateGaps, ...crossCheck.gaps].sort(
-        (a, b) =>
-          a.kind.localeCompare(b.kind) ||
-          (a.source?.file ?? '').localeCompare(b.source?.file ?? '') ||
-          a.message.localeCompare(b.message),
+        (a, b) =>compareStrings(a.kind, b.kind) ||compareStrings((a.source?.file ?? ''), b.source?.file ?? '') ||compareStrings(a.message, b.message),
       ),
       skips,
       durationMs: Date.now() - startedAt,

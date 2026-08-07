@@ -6,6 +6,7 @@ import type { SchemaEntry, SchemaField, SchemaRelation } from '../../types/entri
 import { toPosix } from '../../util/paths.js';
 import { EMPTY_RESULT } from './types.js';
 import type { SchemaProvider, SchemaProviderContext, SchemaProviderResult } from './types.js';
+import { compareStrings } from '../../util/sort.js';
 
 /**
  * Django and SQLAlchemy models.
@@ -160,9 +161,9 @@ export function parsePythonModels(
       name: resolved,
       kind: 'table',
       ...(resolved === className ? {} : { modelName: className }),
-      fields: [...fields].sort((a, b) => a.name.localeCompare(b.name)),
+      fields: [...fields].sort((a, b) =>compareStrings(a.name, b.name)),
       indexes: [],
-      relations: [...relations].sort((a, b) => a.field.localeCompare(b.field)),
+      relations: [...relations].sort((a, b) =>compareStrings(a.field, b.field)),
     });
   }
 

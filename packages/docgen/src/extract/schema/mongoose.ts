@@ -7,6 +7,7 @@ import { toPosix } from '../../util/paths.js';
 import { getProperty, literalString, parseSourceFile, positionOf, ts, walk } from '../../util/ts-ast.js';
 import { EMPTY_RESULT } from './types.js';
 import type { SchemaProvider, SchemaProviderContext, SchemaProviderResult } from './types.js';
+import { compareStrings } from '../../util/sort.js';
 
 /**
  * Mongoose schemas, read from the AST.
@@ -139,10 +140,14 @@ export function parseMongooseFile(
       ts.isObjectLiteralExpression(options) &&
       getProperty(options, 'timestamps')?.kind === ts.SyntaxKind.TrueKeyword
     ) {
-      // Mongoose adds these itself; documenting the collection without them
-      // would understate what is actually stored.
-      fields.push({ name: 'createdAt', type: 'Date', nullable: false });
-      fields.push({ name: 'updatedAt', type: 'Date', nullable: false });
+      // Mongoose adds these itself, so documenting the collection without them
+      // would understate what is stored. A schema that also declares them
+      // explicitly keeps its own definition — adding a second row for the same
+      // column would describe a document shape that does not exist.
+      for (const name of ['createdAt', 'updatedAt']) {
+        if (fields.some((field) => field.name === name)) continue;
+        fields.push({ name, type: 'Date', nullable: false });
+      }
     }
 
     if (collection === undefined) {
@@ -164,9 +169,9 @@ export function parseMongooseFile(
       name,
       kind: 'collection',
       ...(variableName === undefined || variableName === name ? {} : { modelName: variableName }),
-      fields: [...fields].sort((a, b) => a.name.localeCompare(b.name)),
+      fields: [...fields].sort((a, b) =>compareStrings(a.name, b.name)),
       indexes: variableName === undefined ? [] : (indexesByVariable.get(variableName) ?? []),
-      relations: [...relations].sort((a, b) => a.field.localeCompare(b.field)),
+      relations: [...relations].sort((a, b) =>compareStrings(a.field, b.field)),
     });
   });
 

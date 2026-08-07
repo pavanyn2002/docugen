@@ -51,14 +51,16 @@ export function buildCli(): Command {
     .description('static analysis only — no LLM, no network, no cost')
     .option('-o, --out <path>', 'override output directory')
     .option('--only <ids>', 'comma-separated extractors, e.g. routes,schema')
+    .option('--dry-run', 'report what would be generated without writing files', false)
     .option('--json', 'machine-readable output on stdout', false)
-    .action(async (commandOptions: { out?: string; only?: string; json?: boolean }) => {
+    .action(async (commandOptions: { out?: string; only?: string; json?: boolean; dryRun?: boolean }) => {
       const globals = program.opts<GlobalOptions>();
       await runExtractCommand({
         cwd: globals.cwd ?? process.cwd(),
         ...(globals.config === undefined ? {} : { configFile: globals.config }),
         ...(commandOptions.out === undefined ? {} : { outDir: commandOptions.out }),
         ...(commandOptions.only === undefined ? {} : { only: commandOptions.only }),
+        dryRun: commandOptions.dryRun === true,
         json: commandOptions.json === true,
         logger: createLogger({ level: resolveLogLevel(globals) }),
       });

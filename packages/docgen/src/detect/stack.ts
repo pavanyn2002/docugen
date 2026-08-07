@@ -7,6 +7,7 @@ import { TECH_SIGNATURES } from './signatures.js';
 import type { TechCategory } from './signatures.js';
 import { findWorkspaces, readIfPresent } from './workspaces.js';
 import type { Workspace } from './workspaces.js';
+import { compareStrings } from '../util/sort.js';
 
 export interface DetectedTechnology {
   readonly id: string;
@@ -205,7 +206,7 @@ export async function detectStack(args: {
   }
 
   const technologies = [...found.values()].sort(
-    (a, b) => a.category.localeCompare(b.category) || a.id.localeCompare(b.id),
+    (a, b) =>compareStrings(a.category, b.category) ||compareStrings(a.id, b.id),
   );
 
   return {

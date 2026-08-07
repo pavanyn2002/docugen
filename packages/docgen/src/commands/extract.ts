@@ -5,8 +5,10 @@ import type { ExtractorId } from '../types/core.js';
 import { loadConfig } from '../config/load.js';
 import { runExtraction } from '../pipeline.js';
 import type { RunResult } from '../pipeline.js';
+import { writeAll } from '../render/index.js';
 import { DocgenError } from '../util/errors.js';
 import type { Logger } from '../util/logger.js';
+import { compareStrings } from '../util/sort.js';
 
 export interface ExtractCommandOptions {
   readonly cwd: string;
@@ -14,6 +16,8 @@ export interface ExtractCommandOptions {
   readonly outDir?: string;
   readonly only?: string;
   readonly json: boolean;
+  /** Skip writing files; report what would be produced. */
+  readonly dryRun?: boolean;
   readonly logger: Logger;
 }
 
@@ -41,8 +45,8 @@ export function parseOnly(value: string | undefined): readonly ExtractorId[] | u
 /**
  * `docgen extract` — the static lane. No network, no LLM, no cost.
  *
- * Rendering is not wired up yet; this currently reports what the pipeline
- * found so the CLI shape and config plumbing can be verified end to end.
+ * Extracts, renders, and writes the documentation set. Use --dry-run to see
+ * what would be produced without touching the target repo.
  */
 export async function runExtractCommand(options: ExtractCommandOptions): Promise<RunResult> {
   const only = parseOnly(options.only);
@@ -60,13 +64,38 @@ export async function runExtractCommand(options: ExtractCommandOptions): Promise
     ...(only === undefined ? {} : { only }),
   });
 
+  const write = options.dryRun !== true;
+  const report = write ? await writeAll(result) : undefined;
+
   if (options.json) {
-    options.logger.output(JSON.stringify(serialiseRunResult(result), null, 2));
+    options.logger.output(
+      JSON.stringify({ ...(serialiseRunResult(result) as object), written: report?.written ?? [] }, null, 2),
+    );
     return result;
   }
 
   reportRun(result, options.logger);
+  reportWrites(report, options.dryRun === true, options.logger);
   return result;
+}
+
+function reportWrites(
+  report: { written: readonly string[]; outDir: string; gitattributesUpdated: boolean } | undefined,
+  dryRun: boolean,
+  logger: Logger,
+): void {
+  if (dryRun) {
+    logger.heading('Output');
+    logger.info(`  ${colors().dim('--dry-run: no files were written')}`);
+    return;
+  }
+  if (report === undefined) return;
+
+  logger.heading(`Written (${report.written.length})`);
+  for (const file of report.written) logger.info(`  ${file}`);
+  if (report.gitattributesUpdated) {
+    logger.info(`  ${colors().dim('.gitattributes updated with linguist-generated')}`);
+  }
 }
 
 /** JSON shape for `--json`. Excludes durations, which are not reproducible. */
@@ -120,7 +149,7 @@ function reportRun(result: RunResult, logger: Logger): void {
 
   if (result.results.size > 0) {
     logger.heading('Extractors');
-    for (const [id, value] of [...result.results.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+    for (const [id, value] of [...result.results.entries()].sort(([a], [b]) =>compareStrings(a, b))) {
       const status = value.applicable ? `${value.entries.length} entries` : colors().dim('not applicable');
       const gaps = value.gaps.length > 0 ? colors().yellow(` ${value.gaps.length} gaps`) : '';
       logger.info(`  ${id.padEnd(10)} ${status}${gaps}`);

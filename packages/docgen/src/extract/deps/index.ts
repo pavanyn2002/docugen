@@ -8,6 +8,7 @@ import { toPosix } from '../../util/paths.js';
 import { literalString, parseSourceFile, ts } from '../../util/ts-ast.js';
 import type { Extractor, ExtractorContext } from '../types.js';
 import { inapplicable, skip } from '../types.js';
+import { compareStrings } from '../../util/sort.js';
 
 /**
  * The internal module dependency graph.
@@ -120,9 +121,9 @@ export const depsExtractor: Extractor<ModuleEntry> = {
       extractor: 'deps',
       applicable: true,
       detected: ['typescript-imports'],
-      entries: entries.sort((a, b) => a.module.localeCompare(b.module)),
+      entries: entries.sort((a, b) =>compareStrings(a.module, b.module)),
       gaps: gaps.sort(
-        (a, b) => a.kind.localeCompare(b.kind) || (a.source?.file ?? '').localeCompare(b.source?.file ?? ''),
+        (a, b) =>compareStrings(a.kind, b.kind) ||compareStrings((a.source?.file ?? ''), b.source?.file ?? ''),
       ),
       skips,
       cycles,
@@ -219,7 +220,7 @@ export function findCycles(entries: readonly ModuleEntry[]): readonly (readonly 
   }
 
   return [...found.values()].sort(
-    (a, b) => a.length - b.length || a.join('|').localeCompare(b.join('|')),
+    (a, b) => a.length - b.length || compareStrings(a.join('|'), b.join('|')),
   );
 }
 

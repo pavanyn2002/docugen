@@ -9,6 +9,7 @@ import { sqlDdlProvider } from './sql-ddl.js';
 import { typeormProvider, sequelizeProvider } from './decorated-orm.js';
 import { pythonModelsProvider } from './python-models.js';
 import type { SchemaProvider } from './types.js';
+import { compareStrings } from '../../util/sort.js';
 
 /**
  * Every table and collection the repo defines.
@@ -87,12 +88,9 @@ export const schemaExtractor: Extractor<SchemaEntry> = {
       extractor: 'schema',
       applicable: true,
       detected: [...detected].sort(),
-      entries: [...deduped].sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id)),
+      entries: [...deduped].sort((a, b) =>compareStrings(a.name, b.name) ||compareStrings(a.id, b.id)),
       gaps: [...gaps, ...duplicateGaps].sort(
-        (a, b) =>
-          a.kind.localeCompare(b.kind) ||
-          (a.source?.file ?? '').localeCompare(b.source?.file ?? '') ||
-          a.message.localeCompare(b.message),
+        (a, b) =>compareStrings(a.kind, b.kind) ||compareStrings((a.source?.file ?? ''), b.source?.file ?? '') ||compareStrings(a.message, b.message),
       ),
       skips,
       durationMs: Date.now() - startedAt,

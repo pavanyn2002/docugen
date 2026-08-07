@@ -6,6 +6,7 @@ import type { SchemaEntry, SchemaField, SchemaIndex, SchemaRelation } from '../.
 import { toPosix } from '../../util/paths.js';
 import { EMPTY_RESULT } from './types.js';
 import type { SchemaProvider, SchemaProviderContext, SchemaProviderResult } from './types.js';
+import { compareStrings } from '../../util/sort.js';
 
 /**
  * Prisma schema files.
@@ -159,7 +160,7 @@ export function parsePrismaSchema(
       ...(tableName === modelName ? {} : { modelName }),
       fields: sortFields(fields),
       indexes,
-      relations: [...relations].sort((a, b) => a.field.localeCompare(b.field)),
+      relations: [...relations].sort((a, b) =>compareStrings(a.field, b.field)),
     });
   }
 
