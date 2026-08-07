@@ -9,6 +9,7 @@ import { runReportCommand } from './commands/report.js';
 import { runBootstrapCommand } from './commands/bootstrap.js';
 import { runAskCommand } from './commands/ask.js';
 import { runAnswerCommand } from './commands/answer.js';
+import { runInitCommand } from './commands/init.js';
 import { PLANNED_COMMANDS, runStub } from './commands/stub.js';
 import { createLogger } from './util/logger.js';
 import type { LogLevel } from './util/logger.js';
@@ -151,6 +152,20 @@ export function buildCli(): Command {
         });
       },
     );
+
+  program
+    .command('init')
+    .description('make the question queue reachable from the coding agent already in this repo')
+    .option('--all', 'install every adapter, not only the ones this repo uses', false)
+    .action(async (commandOptions: { all?: boolean }) => {
+      const globals = program.opts<GlobalOptions>();
+      await runInitCommand({
+        cwd: globals.cwd ?? process.cwd(),
+        ...(globals.config === undefined ? {} : { configFile: globals.config }),
+        all: commandOptions.all === true,
+        logger: createLogger({ level: resolveLogLevel(globals) }),
+      });
+    });
 
   // Planned commands are registered now so the CLI surface is stable for
   // adapters and CI wiring, and so `--help` documents the roadmap honestly.
