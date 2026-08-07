@@ -17,7 +17,7 @@ import { renderRoutesPage } from './pages/routes.js';
 import { renderSchemaPage } from './pages/schema.js';
 import { renderErd, renderIntegrations, renderModules, renderSitemap } from './diagrams.js';
 import { chunkSurfaces } from '../surface/chunk.js';
-import { CARDS_DIR } from '../config/paths.js';
+import { CARDS_DIR, REQUIREMENTS_DIR } from '../config/paths.js';
 import { compareStrings } from '../util/sort.js';
 import { computeFindings } from '../analysis/findings.js';
 import type { FindingsReport } from '../analysis/findings.js';
@@ -37,7 +37,7 @@ export interface RenderedFile {
 export function renderAll(
   run: RunResult,
   findings?: FindingsReport,
-  hasBehaviour = false,
+  lanes: { behaviour?: boolean; requirements?: boolean } = {},
 ): readonly RenderedFile[] {
   const outDir = run.config.outDir.split(path.sep).join('/').replace(/\/+$/, '');
   const context = run.context;
@@ -69,7 +69,7 @@ export function renderAll(
   });
 
   const files: RenderedFile[] = [
-    { path: `${outDir}/README.md`, contents: renderReadme(run, findings, hasBehaviour) },
+    { path: `${outDir}/README.md`, contents: renderReadme(run, findings, lanes) },
   ];
 
   // A section whose extractor did not run is omitted rather than written empty:
@@ -141,7 +141,10 @@ export interface WriteReport {
  */
 export async function writeAll(run: RunResult): Promise<WriteReport> {
   const findings = await computeFindings(run);
-  const files = renderAll(run, findings, await hasInferredCards(run.config.root));
+  const files = renderAll(run, findings, {
+    behaviour: await hasFilesIn(run.config.root, CARDS_DIR),
+    requirements: await hasFilesIn(run.config.root, REQUIREMENTS_DIR),
+  });
   const written: string[] = [];
 
   for (const file of files) {
@@ -164,9 +167,9 @@ export async function writeAll(run: RunResult): Promise<WriteReport> {
  * lives on the other side of the import boundary. The README only needs to know
  * that inferred pages exist, not what is in them.
  */
-async function hasInferredCards(root: string): Promise<boolean> {
+async function hasFilesIn(root: string, directory: string): Promise<boolean> {
   try {
-    const entries = await fs.readdir(path.join(root, CARDS_DIR));
+    const entries = await fs.readdir(path.join(root, directory));
     return entries.some((entry) => entry.endsWith('.yaml'));
   } catch {
     return false;

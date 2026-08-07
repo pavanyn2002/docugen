@@ -10,6 +10,7 @@ import { runBootstrapCommand } from './commands/bootstrap.js';
 import { runAskCommand } from './commands/ask.js';
 import { runAnswerCommand } from './commands/answer.js';
 import { runInitCommand } from './commands/init.js';
+import { runTriageCommand } from './commands/triage.js';
 import { PLANNED_COMMANDS, runStub } from './commands/stub.js';
 import { createLogger } from './util/logger.js';
 import type { LogLevel } from './util/logger.js';
@@ -148,6 +149,37 @@ export function buildCli(): Command {
           surface,
           questionId,
           answer,
+          logger: createLogger({ level: resolveLogLevel(globals) }),
+        });
+      },
+    );
+
+  program
+    .command('triage')
+    .argument('[surface]', 'surface slug — omit for an interactive walk')
+    .argument('[question-id]', 'question id, as shown by `docgen triage --list`')
+    .argument('[kind]', 'requirement | bug | decision | context')
+    .description('decide what each answer means: intended behaviour, a defect, or a decision')
+    .option('--list', 'show what is waiting and change nothing', false)
+    .option('--json', 'machine-readable output on stdout', false)
+    .option('--note <text>', 'additional context to record with the classification')
+    .action(
+      async (
+        surface: string | undefined,
+        questionId: string | undefined,
+        kind: string | undefined,
+        commandOptions: { list?: boolean; json?: boolean; note?: string },
+      ) => {
+        const globals = program.opts<GlobalOptions>();
+        await runTriageCommand({
+          cwd: globals.cwd ?? process.cwd(),
+          ...(globals.config === undefined ? {} : { configFile: globals.config }),
+          ...(surface === undefined ? {} : { surface }),
+          ...(questionId === undefined ? {} : { questionId }),
+          ...(kind === undefined ? {} : { kind }),
+          ...(commandOptions.note === undefined ? {} : { note: commandOptions.note }),
+          list: commandOptions.list === true,
+          json: commandOptions.json === true,
           logger: createLogger({ level: resolveLogLevel(globals) }),
         });
       },

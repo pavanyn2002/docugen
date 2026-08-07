@@ -2,7 +2,6 @@ import { DocgenError } from '../util/errors.js';
 
 /** Phase each not-yet-built command belongs to, for an honest error message. */
 export const PLANNED_COMMANDS: Readonly<Record<string, { phase: string; summary: string }>> = Object.freeze({
-  triage: { phase: 'Phase 2', summary: 'work the unknown queue interactively into requirements' },
   sync: { phase: 'Phase 4', summary: 'regenerate only the surfaces a diff touched' },
   check: { phase: 'Phase 4', summary: 'CI gate that fails on documentation drift' },
 });

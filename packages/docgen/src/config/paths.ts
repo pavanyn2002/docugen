@@ -13,3 +13,6 @@ export const CARDS_DIR = 'docs/.cards';
 
 /** Recorded developer answers. Human-authored ground truth, never regenerated. */
 export const ANSWERS_DIR = 'docs/.answers';
+
+/** Triaged requirements, bugs, and decisions. Also human-authored. */
+export const REQUIREMENTS_DIR = 'docs/.requirements';

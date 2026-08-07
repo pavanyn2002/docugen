@@ -34,8 +34,8 @@ const PAGE_TITLES: Readonly<Record<ExtractorId, string>> = Object.freeze({
 export function renderReadme(
   run: RunResult,
   findings?: FindingsReport,
-  /** Whether inferred behaviour pages exist alongside this one. */
-  hasBehaviour = false,
+  /** Whether the LLM lane has produced anything alongside this page. */
+  lanes: { behaviour?: boolean; requirements?: boolean } = {},
 ): string {
   const head = renderFrontMatter({
     title: 'Generated documentation',
@@ -109,7 +109,7 @@ export function renderReadme(
   // warning rather than a row that would quietly contradict it.
   body += section(
     'Behaviour (inferred, not verified)',
-    hasBehaviour
+    lanes.behaviour === true
       ? '[Behaviour documentation](behaviour.md) describes what each surface *does*, as inferred ' +
         'by a language model reading the code. It is **not** covered by the statement above: ' +
         'nothing in it has been verified except lines a developer answered explicitly.\n'
@@ -117,6 +117,18 @@ export function renderReadme(
         'jobs exist. It cannot say what any of them *do*.\n\n' +
         'Run `docgen bootstrap` to infer behaviour, which costs money and produces unverified ' +
         'content that must be reviewed.\n',
+  );
+
+  // Requirements are the one generated page that is verified end to end, so it
+  // is stated separately from both the structural pages and the inferred ones.
+  body += section(
+    'Requirements (verified)',
+    lanes.requirements === true
+      ? '[Requirements](requirements.md) — behaviour a named developer confirmed and classified, ' +
+        'with a stable id per entry. This is the only generated page that can be read as a ' +
+        'specification.\n'
+      : 'Nothing has been triaged yet. Answer questions with `docgen ask`, then run ' +
+        '`docgen triage` to record what those answers mean.\n',
   );
 
   body += section(

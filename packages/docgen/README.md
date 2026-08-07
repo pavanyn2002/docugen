@@ -126,7 +126,21 @@ docs/.cards/                    inferred cards (data; regenerated)
 docs/.answers/                  developer answers (ground truth; never regenerated)
 ```
 
-Commands for later phases (`triage`, `sync`, `check`) are registered but exit non-zero with a "not implemented" message, so CI wired against them fails rather than silently passing.
+## Requirements: what it *should* do
+
+An answer establishes what happens. It does not establish whether that is intended — and those lead to opposite outcomes: one becomes a requirement QA tests against, the other becomes a bug nobody had filed. Only a developer can tell them apart.
+
+```bash
+docgen triage                  # interactive: one keystroke per answered question
+docgen triage --list --json    # what is waiting, machine-readable
+docgen triage <surface> <question-id> <requirement|bug|decision|context>
+```
+
+Each classification gets a stable id — `REQ-checkout-01`, `BUG-checkout-01`, `ADR-checkout-01` — scoped to its surface, so two developers triaging different surfaces never collide and no shared counter needs coordinating. Ids are never reused, because a test or a ticket may already quote one.
+
+The result is `docs/generated/requirements.md`: the only generated page that is `verified` end to end, and the only one that can be read as a specification. It states its own coverage — if answers are still untriaged, the page says how many and that whatever they establish is missing.
+
+Commands for later phases (`sync`, `check`) are registered but exit non-zero with a "not implemented" message, so CI wired against them fails rather than silently passing.
 
 ## Configuration
 
