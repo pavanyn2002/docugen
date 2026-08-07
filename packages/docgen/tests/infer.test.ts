@@ -12,6 +12,7 @@ import { loadAnswers, recordAnswer, renderAnswersForPrompt } from '../src/questi
 import { buildQueue } from '../src/questions/queue.js';
 import { resolveAnswerText } from '../src/commands/answer.js';
 import { getBackend, resolveBackend } from '../src/agents/registry.js';
+import { buildInvocation, pickExecutable } from '../src/agents/cli-backend.js';
 import { DocgenError } from '../src/util/errors.js';
 import { createLogger } from '../src/util/logger.js';
 import type { AgentBackend, AgentOutcome, AgentRequest } from '../src/agents/types.js';
@@ -612,6 +613,40 @@ describe('answer selection', () => {
 
   it('says so when the question offered no options at all', () => {
     expect(() => resolveAnswerText('1', [])).toThrow(/no numbered options/);
+  });
+});
+
+describe('spawning a CLI backend', () => {
+  it('spawns a real executable directly', () => {
+    const invocation = buildInvocation('C:\\bin\\claude.exe', ['-p']);
+    expect(invocation).toEqual({ command: 'C:\\bin\\claude.exe', args: ['-p'], verbatim: false });
+  });
+
+  it('runs a .cmd shim through the interpreter, since Node cannot spawn one', () => {
+    const invocation = buildInvocation('C:\\npm\\codex.cmd', ['exec', '-']);
+    expect(invocation.command.toLowerCase()).toContain('cmd');
+    expect(invocation.verbatim).toBe(true);
+    expect(invocation.args).toEqual(['/d', '/s', '/c', '""C:\\npm\\codex.cmd" "exec" "-""']);
+  });
+
+  it('skips the extensionless shell script Windows lists beside the shim', () => {
+    const output = 'C:\\npm\\codex\r\nC:\\npm\\codex.cmd\r\n';
+    expect(pickExecutable(output, 'win32')).toBe('C:\\npm\\codex.cmd');
+  });
+
+  it('prefers a real executable over a shim when both are on PATH', () => {
+    const output = 'C:\\npm\\tool.cmd\r\nC:\\bin\\tool.exe\r\n';
+    expect(pickExecutable(output, 'win32')).toBe('C:\\bin\\tool.exe');
+  });
+
+  it('takes the first path on POSIX, where extensions carry no meaning', () => {
+    expect(pickExecutable('/usr/local/bin/claude\n/usr/bin/claude\n', 'linux')).toBe(
+      '/usr/local/bin/claude',
+    );
+  });
+
+  it('reports nothing when the probe found nothing', () => {
+    expect(pickExecutable('', 'win32')).toBeUndefined();
   });
 });
 
