@@ -149,6 +149,10 @@ export async function extractExpressEndpoints(args: {
     analyses.set(relative, analysis);
   }
 
+  // A file reaches `analyses` only with a registration, a mount, or a candidate
+  // router in a file that imports express — so anything here is genuine
+  // evidence. A repo where every router is unconfirmed still counts: producing
+  // silence there would be the "empty output looks like a clean repo" failure.
   if (analyses.size === 0) return { entries: [], gaps: [], found: false };
 
   // Resolve every mount to the file that declares the router it points at, so
@@ -255,10 +259,27 @@ function declaresMountableRouter(analysis: FileAnalysis): boolean {
   );
 }
 
+/** The module symbol a mount refers to: `routes` or `routes.default`. */
+function mountedSymbolName(argument: ts.Expression): string | undefined {
+  if (ts.isIdentifier(argument)) return argument.text;
+  if (
+    ts.isPropertyAccessExpression(argument) &&
+    ts.isIdentifier(argument.expression) &&
+    ts.isIdentifier(argument.name) &&
+    argument.name.text === 'default'
+  ) {
+    return argument.expression.text;
+  }
+  return undefined;
+}
+
 export function analyseFile(file: string, contents: string): FileAnalysis {
   const source = parseSourceFile(file, contents);
   const bindings = readModuleBindings(source);
 
+  const importsExpress = [...bindings.imports.values()].some(
+    (binding) => binding.specifier === 'express',
+  );
   const routerVariables = new Set<string>();
   const appVariables = new Set<string>();
   const registrations: Registration[] = [];
@@ -320,7 +341,11 @@ export function analyseFile(file: string, contents: string): FileAnalysis {
       // silent, but never emitted as an endpoint.
       const first = node.arguments[0];
       const candidatePath = literalString(first);
+      // Requiring express in the file keeps HTTP clients out: `axios.get('/api/x')`
+      // in a React app is a request, not a route, and reporting it as an
+      // unconfirmed router would claim the repo runs a server it does not.
       if (
+        importsExpress &&
         (HTTP_METHODS.has(methodName) || methodName === 'use') &&
         candidatePath !== undefined &&
         candidatePath.startsWith('/')
@@ -337,13 +362,11 @@ export function analyseFile(file: string, contents: string): FileAnalysis {
       if (prefix === undefined || !prefix.startsWith('/')) return;
 
       for (const argument of node.arguments.slice(1)) {
-        if (ts.isIdentifier(argument)) {
-          mounts.push({
-            routerVariable,
-            prefix,
-            symbol: argument.text,
-            line: position.line ?? 1,
-          });
+        // `app.use('/x', routes)` and the ESM/CJS interop form
+        // `app.use('/x', routes.default)` both mount the same module.
+        const symbol = mountedSymbolName(argument);
+        if (symbol !== undefined) {
+          mounts.push({ routerVariable, prefix, symbol, line: position.line ?? 1 });
         }
       }
       return;

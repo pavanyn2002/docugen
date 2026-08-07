@@ -146,8 +146,10 @@ describe('Express endpoints', () => {
   it('reports a router it could not confirm rather than staying silent', async () => {
     const root = await makeRepo({
       'package.json': '{"dependencies":{"express":"^4.19.0"}}',
-      // Untyped JS parameter: docgen cannot prove this is an Express app.
-      'src/app.js': "module.exports = (server) => {\n  server.get('/widgets', handler);\n};\n",
+      // Express is in scope, but the parameter is untyped JS so docgen cannot
+      // prove `server` is the app. Staying silent here would hide the routes.
+      'src/app.js':
+        "const express = require('express');\nmodule.exports = (server) => {\n  server.get('/widgets', handler);\n};\n",
     });
 
     const result = await runOn(root);
@@ -155,6 +157,57 @@ describe('Express endpoints', () => {
 
     expect(gap?.message).toContain('server');
     expect(result.entries).toEqual([]);
+  });
+
+  // Regression: `const r = await import('./routes')` inside a function body,
+  // mounted as `r.default`. Missing either form loses the prefix for every
+  // route in the module, documenting them all at a URL that 404s.
+  it('resolves a mount through a dynamic import and a .default access', async () => {
+    const root = await makeRepo({
+      'package.json': '{"dependencies":{"express":"^4.19.0"}}',
+      'src/routes/userRoutes.ts':
+        "import { Router } from 'express';\nconst router = Router();\nrouter.get('/:id', h);\nexport default router;\n",
+      'src/app.ts': `import express, { Application } from 'express';
+
+export default async (app: Application): Promise<void> => {
+  const userRoutes = await import('./routes/userRoutes');
+  app.use('/api/users', userRoutes.default);
+};
+`,
+    });
+
+    const result = await runOn(root);
+    expect(result.entries.map((entry) => entry.path)).toEqual(['/api/users/:id']);
+  });
+
+  it('resolves a mount through require()', async () => {
+    const root = await makeRepo({
+      'package.json': '{"dependencies":{"express":"^4.19.0"}}',
+      'src/routes/a.js':
+        "const { Router } = require('express');\nconst router = Router();\nrouter.get('/ping', h);\nmodule.exports = router;\n",
+      'src/app.js': `const express = require('express');
+const app = express();
+const a = require('./routes/a');
+app.use('/svc', a);
+`,
+    });
+
+    const result = await runOn(root);
+    expect(result.entries.map((entry) => entry.path)).toEqual(['/svc/ping']);
+  });
+
+  // An HTTP client call is a request, not a route. Reporting it would claim
+  // the repo runs a server it does not have.
+  it('ignores axios calls in a repo with no express', async () => {
+    const root = await makeRepo({
+      'package.json': '{"dependencies":{"axios":"^1.0.0","react":"19.0.0"}}',
+      'src/api.ts': "import axios from 'axios';\nexport const load = () => axios.get('/api/roles');\n",
+    });
+
+    const result = await runOn(root);
+
+    expect(result.applicable).toBe(false);
+    expect(result.gaps).toEqual([]);
   });
 
   it('reports a router that nothing mounts', async () => {

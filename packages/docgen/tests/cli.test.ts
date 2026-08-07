@@ -135,20 +135,16 @@ describe('docgen extract', () => {
     expect(stderr.join('')).toContain('docgen extract');
   });
 
-  // Unbuilt extractors must be named, rather than the command implying it
-  // scanned the repo for them and found nothing.
-  it('names the extractors that are not implemented yet', async () => {
+  // Every SPEC extractor is now implemented, so nothing should be reported as
+  // missing. The mechanism stays tested so a future addition cannot go silent.
+  it('reports no unimplemented extractors now that all six exist', async () => {
     const root = await makeRepo();
-    const { logger, stderr } = captureLogger();
+    const { logger } = captureLogger();
 
     const result = await runExtractCommand({ cwd: root, json: false, logger });
 
-    const registered = new Set(result.results.keys());
-    expect([...result.unimplemented].sort()).toEqual(
-      EXTRACTOR_IDS.filter((id) => !registered.has(id)).sort(),
-    );
-    expect(result.unimplemented).not.toContain('routes');
-    expect(stderr.join('')).toContain('not implemented yet');
+    expect([...result.results.keys()].sort()).toEqual([...EXTRACTOR_IDS].sort());
+    expect(result.unimplemented).toEqual([]);
   });
 
   it('honours extractor toggles from config', async () => {
@@ -169,8 +165,8 @@ describe('docgen extract', () => {
 
     const result = await runExtractCommand({ cwd: root, only: 'jobs', json: false, logger });
 
-    // Only the named extractor is considered: routes is registered but was not asked for.
-    expect(result.unimplemented).toEqual(['jobs']);
+    // Only the named extractor runs; the others are not consulted at all.
+    expect([...result.results.keys()]).toEqual(['jobs']);
     expect(result.results.has('routes')).toBe(false);
   });
 

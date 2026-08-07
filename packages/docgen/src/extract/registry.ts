@@ -3,6 +3,9 @@ import type { Extractor } from './types.js';
 import { routesExtractor } from './routes/index.js';
 import { schemaExtractor } from './schema/index.js';
 import { endpointsExtractor } from './endpoints/index.js';
+import { jobsExtractor } from './jobs/index.js';
+import { configExtractor } from './config/index.js';
+import { depsExtractor } from './deps/index.js';
 
 /**
  * The extractor registry.
@@ -15,6 +18,9 @@ const REGISTERED: readonly Extractor[] = Object.freeze([
   routesExtractor as Extractor,
   schemaExtractor as Extractor,
   endpointsExtractor as Extractor,
+  jobsExtractor as Extractor,
+  configExtractor as Extractor,
+  depsExtractor as Extractor,
 ]);
 
 export function getExtractors(): readonly Extractor[] {

@@ -127,7 +127,38 @@ export function readModuleBindings(source: ts.SourceFile): ModuleBindings {
     }
   }
 
+  // Dynamic imports and require() bound to a variable, which routinely appear
+  // inside a function body rather than at the top level:
+  //   const userRoutes = await import('./routes/userRoutes');
+  //   app.use('/api/users', userRoutes.default);
+  // Missing these loses the mount prefix for every route in the module.
+  const visit = (node: ts.Node): void => {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer !== undefined) {
+      const specifier = moduleSpecifierOfLoad(node.initializer);
+      if (specifier !== undefined && !imports.has(node.name.text)) {
+        // The binding is the module namespace; the caller narrows with
+        // `.default` where needed. Only the target file matters for mounting.
+        imports.set(node.name.text, { specifier, importedName: '*' });
+      }
+    }
+    node.forEachChild(visit);
+  };
+  visit(source);
+
   return { imports, exports };
+}
+
+/** `await import('x')`, `import('x')`, or `require('x')` — returns 'x'. */
+function moduleSpecifierOfLoad(node: ts.Expression): string | undefined {
+  const expression = ts.isAwaitExpression(node) ? node.expression : node;
+  if (!ts.isCallExpression(expression)) return undefined;
+
+  const isDynamicImport = expression.expression.kind === ts.SyntaxKind.ImportKeyword;
+  const isRequire =
+    ts.isIdentifier(expression.expression) && expression.expression.text === 'require';
+  if (!isDynamicImport && !isRequire) return undefined;
+
+  return literalString(expression.arguments[0]);
 }
 
 /**
