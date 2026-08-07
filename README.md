@@ -37,9 +37,12 @@ This matters more than the parser coverage itself. An unsupported stack and a ge
 |---|---|
 | **Routes** | Next.js App Router, Next.js Pages Router, React Router |
 | **Schema** | Prisma, Mongoose, SQL migrations (DDL), TypeORM, Sequelize, Django, SQLAlchemy |
-| **Recognised, not yet parsed** | Express, NestJS, Fastify, MedusaJS, FastAPI, Flask, Rails, Laravel, Spring Boot, MikroORM, Drizzle, Knex, GORM |
+| **Endpoints** | Express (incl. cross-file mounts), NestJS, Next.js route handlers and Pages API |
+| **Recognised, not yet parsed** | Fastify, MedusaJS, FastAPI, Flask, Rails, Laravel, Spring Boot, MikroORM, Drizzle, Knex, GORM |
 
 Adding a stack is a row in `src/detect/signatures.ts` plus a provider. Nothing else changes.
+
+An existing OpenAPI or swagger spec is **cross-checked, never trusted**. Code is what runs; an annotation is a claim about the code that may have rotted. Endpoints present in code but missing from the spec, and spec entries with no handler behind them, are both reported.
 
 Python models are read with pattern matching rather than a real parser — docgen is a Node tool and bundling a Python parser is not justified. Those entries are marked low-certainty and the run reports that they were read heuristically.
 

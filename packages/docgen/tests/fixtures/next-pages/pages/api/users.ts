@@ -1,1 +1,1 @@
-export default function handler() {}
+export default function handler(req, res) { res.json({}); }

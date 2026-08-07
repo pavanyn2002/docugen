@@ -4,6 +4,7 @@ import path from 'node:path';
 import type { Gap } from '../../types/core.js';
 import type { RouteEntry } from '../../types/entries.js';
 import { toPosix } from '../../util/paths.js';
+import { resolveRelativeImport } from '../../util/modules.js';
 import {
   getProperty,
   importedModules,
@@ -43,32 +44,6 @@ interface CollectedRoute {
 }
 
 const ROUTER_MODULES = ['react-router', 'react-router-dom'];
-
-/** Extensions tried when resolving a relative import to a file on disk. */
-const RESOLUTION_SUFFIXES = ['', '.ts', '.tsx', '.js', '.jsx', '/index.ts', '/index.tsx', '/index.js', '/index.jsx'];
-
-/**
- * Resolve a relative import to a repo-relative file, or undefined if it does
- * not land on a file that was scanned.
- */
-export function resolveRelativeImport(
-  fromFile: string,
-  specifier: string,
-  files: ReadonlySet<string>,
-): string | undefined {
-  if (!specifier.startsWith('.')) return undefined;
-  const base = path.posix.join(path.posix.dirname(fromFile), specifier);
-  // TypeScript sources are frequently imported with a .js specifier.
-  const withoutJs = base.replace(/\.(js|jsx|mjs)$/, '');
-
-  for (const candidate of [base, withoutJs]) {
-    for (const suffix of RESOLUTION_SUFFIXES) {
-      const resolved = `${candidate}${suffix}`;
-      if (files.has(resolved)) return resolved;
-    }
-  }
-  return undefined;
-}
 
 export async function extractReactRouterRoutes(args: {
   root: string;

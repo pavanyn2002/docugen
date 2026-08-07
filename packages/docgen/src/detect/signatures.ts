@@ -49,16 +49,14 @@ export const TECH_SIGNATURES: readonly TechSignature[] = Object.freeze([
     name: 'Express',
     category: 'web-framework',
     dependencies: ['express'],
-    covers: [],
-    unsupportedNote: 'API endpoints are not extracted yet.',
+    covers: ['endpoints'],
   },
   {
     id: 'nestjs',
     name: 'NestJS',
     category: 'web-framework',
     dependencies: ['@nestjs/core'],
-    covers: [],
-    unsupportedNote: 'Controllers, routes, and endpoints are not extracted.',
+    covers: ['endpoints'],
   },
   {
     id: 'fastify',
