@@ -64,6 +64,17 @@ jobs:
         run: |
           node packages/docgen/dist/cli.js check --cwd packages/docgen/tests/fixtures/express-service --quiet
 
+      - name: status runs and reports honestly on a repo with no cards
+        run: |
+          node packages/docgen/dist/cli.js status --cwd packages/docgen/tests/fixtures/express-service --json > /tmp/status.json
+          grep -q '"described": 0' /tmp/status.json
+
+      - name: a missing --cwd fails rather than reporting an empty repo
+        run: |
+          if node packages/docgen/dist/cli.js status --cwd /nonexistent-repo --quiet; then
+            echo "expected a non-zero exit for a missing root"; exit 1
+          fi
+
       - name: sync is a no-op on already-current output
         run: |
           node packages/docgen/dist/cli.js sync --cwd packages/docgen/tests/fixtures/express-service --json > /tmp/sync.json
