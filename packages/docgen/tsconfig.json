@@ -13,6 +13,13 @@
     "exactOptionalPropertyTypes": true,
     "verbatimModuleSyntax": true,
 
+    // There is no linter here, so the compiler is the only thing that will
+    // notice an import left behind by a refactor. An import that no longer
+    // reflects what a module actually depends on is how the static/LLM lane
+    // boundary quietly stops meaning anything.
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,

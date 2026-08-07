@@ -1,9 +1,7 @@
 import { colors } from '../util/colors.js';
 import { loadConfig } from '../config/load.js';
 import { loadCards } from '../infer/store.js';
-import { writeBehaviourPages } from '../infer/write-behaviour.js';
-import { resolveCommitInfo } from '../util/git.js';
-import { ENGINE_VERSION } from '../util/version.js';
+import { syncGenerated } from '../verify/write.js';
 import { toPosix } from '../util/paths.js';
 import { loadAnswers, recordAnswer } from '../questions/store.js';
 import { currentGitEmail } from '../questions/queue.js';
@@ -89,20 +87,11 @@ export async function runAnswerCommand(options: AnswerCommandOptions): Promise<v
     },
   });
 
-  // Re-render immediately, so the answer is visible as `verified` in the docs
-  // without waiting for the next (paid) bootstrap. Nothing here calls a model:
-  // the cards already exist, and only the answer overlay has changed.
-  const commit = await resolveCommitInfo(config.root);
-  await writeBehaviourPages({
-    root: config.root,
-    outDir: toPosix(config.outDir),
-    cards: [...cards.values()],
-    answers: await loadAnswers(config.root),
-    context: {
-      engineVersion: ENGINE_VERSION,
-      ...(commit === undefined ? {} : { sourceCommit: commit.sha, generatedAt: commit.committedAt }),
-    },
-  });
+  // Re-render immediately, so the answer shows as `verified` without waiting
+  // for the next (paid) bootstrap, and so the repository is left in a state
+  // that passes `docgen check`. Nothing here calls a model: the cards already
+  // exist and only the answer overlay changed.
+  await syncGenerated({ config, logger: options.logger });
 
   options.logger.heading('Answer recorded');
   options.logger.info(`  surface   ${card.slug}`);

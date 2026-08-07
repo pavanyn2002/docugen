@@ -35,10 +35,26 @@ afterEach(async () => {
 });
 
 /** Copy a fixture so writes never touch the committed fixtures. */
+/**
+ * Copy a fixture to a scratch directory, excluding anything docgen itself
+ * writes. Running docgen against a fixture in place — which CI and any curious
+ * developer will do — otherwise leaves output behind that these tests then
+ * treat as part of the fixture, and they start failing for reasons that have
+ * nothing to do with the code.
+ */
 async function copyFixture(name: string): Promise<string> {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'docgen-render-'));
   created.push(dir);
-  await fs.cp(path.join(FIXTURES, name), dir, { recursive: true });
+  await fs.cp(path.join(FIXTURES, name), dir, {
+    recursive: true,
+    filter: (source) => {
+      // Only docgen's own output. `docs/` also holds real fixture inputs —
+      // express-service keeps its OpenAPI spec at docs/openapi.yaml, which the
+      // spec cross-check tests need.
+      const relative = path.relative(path.join(FIXTURES, name), source).split(path.sep).join('/');
+      return !relative.startsWith('docs/generated') && relative !== '.gitattributes';
+    },
+  });
   return dir;
 }
 

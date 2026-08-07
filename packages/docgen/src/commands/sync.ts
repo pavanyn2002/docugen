@@ -1,12 +1,6 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import { colors } from '../util/colors.js';
 import { loadConfig } from '../config/load.js';
-import { runExtraction } from '../pipeline.js';
-import { computeExpectedFiles, findDrift } from '../verify/expected.js';
-import { ensureGitattributes } from '../render/index.js';
-import { compareStrings } from '../util/sort.js';
-import { toPosix } from '../util/paths.js';
+import { syncGenerated } from '../verify/write.js';
 import type { Logger } from '../util/logger.js';
 
 export interface SyncCommandOptions {
@@ -38,62 +32,38 @@ export async function runSyncCommand(options: SyncCommandOptions): Promise<void>
     ...(options.configFile === undefined ? {} : { configFile: options.configFile }),
   });
 
-  const run = await runExtraction({ config, logger: options.logger });
-  const outDir = toPosix(config.outDir);
-  const expected = await computeExpectedFiles(run);
-  const drift = await findDrift(config.root, outDir, expected);
-
-  const toWrite = expected.filter((file) =>
-    drift.some((item) => item.file === file.path && item.kind !== 'orphaned'),
-  );
-  const toDelete = drift.filter((item) => item.kind === 'orphaned').map((item) => item.file);
-
-  if (options.dryRun !== true) {
-    for (const file of toWrite) {
-      const absolute = path.join(config.root, file.path);
-      await fs.mkdir(path.dirname(absolute), { recursive: true });
-      await fs.writeFile(absolute, file.contents.replace(/\r\n/g, '\n'), 'utf8');
-    }
-    for (const file of toDelete) {
-      await fs.rm(path.join(config.root, file), { force: true });
-    }
-    if (config.gitattributes) await ensureGitattributes(config.root, config.outDir);
-  }
+  const report = await syncGenerated({
+    config,
+    logger: options.logger,
+    ...(options.dryRun === undefined ? {} : { dryRun: options.dryRun }),
+  });
 
   if (options.json === true) {
     options.logger.output(
-      JSON.stringify(
-        {
-          dryRun: options.dryRun === true,
-          written: toWrite.map((file) => file.path).sort(compareStrings),
-          deleted: [...toDelete].sort(compareStrings),
-          unchanged: expected.length - toWrite.length,
-        },
-        null,
-        2,
-      ),
+      JSON.stringify({ dryRun: options.dryRun === true, ...report }, null, 2),
     );
     return;
   }
 
-  options.logger.heading(options.dryRun === true ? 'docgen sync (dry run)' : 'docgen sync');
-  options.logger.info(`  unchanged ${expected.length - toWrite.length}`);
-  options.logger.info(`  ${options.dryRun === true ? 'would write' : 'written'}   ${toWrite.length}`);
-  options.logger.info(`  ${options.dryRun === true ? 'would delete' : 'deleted'}  ${toDelete.length}`);
+  const dry = options.dryRun === true;
+  options.logger.heading(dry ? 'docgen sync (dry run)' : 'docgen sync');
+  options.logger.info(`  unchanged ${report.unchanged}`);
+  options.logger.info(`  ${dry ? 'would write' : 'written'}   ${report.written.length}`);
+  options.logger.info(`  ${dry ? 'would delete' : 'deleted'}  ${report.deleted.length}`);
 
-  for (const file of toWrite.slice(0, 20)) {
-    options.logger.info(`    ${colors().dim('write ')} ${file.path}`);
+  for (const file of report.written.slice(0, 20)) {
+    options.logger.info(`    ${colors().dim('write ')} ${file}`);
   }
-  if (toWrite.length > 20) {
-    options.logger.info(`    ${colors().dim(`… and ${toWrite.length - 20} more`)}`);
+  if (report.written.length > 20) {
+    options.logger.info(`    ${colors().dim(`… and ${report.written.length - 20} more`)}`);
   }
-  for (const file of toDelete.slice(0, 20)) {
+  for (const file of report.deleted.slice(0, 20)) {
     options.logger.info(`    ${colors().dim('delete')} ${file}`);
   }
 
-  if (toWrite.length === 0 && toDelete.length === 0) {
+  if (report.written.length === 0 && report.deleted.length === 0) {
     options.logger.info(`\n  ${colors().green('already up to date')}`);
-  } else if (options.dryRun !== true) {
+  } else if (!dry) {
     options.logger.info(
       `\n  ${colors().dim(
         'Behaviour was re-rendered from the committed cards, not re-inferred. Run ' +

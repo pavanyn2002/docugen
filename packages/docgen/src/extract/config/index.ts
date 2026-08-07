@@ -1,7 +1,7 @@
 import fg from 'fast-glob';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import type { Gap, Skip, SourceRef } from '../../types/core.js';
+import type { Gap, SourceRef } from '../../types/core.js';
 import type { ConfigEntry, ConfigResult } from '../../types/entries.js';
 import { toPosix } from '../../util/paths.js';
 import { parseSourceFile, positionOf, ts, walk } from '../../util/ts-ast.js';

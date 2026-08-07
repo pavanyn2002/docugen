@@ -10,7 +10,7 @@ import {
 } from '../src/requirements/store.js';
 import { buildPending } from '../src/requirements/pending.js';
 import { countByKind, renderRequirementsPage } from '../src/requirements/render.js';
-import type { Requirement, SurfaceRequirements } from '../src/requirements/types.js';
+import type { SurfaceRequirements } from '../src/requirements/types.js';
 import { featureCardSchema } from '../src/infer/types.js';
 import type { FeatureCard } from '../src/infer/types.js';
 import type { SurfaceAnswers } from '../src/questions/store.js';

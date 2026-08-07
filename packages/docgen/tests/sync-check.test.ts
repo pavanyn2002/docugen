@@ -3,6 +3,10 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { runExtractCommand } from '../src/commands/extract.js';
+import { runAnswerCommand } from '../src/commands/answer.js';
+import { runTriageCommand } from '../src/commands/triage.js';
+import { saveCards } from '../src/infer/store.js';
+import { featureCardSchema } from '../src/infer/types.js';
 import { runSyncCommand } from '../src/commands/sync.js';
 import { runCheckCommand } from '../src/commands/check.js';
 import { createLogger } from '../src/util/logger.js';
@@ -178,6 +182,72 @@ describe('docgen sync', () => {
     await runSyncCommand({ cwd: root, json: false, logger: quiet });
 
     await expect(fs.stat(path.join(root, 'docs/generated/README.md'))).resolves.toBeDefined();
+    await expect(runCheckCommand({ cwd: root, json: false, logger: quiet })).resolves.toBeUndefined();
+  });
+});
+
+
+describe('commands leave the repo passing its own gate', () => {
+  /** A committed card, as `bootstrap` would have written one. */
+  async function withCard(root: string): Promise<void> {
+    await saveCards(root, [
+      {
+        surfaceId: 'screen:/',
+        slug: 'home',
+        title: '/',
+        kind: 'screen',
+        body: featureCardSchema.parse({
+          summary: { text: 'The landing page.', evidence: [{ file: 'app/page.tsx', line: 1 }] },
+          unknowns: [
+            { id: 'auth', question: 'Is it public?', why: 'No guard found.', options: ['Yes', 'No'] },
+          ],
+        }),
+        producedBy: 'fake',
+        inputHash: 'h',
+        promptVersion: 'feature-card.v1',
+        answered: [],
+      },
+    ]);
+  }
+
+  it('`answer` does not leave documentation drift behind', async () => {
+    const root = await makeRepo();
+    await withCard(root);
+    await runSyncCommand({ cwd: root, json: false, logger: quiet });
+
+    await runAnswerCommand({
+      cwd: root,
+      surface: 'home',
+      questionId: 'auth',
+      answer: '1',
+      logger: quiet,
+    });
+
+    await expect(runCheckCommand({ cwd: root, json: false, logger: quiet })).resolves.toBeUndefined();
+  });
+
+  it('`triage` does not leave documentation drift behind', async () => {
+    // The first triaged entry adds a requirements section to the index, so
+    // writing requirements.md alone would fail the very next `check`.
+    const root = await makeRepo();
+    await withCard(root);
+    await runSyncCommand({ cwd: root, json: false, logger: quiet });
+    await runAnswerCommand({
+      cwd: root,
+      surface: 'home',
+      questionId: 'auth',
+      answer: '1',
+      logger: quiet,
+    });
+
+    await runTriageCommand({
+      cwd: root,
+      surface: 'home',
+      questionId: 'auth',
+      kind: 'requirement',
+      logger: quiet,
+    });
+
     await expect(runCheckCommand({ cwd: root, json: false, logger: quiet })).resolves.toBeUndefined();
   });
 });

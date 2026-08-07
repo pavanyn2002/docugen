@@ -4,7 +4,7 @@ import path from 'node:path';
 import type { Gap } from '../../types/core.js';
 import type { EndpointEntry, HttpMethod } from '../../types/entries.js';
 import { toPosix } from '../../util/paths.js';
-import { parseSourceFile, positionOf, ts, walk } from '../../util/ts-ast.js';
+import { parseSourceFile, ts } from '../../util/ts-ast.js';
 import { parseAppSegments, parsePagesSegments, stripRouteExtension } from '../routes/segments.js';
 import { paramsOf } from './paths.js';
 import { compareStrings } from '../../util/sort.js';

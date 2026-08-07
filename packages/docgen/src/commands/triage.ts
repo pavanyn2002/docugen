@@ -1,5 +1,3 @@
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import process from 'node:process';
 import * as readline from 'node:readline/promises';
 import { colors } from '../util/colors.js';
@@ -10,13 +8,13 @@ import { currentGitEmail } from '../questions/queue.js';
 import { buildPending } from '../requirements/pending.js';
 import type { PendingItem } from '../requirements/pending.js';
 import { loadRequirements, recordRequirement } from '../requirements/store.js';
-import { countByKind, renderRequirementsPage } from '../requirements/render.js';
+import { countByKind } from '../requirements/render.js';
 import { KIND_LABELS, REQUIREMENT_KINDS } from '../requirements/types.js';
 import type { RequirementKind } from '../requirements/types.js';
-import { resolveCommitInfo } from '../util/git.js';
 import { DocgenError } from '../util/errors.js';
 import { toPosix } from '../util/paths.js';
-import { ENGINE_VERSION } from '../util/version.js';
+import type { ResolvedConfig } from '../config/schema.js';
+import { syncGenerated } from '../verify/write.js';
 import type { Logger } from '../util/logger.js';
 
 export interface TriageCommandOptions {
@@ -60,11 +58,11 @@ export async function runTriageCommand(options: TriageCommandOptions): Promise<v
   }
 
   if (options.surface !== undefined) {
-    await triageOne(config.root, toPosix(config.outDir), pending, options);
+    await triageOne(config, pending, options);
     return;
   }
 
-  await triageInteractively(config.root, toPosix(config.outDir), pending, options);
+  await triageInteractively(config, pending, options);
 }
 
 function reportPending(pending: readonly PendingItem[], options: TriageCommandOptions): void {
@@ -106,8 +104,7 @@ function reportPending(pending: readonly PendingItem[], options: TriageCommandOp
 
 /** The non-interactive path, so an agent can record a developer's decision. */
 async function triageOne(
-  root: string,
-  outDir: string,
+  config: ResolvedConfig,
   pending: readonly PendingItem[],
   options: TriageCommandOptions,
 ): Promise<void> {
@@ -145,8 +142,8 @@ async function triageOne(
     });
   }
 
-  const recorded = await record(root, item, kind, options);
-  await rewrite(root, outDir);
+  const recorded = await record(config.root, item, kind, options);
+  await rewrite(config, options.logger);
 
   options.logger.heading('Triaged');
   options.logger.info(`  ${recorded.id}  ${KIND_LABELS[kind]}`);
@@ -154,8 +151,7 @@ async function triageOne(
 }
 
 async function triageInteractively(
-  root: string,
-  outDir: string,
+  config: ResolvedConfig,
   pending: readonly PendingItem[],
   options: TriageCommandOptions,
 ): Promise<void> {
@@ -213,7 +209,7 @@ async function triageInteractively(
         continue;
       }
 
-      const recorded = await record(root, item, kind, options);
+      const recorded = await record(config.root, item, kind, options);
       done += 1;
       options.logger.info(`  ${colors().green(recorded.id)} ${KIND_LABELS[kind]}\n`);
     }
@@ -221,15 +217,17 @@ async function triageInteractively(
     rl.close();
   }
 
-  await rewrite(root, outDir);
+  await rewrite(config, options.logger);
 
-  const counts = countByKind(await loadRequirements(root));
+  const counts = countByKind(await loadRequirements(config.root));
   options.logger.heading('Result');
   options.logger.info(`  classified  ${done} this session`);
   for (const kind of REQUIREMENT_KINDS) {
     if (counts[kind] > 0) options.logger.info(`  ${KIND_LABELS[kind].padEnd(20)} ${counts[kind]}`);
   }
-  options.logger.info(`\n  ${colors().dim(`written to ${outDir}/requirements.md`)}`);
+  options.logger.info(
+    `\n  ${colors().dim(`written to ${toPosix(config.outDir)}/requirements.md`)}`,
+  );
 }
 
 async function record(
@@ -254,24 +252,15 @@ async function record(
   });
 }
 
-/** Rewrite the requirements page from what is now on disk. */
-async function rewrite(root: string, outDir: string): Promise<void> {
-  const requirements = await loadRequirements(root);
-  const cards = [...(await loadCards(root)).values()];
-  const answers = await loadAnswers(root);
-  const pending = buildPending({ cards, answers, requirements });
-  const commit = await resolveCommitInfo(root);
-
-  const contents = renderRequirementsPage({
-    requirements,
-    pendingCount: pending.length,
-    context: {
-      engineVersion: ENGINE_VERSION,
-      ...(commit === undefined ? {} : { sourceCommit: commit.sha, generatedAt: commit.committedAt }),
-    },
-  });
-
-  const file = path.join(root, outDir, 'requirements.md');
-  await fs.mkdir(path.dirname(file), { recursive: true });
-  await fs.writeFile(file, contents.replace(/\r\n/g, '\n'), 'utf8');
+/**
+ * Rewrite everything the triage decision affects.
+ *
+ * Not only `requirements.md`: the first triaged entry also changes the index,
+ * which now has a requirements section to link. Writing one and not the other
+ * leaves the repo failing `docgen check` immediately after a command that
+ * reported success, and a gate that fails for reasons the tool itself caused
+ * is a gate people learn to ignore.
+ */
+async function rewrite(config: ResolvedConfig, logger: Logger): Promise<void> {
+  await syncGenerated({ config, logger });
 }
