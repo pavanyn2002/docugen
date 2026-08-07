@@ -1,0 +1,53 @@
+{
+  "name": "@tatvaops/docgen",
+  "version": "0.1.0",
+  "description": "Deterministic codebase documentation engine. Extracts what code proves; never fabricates what it cannot.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "private": false,
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "bin": {
+    "docgen": "./dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./config": {
+      "types": "./dist/config/define.d.ts",
+      "default": "./dist/config/define.js"
+    }
+  },
+  "files": [
+    "dist",
+    "prompts",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "fast-glob": "^3.3.2",
+    "jiti": "^2.4.2",
+    "picocolors": "^1.1.1",
+    "picomatch": "^4.0.5",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.12",
+    "@types/picomatch": "^3.0.2",
+    "@vitest/coverage-v8": "^4.1.10",
+    "typescript": "^5.7.3",
+    "vitest": "^4.1.10"
+  }
+}

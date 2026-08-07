@@ -1,0 +1,7 @@
+# Byte-identical output is a hard requirement of this tool, so the sources that
+# produce it must not drift between platforms. Everything is LF in the repo.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.ico binary

@@ -1,0 +1,16 @@
+{
+  "name": "docgen-workspace",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "scripts": {
+    "build": "npm run build --workspace @tatvaops/docgen",
+    "test": "npm run test --workspace @tatvaops/docgen",
+    "typecheck": "npm run typecheck --workspace @tatvaops/docgen"
+  }
+}
