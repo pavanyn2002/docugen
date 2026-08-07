@@ -90,6 +90,19 @@ function serialiseRunResult(result: RunResult): unknown {
     ),
     unimplemented: [...result.unimplemented],
     disabled: [...result.disabled],
+    stack: {
+      workspaces: result.stack.workspaces.map((workspace) => workspace.dir),
+      technologies: result.stack.technologies.map((tech) => ({
+        id: tech.id,
+        name: tech.name,
+        category: tech.category,
+        workspace: tech.workspace,
+        evidence: tech.evidence.file,
+        supported: tech.covers.length > 0,
+        covers: [...tech.covers],
+      })),
+      unsupported: result.stack.unsupported.map((tech) => tech.id),
+    },
   };
 }
 
@@ -125,5 +138,50 @@ function reportRun(result: RunResult, logger: Logger): void {
     );
   }
 
+  reportStack(result, logger);
+
   logger.info(`\n  ${colors().dim(`completed in ${result.totalDurationMs}ms`)}`);
+}
+
+/**
+ * Report the detected stack, and warn loudly about anything docgen cannot
+ * parse.
+ *
+ * This is the difference between "your repo has no API endpoints" and "docgen
+ * cannot read Django". Both produce an empty section; only one is the truth,
+ * and a reader has no way to tell them apart unless it is stated.
+ */
+function reportStack(result: RunResult, logger: Logger): void {
+  const { technologies, unsupported, workspaces } = result.stack;
+  if (technologies.length === 0) return;
+
+  logger.heading('Detected stack');
+  if (workspaces.length > 1) {
+    logger.info(`  ${colors().dim(`${workspaces.length} workspaces`)}`);
+  }
+  const unsupportedIds = new Set(unsupported.map((tech) => `${tech.id}@${tech.workspace}`));
+  for (const tech of technologies) {
+    const where = tech.workspace === '' ? '' : colors().dim(` in ${tech.workspace}/`);
+    // Three states, not two: documented, a real coverage gap, or context that
+    // was never docgen's job to extract.
+    const mark = unsupportedIds.has(`${tech.id}@${tech.workspace}`)
+      ? colors().yellow('gap')
+      : tech.covers.length > 0
+        ? colors().green(' ok')
+        : colors().dim('  -');
+    logger.info(`  ${mark} ${tech.name}${where}`);
+  }
+
+  if (unsupported.length > 0) {
+    logger.warn(
+      `docgen cannot document ${unsupported.length} detected technolog${unsupported.length === 1 ? 'y' : 'ies'}. ` +
+        'The output below is incomplete — an empty section does not mean the repo has nothing there:',
+    );
+    for (const tech of unsupported) {
+      logger.warn(
+        `  ${tech.name} (${tech.evidence.file})` +
+          (tech.unsupportedNote === undefined ? '' : ` — ${tech.unsupportedNote}`),
+      );
+    }
+  }
 }

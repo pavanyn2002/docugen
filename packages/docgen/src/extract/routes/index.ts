@@ -3,6 +3,7 @@ import type { Gap, Skip } from '../../types/core.js';
 import type { RouteEntry, RoutesResult } from '../../types/entries.js';
 import type { Extractor, ExtractorContext } from '../types.js';
 import { inapplicable, skip } from '../types.js';
+import { findWorkspaces } from '../../detect/workspaces.js';
 import { detectRouters } from './detect.js';
 import { extractAppRoutes, extractPagesRoutes } from './next-fs.js';
 import { readMiddleware } from './middleware.js';
@@ -21,7 +22,11 @@ export const routesExtractor: Extractor<RouteEntry> = {
 
   async run(context: ExtractorContext): Promise<RoutesResult> {
     const startedAt = Date.now();
-    const detections = await detectRouters(context.root);
+    const workspaces = await findWorkspaces(context.root, context.config.effectiveExclude);
+    const detections = await detectRouters(
+      context.root,
+      workspaces.map((workspace) => workspace.dir),
+    );
 
     if (detections.length === 0) {
       return inapplicable<RouteEntry>(

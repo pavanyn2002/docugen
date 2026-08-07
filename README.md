@@ -16,6 +16,33 @@ Documentation written by hand rots. Documentation invented by a model is worse t
 
 Phase 0 emits only `verified`. Later phases add the other two, always badged. The tool never emits an unbadged behavioural claim.
 
+## Coverage across stacks
+
+`docgen` is meant to run on any repo, so it separates *recognising* a technology from *being able to parse* it. It detects the stack across every workspace in the repo — including `backend/` + `frontend/` splits with no root manifest — and says plainly what it could not read:
+
+```
+Detected stack
+  3 workspaces
+   ok SQL migrations in supabase/migrations/
+  gap FastAPI in backend/
+   ok Next.js in frontend/
+warn  docgen cannot document 1 detected technology. The output below is
+warn  incomplete — an empty section does not mean the repo has nothing there:
+warn    FastAPI (backend/requirements.txt) — Python routes are not extracted.
+```
+
+This matters more than the parser coverage itself. An unsupported stack and a genuinely empty repo both produce an empty section, and a reader has no way to tell them apart unless it is stated.
+
+| | Documented today |
+|---|---|
+| **Routes** | Next.js App Router, Next.js Pages Router, React Router |
+| **Schema** | Prisma, Mongoose, SQL migrations (DDL), TypeORM, Sequelize, Django, SQLAlchemy |
+| **Recognised, not yet parsed** | Express, NestJS, Fastify, MedusaJS, FastAPI, Flask, Rails, Laravel, Spring Boot, MikroORM, Drizzle, Knex, GORM |
+
+Adding a stack is a row in `src/detect/signatures.ts` plus a provider. Nothing else changes.
+
+Python models are read with pattern matching rather than a real parser — docgen is a Node tool and bundling a Python parser is not justified. Those entries are marked low-certainty and the run reports that they were read heuristically.
+
 ## Install
 
 ```bash

@@ -167,10 +167,10 @@ describe('docgen extract', () => {
     const root = await makeRepo();
     const { logger } = captureLogger();
 
-    const result = await runExtractCommand({ cwd: root, only: 'schema', json: false, logger });
+    const result = await runExtractCommand({ cwd: root, only: 'jobs', json: false, logger });
 
     // Only the named extractor is considered: routes is registered but was not asked for.
-    expect(result.unimplemented).toEqual(['schema']);
+    expect(result.unimplemented).toEqual(['jobs']);
     expect(result.results.has('routes')).toBe(false);
   });
 

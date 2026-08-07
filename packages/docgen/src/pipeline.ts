@@ -3,6 +3,8 @@ import type { ExtractResult, ExtractorId, GenerationContext } from './types/core
 import type { ResolvedConfig } from './config/schema.js';
 import { getExtractors, getUnimplementedIds } from './extract/registry.js';
 import type { ExtractorContext } from './extract/types.js';
+import { detectStack } from './detect/stack.js';
+import type { StackReport } from './detect/stack.js';
 import { resolveSourceCommit } from './util/git.js';
 import { ENGINE_VERSION } from './util/version.js';
 import type { Logger } from './util/logger.js';
@@ -10,6 +12,12 @@ import type { Logger } from './util/logger.js';
 export interface RunResult {
   readonly context: GenerationContext;
   readonly config: ResolvedConfig;
+  /**
+   * Every technology found in the repo, including ones docgen cannot parse.
+   * Without this, a repo built on an unsupported stack produces empty output
+   * that is indistinguishable from a repo with nothing to document.
+   */
+  readonly stack: StackReport;
   /** Results keyed by extractor id, for extractors that ran. */
   readonly results: ReadonlyMap<ExtractorId, ExtractResult>;
   /** Enabled in config but not yet implemented in this build. */
@@ -45,6 +53,11 @@ export async function runExtraction(options: RunOptions): Promise<RunResult> {
   const disabled = requested.filter((id) => config.extractors[id] !== true);
   const enabled = requested.filter((id) => config.extractors[id] === true);
 
+  const stack = await detectStack({ root: config.root, exclude: config.effectiveExclude });
+  for (const tech of stack.unsupported) {
+    logger.debug(`detected but unsupported: ${tech.name} (${tech.evidence.file})`);
+  }
+
   const extractorContext: ExtractorContext = { root: config.root, config, logger };
   const results = new Map<ExtractorId, ExtractResult>();
 
@@ -65,6 +78,7 @@ export async function runExtraction(options: RunOptions): Promise<RunResult> {
       generatedAt: now.toISOString(),
     },
     config,
+    stack,
     results,
     unimplemented: getUnimplementedIds(enabled),
     disabled,

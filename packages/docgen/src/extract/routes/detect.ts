@@ -68,33 +68,49 @@ export async function readDependencyNames(root: string): Promise<ReadonlySet<str
 }
 
 /**
- * Detect which routers the repo uses.
+ * Detect which routers the repo uses, across every workspace.
+ *
+ * Many repos are `backend/` plus `frontend/` with no manifest at the root.
+ * Looking only at the root finds nothing in those, producing empty output that
+ * reads as "this project has no screens" — so each workspace is checked.
  *
  * Detection requires both the dependency and a populated conventional
  * directory. A repo can legitimately have both Next routers at once, so this
  * returns every match rather than picking one.
  */
-export async function detectRouters(root: string): Promise<readonly RouterDetection[]> {
-  const deps = await readDependencyNames(root);
+export async function detectRouters(
+  root: string,
+  workspaceDirs: readonly string[] = [''],
+): Promise<readonly RouterDetection[]> {
   const found: RouterDetection[] = [];
+  const seen = new Set<string>();
 
-  if (deps.has('next')) {
-    for (const dir of ['app', 'src/app']) {
-      const absolute = path.join(root, dir);
-      if ((await isDirectory(absolute)) && (await hasAnyEntry(absolute))) {
-        found.push({ kind: 'next-app', dir });
+  for (const workspace of workspaceDirs) {
+    const base = workspace === '' ? root : path.join(root, workspace);
+    const deps = await readDependencyNames(base);
+    const prefix = (relative: string): string => (workspace === '' ? relative : `${workspace}/${relative}`);
+
+    if (deps.has('next')) {
+      for (const dir of ['app', 'src/app']) {
+        const absolute = path.join(base, dir);
+        if ((await isDirectory(absolute)) && (await hasAnyEntry(absolute))) {
+          found.push({ kind: 'next-app', dir: prefix(dir) });
+        }
+      }
+      for (const dir of ['pages', 'src/pages']) {
+        const absolute = path.join(base, dir);
+        if ((await isDirectory(absolute)) && (await hasAnyEntry(absolute))) {
+          found.push({ kind: 'next-pages', dir: prefix(dir) });
+        }
       }
     }
-    for (const dir of ['pages', 'src/pages']) {
-      const absolute = path.join(root, dir);
-      if ((await isDirectory(absolute)) && (await hasAnyEntry(absolute))) {
-        found.push({ kind: 'next-pages', dir });
-      }
-    }
-  }
 
-  if (deps.has('react-router') || deps.has('react-router-dom')) {
-    found.push({ kind: 'react-router' });
+    // React Router is found by scanning source rather than a directory
+    // convention, so one detection covers the whole repo.
+    if ((deps.has('react-router') || deps.has('react-router-dom')) && !seen.has('react-router')) {
+      seen.add('react-router');
+      found.push({ kind: 'react-router' });
+    }
   }
 
   return found;
