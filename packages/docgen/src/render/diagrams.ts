@@ -111,7 +111,12 @@ export function renderErd(schema: SchemaResult | undefined, maxNodes: number): s
       const key = field.isPrimaryKey === true ? ' PK' : field.isUnique === true ? ' UK' : '';
       lines.push(`    ${type} ${field.name.replace(/[^A-Za-z0-9_]/g, '_')}${key}`);
     }
-    if (table.fields.length > 20) lines.push(`    more ${table.fields.length - 20}_more_fields`);
+    // The attribute name must not start with a digit: Mermaid's ER grammar
+    // expects an ATTRIBUTE_WORD there and rejects the whole diagram otherwise,
+    // so a wide table would silently render as a parse error on GitHub.
+    if (table.fields.length > 20) {
+      lines.push(`    more fields_not_shown_${table.fields.length - 20}`);
+    }
     lines.push('  }');
   }
 

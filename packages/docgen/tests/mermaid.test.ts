@@ -8,8 +8,9 @@ import { loadConfig } from '../src/config/load.js';
 import { runExtraction } from '../src/pipeline.js';
 import { renderAll } from '../src/render/index.js';
 import { safeNodeId, validateMermaid } from '../src/render/mermaid-validate.js';
-import { renderSitemap } from '../src/render/diagrams.js';
+import { renderErd, renderSitemap } from '../src/render/diagrams.js';
 import { createLogger } from '../src/util/logger.js';
+import type { SchemaResult } from '../src/types/entries.js';
 
 const TEST_DIR = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURES = path.join(TEST_DIR, 'fixtures');
@@ -175,5 +176,51 @@ describe('node ids', () => {
 
   it('never produces an empty id', () => {
     expect(safeNodeId('m', '///')).toBe('m_root');
+  });
+});
+
+describe('erd field truncation', () => {
+  /**
+   * Regression: a table wider than the field cap emitted `more 7_more_fields`.
+   * Mermaid's ER grammar expects an ATTRIBUTE_WORD after the type and rejects
+   * one starting with a digit, so a single wide table made the whole diagram
+   * fail to parse — and GitHub renders that as an error block, not an ERD.
+   *
+   * Every in-repo fixture is narrower than the cap, which is exactly why no
+   * existing test caught it and a real 27-column table did.
+   */
+  const wideTable = (fieldCount: number): SchemaResult => ({
+    extractor: 'schema',
+    applicable: true,
+    detected: ['sql-ddl'],
+    entries: [
+      {
+        id: 'schema:table:bugs',
+        source: { file: 'migrations/0001.sql', line: 1 },
+        extractionMethod: 'regex',
+        certainty: 'low',
+        name: 'bugs',
+        kind: 'table',
+        fields: Array.from({ length: fieldCount }, (_unused, index) => ({
+          name: `field_${index}`,
+          type: 'text',
+        })),
+        indexes: [],
+        relations: [],
+      },
+    ],
+    gaps: [],
+    skips: [],
+    durationMs: 0,
+  });
+
+  it('renders a table wider than the cap as a parseable diagram', async () => {
+    const diagram = renderErd(wideTable(27), 40);
+    expect(diagram).toContain('fields_not_shown_7');
+    await expect(parseWithMermaid(diagram)).resolves.toBeUndefined();
+  });
+
+  it('leaves a table inside the cap untouched', () => {
+    expect(renderErd(wideTable(20), 40)).not.toContain('fields_not_shown');
   });
 });
