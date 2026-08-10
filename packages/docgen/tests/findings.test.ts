@@ -118,6 +118,51 @@ describe('cross-extractor findings', () => {
     expect(labels).not.toContain('vitest.config.ts');
   });
 
+  /**
+   * Regression: an API handler is loaded by the framework from its path, so
+   * nothing imports it — and the finding reported every one of them. On a real
+   * Next.js app that was 13 handlers and 29 test files against 5 modules worth
+   * looking at, which makes a list nobody can act on.
+   *
+   * The exclusion comes from what the endpoints extractor already proved rather
+   * than from a list of magic filenames, so it holds for every framework.
+   */
+  it('does not report API route handlers as unimported', async () => {
+    const root = await makeRepo({
+      'package.json': '{"dependencies":{"next":"^15.0.0"}}',
+      'app/api/digest/route.ts': 'export async function GET() { return new Response("ok"); }',
+      'app/page.tsx': 'export default function Home() { return null; }',
+      'lib/orphan.ts': 'export const unused = 1;',
+    });
+
+    const labels =
+      finding(await findingsFor(root), 'unreachable-modules')?.items.map((item) => item.label) ?? [];
+
+    expect(labels).not.toContain('app/api/digest/route.ts');
+    expect(labels).not.toContain('app/page.tsx');
+    // The one module that really is unreferenced must still be reported.
+    expect(labels).toContain('lib/orphan.ts');
+  });
+
+  it('does not report test files as unimported', async () => {
+    // A test is a root of the runner's graph; nothing is supposed to import it.
+    const root = await makeRepo({
+      'package.json': '{}',
+      'lib/maths.ts': 'export const add = (a: number, b: number) => a + b;',
+      'lib/maths.test.ts': [
+        "import { add } from './maths';",
+        "it('adds', () => add(1, 2));",
+      ].join('\n'),
+      'lib/orphan.ts': 'export const unused = 1;',
+    });
+
+    const labels =
+      finding(await findingsFor(root), 'unreachable-modules')?.items.map((item) => item.label) ?? [];
+
+    expect(labels).not.toContain('lib/maths.test.ts');
+    expect(labels).toContain('lib/orphan.ts');
+  });
+
   it('finds a table never mentioned outside its definition', async () => {
     const root = await makeRepo({
       'package.json': '{"dependencies":{"prisma":"^6.0.0"}}',

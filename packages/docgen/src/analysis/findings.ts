@@ -1,10 +1,13 @@
 import fg from 'fast-glob';
+import picomatch from 'picomatch';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { RunResult } from '../pipeline.js';
 import type {
   ConfigResult,
   DepsResult,
+  EndpointsResult,
+  JobsResult,
   RoutesResult,
   SchemaResult,
 } from '../types/entries.js';
@@ -57,9 +60,12 @@ export async function computeFindings(run: RunResult): Promise<FindingsReport> {
   const config = run.results.get('config') as ConfigResult | undefined;
   const deps = run.results.get('deps') as DepsResult | undefined;
 
+  const endpoints = run.results.get('endpoints') as EndpointsResult | undefined;
+  const jobs = run.results.get('jobs') as JobsResult | undefined;
+
   const findings: Finding[] = [
     await deadRoutes(run.config.root, routes),
-    unreachableModules(deps, routes),
+    unreachableModules({ deps, routes, endpoints, jobs, testGlobs: run.config.trace.include }),
     await unreferencedTables(run.config.root, schema, run.config.effectiveExclude),
     envDeclaredNeverRead(config),
     envReadNeverDeclared(config),
@@ -104,24 +110,33 @@ async function deadRoutes(root: string, routes: RoutesResult | undefined): Promi
 /**
  * Internal modules that nothing imports.
  *
- * Entry points and config files are excluded, since they are loaded by a
- * framework or a tool rather than by an import. Anything left is a candidate
- * for removal — but only a candidate: dynamic requires and framework
- * conventions can both make a module reachable invisibly.
+ * Everything reached other than by an import is excluded: route, endpoint and
+ * job files, tests, entry points and config files. Anything left is a candidate
+ * for removal — but only a candidate, since a dynamic require can still make a
+ * module reachable invisibly.
+ *
+ * The exclusions matter as much as the check. This finding is only useful if a
+ * reader can act on the whole list, and a version that reported every API
+ * handler and every test file left nothing actionable in it.
  */
-function unreachableModules(
-  deps: DepsResult | undefined,
-  routes: RoutesResult | undefined,
-): Finding {
+function unreachableModules(args: {
+  deps: DepsResult | undefined;
+  routes: RoutesResult | undefined;
+  endpoints: EndpointsResult | undefined;
+  jobs: JobsResult | undefined;
+  testGlobs: readonly string[];
+}): Finding {
   const base = {
     id: 'unreachable-modules',
     title: 'Modules nothing imports',
     description:
-      'No other module in the repository imports these. Entry points, config files, and route ' +
-      'files are excluded. A framework that loads files by convention, or a dynamic import built ' +
-      'from a variable, would make a module reachable in a way this cannot see.',
+      'No other module in the repository imports these. Files another extractor proved are a ' +
+      'route, an endpoint or a job are excluded, as are tests, entry points and config files — ' +
+      'all of those are reached by a framework or a runner rather than by an import. A dynamic ' +
+      'import built from a variable would still make a module reachable in a way this cannot see.',
   };
 
+  const { deps } = args;
   if (deps === undefined || !deps.applicable) {
     return { ...base, items: [], unavailable: 'The module graph was not extracted.' };
   }
@@ -131,16 +146,37 @@ function unreachableModules(
     for (const target of entry.imports) imported.add(target);
   }
 
-  // A route file is reached by the router, not by an import.
-  const routeFiles = new Set<string>();
-  for (const route of routes?.entries ?? []) {
-    routeFiles.add(route.source.file);
-    if (route.component !== undefined) routeFiles.add(route.component.file);
+  /**
+   * Files the framework loads by path rather than by import.
+   *
+   * Taken from what the other extractors already proved rather than from a
+   * list of magic filenames, so this stays correct for every framework docgen
+   * supports instead of only the ones someone remembered to hardcode. Without
+   * it a Next.js app reports every `app/api/**\/route.ts` as dead code — which
+   * on a real repo buried the handful of genuinely unused modules under noise.
+   */
+  const frameworkLoaded = new Set<string>();
+  for (const route of args.routes?.entries ?? []) {
+    frameworkLoaded.add(route.source.file);
+    if (route.component !== undefined) frameworkLoaded.add(route.component.file);
   }
+  for (const endpoint of args.endpoints?.entries ?? []) {
+    frameworkLoaded.add(endpoint.source.file);
+    if (endpoint.handler !== undefined) frameworkLoaded.add(endpoint.handler.file);
+  }
+  for (const job of args.jobs?.entries ?? []) {
+    frameworkLoaded.add(job.source.file);
+    if (job.handler !== undefined) frameworkLoaded.add(job.handler.file);
+  }
+
+  // A test is a root of the runner's graph. Nothing imports it, and saying so
+  // for every test file in the repo tells the reader nothing they can act on.
+  const isTest = picomatch([...args.testGlobs]);
 
   const items = deps.entries
     .filter((entry) => !imported.has(entry.module))
-    .filter((entry) => !routeFiles.has(entry.module))
+    .filter((entry) => !frameworkLoaded.has(entry.module))
+    .filter((entry) => !isTest(entry.module))
     .filter((entry) => !ENTRY_POINT_PATTERN.test(entry.module))
     .filter((entry) => !CONFIG_FILE_PATTERN.test(entry.module))
     .map((entry) => ({ label: entry.module, source: { file: entry.module } }));
