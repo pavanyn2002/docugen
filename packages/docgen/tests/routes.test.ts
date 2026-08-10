@@ -182,19 +182,76 @@ describe('middleware matcher compilation', () => {
     expect(matcher?.test('/orders/[id]/items')).toBe(false);
   });
 
-  // Claiming a route is authenticated when it is not is the exact failure the
-  // trust model exists to prevent, so an uninterpretable pattern matches nothing.
-  it('refuses to interpret a regex pattern', () => {
-    expect(compileMatcher('/((?!api|_next/static).*)')).toBeUndefined();
+  /**
+   * The exclusion matcher is what Next.js documents and what real apps ship.
+   * Reporting it as unknowable marked every screen in the app as having
+   * undetermined auth — the least useful answer for the commonest setup —
+   * even though the pattern's meaning is exact.
+   */
+  describe('exclusion matchers', () => {
+    it('guards ordinary routes and skips the listed exclusions', () => {
+      const matcher = compileMatcher('/((?!api|_next/static).*)');
+      expect(matcher?.test('/dashboard')).toBe(true);
+      expect(matcher?.test('/')).toBe(true);
+      expect(matcher?.test('/api/users')).toBe(false);
+      expect(matcher?.test('/_next/static/chunk.js')).toBe(false);
+    });
+
+    it('interprets the full matcher a real Next.js app ships', () => {
+      const matcher = compileMatcher(
+        '/((?!_next/static|_next/image|favicon.ico|sw\\.js|manifest\\.webmanifest|offline\\.html|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
+      );
+      expect(matcher?.test('/attendance')).toBe(true);
+      expect(matcher?.test('/bugs/[id]')).toBe(true);
+      expect(matcher?.test('/favicon.ico')).toBe(false);
+      expect(matcher?.test('/sw.js')).toBe(false);
+      expect(matcher?.test('/logo.png')).toBe(false);
+      expect(matcher?.test('/_next/image')).toBe(false);
+    });
+
+    it('records the middleware as a guard on matched routes', () => {
+      const info = analyseMiddleware(
+        'middleware.ts',
+        "export const config = { matcher: ['/((?!api).*)'] };",
+      );
+      expect(info.gaps).toEqual([]);
+      expect(info.matchers).toHaveLength(1);
+      expect(info.matchers[0]?.test('/dashboard')).toBe(true);
+    });
   });
 
-  it('reports an uninterpretable pattern as a gap', () => {
-    const info = analyseMiddleware(
-      'middleware.ts',
-      "export const config = { matcher: ['/((?!api).*)'] };",
-    );
-    expect(info.matchers).toEqual([]);
-    expect(info.gaps[0]?.kind).toBe('middleware-matcher-uninterpretable');
+  /**
+   * Claiming a route is authenticated when it is not is the exact failure the
+   * trust model exists to prevent, so anything outside the understood construct
+   * set still matches nothing and is still reported.
+   */
+  describe('patterns that stay uninterpretable', () => {
+    it.each([
+      // `\d` widens the exclusion, so a route we called guarded might not be.
+      ['/((?!v\\d).*)', 'an escape other than \\.'],
+      // A capturing group changes how the rest of the pattern binds.
+      ['/((?!(api)).*)', 'a capturing group'],
+      // A bounded quantifier is not in the understood set.
+      ['/((?!a{2,}).*)', 'a repetition range'],
+      // A character class can cover far more than it appears to.
+      ['/((?![a-z]+).*)', 'a character class'],
+      ['/^\\/admin.*$', 'a bare anchored regex'],
+    ])('refuses %s (%s)', (pattern) => {
+      expect(compileMatcher(pattern)).toBeUndefined();
+    });
+
+    it('reports an uninterpretable pattern as a gap', () => {
+      const info = analyseMiddleware(
+        'middleware.ts',
+        "export const config = { matcher: ['/((?!v\\\\d).*)'] };",
+      );
+      expect(info.matchers).toEqual([]);
+      expect(info.gaps[0]?.kind).toBe('middleware-matcher-uninterpretable');
+    });
+
+    it('refuses an unbalanced lookahead rather than throwing', () => {
+      expect(compileMatcher('/((?!(?:api).*)')).toBeUndefined();
+    });
   });
 
   it('reports a computed matcher as a gap', () => {
@@ -499,6 +556,51 @@ describe('duplicate routes', () => {
     const result = await runOn(root);
     const ids = result.entries.filter((e) => e.path === '/about').map((e) => e.id);
     expect(new Set(ids).size).toBe(2);
+  });
+
+  /**
+   * Regression: route groups exist so that `app/layout.tsx` and
+   * `app/(app)/layout.tsx` can both wrap `/`. Both are stripped to the same
+   * path, so both got the same id and were reported as a duplicate that said
+   * "only one of them can be reachable" — telling the reader that ordinary,
+   * working Next.js code was broken. Every real App Router app hits this.
+   */
+  it('does not report nested layouts at one path as a conflict', async () => {
+    const root = await makeRepo({
+      'package.json': '{"dependencies":{"next":"^15.0.0"}}',
+      'app/layout.tsx': 'export default function Root() { return null; }',
+      'app/(app)/layout.tsx': 'export default function Group() { return null; }',
+      'app/page.tsx': 'export default function Home() { return null; }',
+    });
+
+    const result = await runOn(root);
+    expect(result.gaps.filter((g) => g.kind === 'duplicate-route')).toEqual([]);
+  });
+
+  it('still gives colliding layouts distinct ids', async () => {
+    // Silencing the gap must not merge them: both files exist and both apply.
+    const root = await makeRepo({
+      'package.json': '{"dependencies":{"next":"^15.0.0"}}',
+      'app/layout.tsx': 'export default function Root() { return null; }',
+      'app/(app)/layout.tsx': 'export default function Group() { return null; }',
+    });
+
+    const result = await runOn(root);
+    const layouts = result.entries.filter((e) => e.kind === 'layout');
+    expect(layouts).toHaveLength(2);
+    expect(new Set(layouts.map((e) => e.id)).size).toBe(2);
+  });
+
+  it('still reports two pages competing for one URL', async () => {
+    // The guard must narrow the claim, not remove it.
+    const root = await makeRepo({
+      'package.json': '{"dependencies":{"next":"^15.0.0"}}',
+      'app/about/page.tsx': 'export default function A() { return null; }',
+      'pages/about.tsx': 'export default function B() { return null; }',
+    });
+
+    const result = await runOn(root);
+    expect(result.gaps.some((g) => g.kind === 'duplicate-route')).toBe(true);
   });
 });
 

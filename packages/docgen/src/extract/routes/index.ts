@@ -135,10 +135,22 @@ export const routesExtractor: Extractor<RouteEntry> = {
 };
 
 /**
+ * Route kinds where two files at the same path really are in conflict.
+ *
+ * Only a kind that *is* the destination can collide: two pages at `/` means one
+ * of them is unreachable. Layouts, templates, loading and error boundaries
+ * legitimately repeat at a path because they nest — Next.js route groups exist
+ * precisely so `app/layout.tsx` and `app/(app)/layout.tsx` can both apply to
+ * `/`. Reporting those as duplicates told the reader that working code was
+ * broken, which is worse than saying nothing.
+ */
+const COLLIDABLE_ROUTE_KINDS: ReadonlySet<RouteEntry['kind']> = new Set(['page', 'redirect']);
+
+/**
  * Entry ids are derived from kind and path so they survive file moves, which
- * means two files declaring the same route collide. That collision is itself a
- * finding worth reporting — it usually means a genuine duplicate route — so
- * both entries are kept, disambiguated by a hash of their source file.
+ * means two files declaring the same route collide. Both entries are always
+ * kept and disambiguated by a hash of their source file; whether the collision
+ * is also *reported* depends on the kind — see COLLIDABLE_ROUTE_KINDS.
  */
 function resolveDuplicateIds(entries: readonly RouteEntry[]): {
   deduped: readonly RouteEntry[];
@@ -161,14 +173,16 @@ function resolveDuplicateIds(entries: readonly RouteEntry[]): {
     }
 
     const files = bucket.map((entry) => entry.source.file).sort();
-    duplicateGaps.push({
-      extractor: 'routes',
-      kind: 'duplicate-route',
-      message:
-        `${bucket.length} files declare the same route (${id.replace(/^route:[a-z-]+:/, '')}): ` +
-        `${files.join(', ')}. Only one of them can be reachable.`,
-      source: { file: files[0] as string },
-    });
+    if (COLLIDABLE_ROUTE_KINDS.has((bucket[0] as RouteEntry).kind)) {
+      duplicateGaps.push({
+        extractor: 'routes',
+        kind: 'duplicate-route',
+        message:
+          `${bucket.length} files declare the same route (${id.replace(/^route:[a-z-]+:/, '')}): ` +
+          `${files.join(', ')}. Only one of them can be reachable.`,
+        source: { file: files[0] as string },
+      });
+    }
 
     for (const entry of bucket) {
       const suffix = createHash('sha256').update(entry.source.file).digest('hex').slice(0, 8);

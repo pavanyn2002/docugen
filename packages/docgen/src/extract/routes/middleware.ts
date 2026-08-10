@@ -33,16 +33,111 @@ const MIDDLEWARE_FILES = ['middleware.ts', 'middleware.js', 'src/middleware.ts',
 const COMPLEX_PATTERN = /[?(){}|+^$\\]/;
 
 /**
+ * The exclusion matcher Next.js documents, and the one nearly every app ships:
+ *
+ *   '/((?!_next/static|_next/image|favicon.ico).*)'
+ *
+ * It reads as "every route except these", and its meaning is exact rather than
+ * approximate — which is why it is interpreted here instead of being reported
+ * as a gap. Treating it as unknowable marked every screen in an app with
+ * middleware as having undetermined auth, which is the least useful possible
+ * answer for the commonest possible setup.
+ */
+const EXCLUSION_MATCHER = /^\/\(\(\?!(.+)\)\.\*\)$/;
+
+/** Longest lookahead body we will compile. Guards against a pathological regex. */
+const MAX_LOOKAHEAD_LENGTH = 500;
+
+/** Characters that carry their literal or well-understood meaning inside the lookahead. */
+const SAFE_LOOKAHEAD_CHAR = /[A-Za-z0-9_\-/.|$*]/;
+
+/**
+ * Whether a lookahead body uses only constructs whose meaning we are sure of.
+ *
+ * Deliberately a whitelist. The alternative — compiling whatever is written and
+ * hoping our anchoring matches Next's — would produce a confident `guarded`
+ * claim from a pattern we had not actually understood, which is exactly the
+ * failure the trust model exists to prevent. Anything outside this set still
+ * becomes a gap.
+ */
+export function isInterpretableLookahead(body: string): boolean {
+  if (body.length === 0 || body.length > MAX_LOOKAHEAD_LENGTH) return false;
+
+  let depth = 0;
+  for (let index = 0; index < body.length; index += 1) {
+    const char = body[index] as string;
+
+    if (char === '\\') {
+      // Only an escaped dot is understood. `\d`, `\w` and friends widen what
+      // the exclusion covers, so a route we called guarded might not be.
+      if (body[index + 1] !== '.') return false;
+      index += 1;
+      continue;
+    }
+
+    if (char === '(') {
+      // Non-capturing alternation only — `(?:svg|png)`. A capturing or
+      // assertion group changes how the rest of the pattern binds.
+      if (body.slice(index, index + 3) !== '(?:') return false;
+      depth += 1;
+      index += 2;
+      continue;
+    }
+
+    if (char === ')') {
+      depth -= 1;
+      if (depth < 0) return false;
+      continue;
+    }
+
+    if (!SAFE_LOOKAHEAD_CHAR.test(char)) return false;
+  }
+
+  return depth === 0;
+}
+
+/**
+ * Compile `'/((?!a|b).*)'` into a predicate.
+ *
+ * Next runs the matcher against real request paths, so the lookahead is
+ * evaluated with a real regex rather than reduced to prefix comparisons — an
+ * approximation would disagree with the framework on exactly the paths that
+ * are hard to reason about.
+ */
+function compileExclusionMatcher(pattern: string): CompiledMatcher | undefined {
+  const match = EXCLUSION_MATCHER.exec(pattern);
+  if (match === null) return undefined;
+
+  const body = match[1] as string;
+  if (!isInterpretableLookahead(body)) return undefined;
+
+  let compiled: RegExp;
+  try {
+    compiled = new RegExp(`^/(?!${body}).*$`);
+  } catch {
+    return undefined;
+  }
+
+  return { pattern, test: (routePath) => compiled.test(routePath) };
+}
+
+/**
  * Reduce a matcher pattern to a predicate, or return undefined when it cannot
  * be interpreted with confidence.
  *
- * Handles the three forms that cover ordinary usage:
- *   '/dashboard'         exact
- *   '/dashboard/:path*'  prefix (and the segment itself)
- *   '/dashboard/:id'     one dynamic segment
+ * Handles the four forms that cover ordinary usage:
+ *   '/dashboard'              exact
+ *   '/dashboard/:path*'       prefix (and the segment itself)
+ *   '/dashboard/:id'          one dynamic segment
+ *   '/((?!_next|api).*)'      everything except the listed exclusions
  */
 export function compileMatcher(pattern: string): CompiledMatcher | undefined {
   if (pattern.length === 0 || !pattern.startsWith('/')) return undefined;
+
+  // Checked before COMPLEX_PATTERN, which would otherwise reject it on sight
+  // for containing the very parentheses that give it its meaning.
+  const exclusion = compileExclusionMatcher(pattern);
+  if (exclusion !== undefined) return exclusion;
 
   // ':path*' / ':path+' style trailing wildcards mean "this prefix and below".
   const wildcard = /^(.*?)\/:[A-Za-z0-9_]+\*$/.exec(pattern);
