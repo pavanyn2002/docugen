@@ -5,6 +5,7 @@ import type { Gap } from '../../types/core.js';
 import type { EndpointEntry, HttpMethod, ShapeRef } from '../../types/entries.js';
 import { toPosix } from '../../util/paths.js';
 import { readModuleBindings, resolveSymbolToFile } from '../../util/modules.js';
+import { loadPathAliases } from '../../util/tsconfig.js';
 import type { ModuleBindings } from '../../util/modules.js';
 import { literalString, parseSourceFile, positionOf, ts, walk } from '../../util/ts-ast.js';
 import { joinPath, paramsOf } from './paths.js';
@@ -102,6 +103,7 @@ export async function extractExpressEndpoints(args: {
     .map(toPosix)
     .sort();
   const fileSet = new Set(files);
+  const aliases = await loadPathAliases(args.root);
 
   const analyses = new Map<string, FileAnalysis>();
   const bindingsCache = new Map<string, ModuleBindings | undefined>();
@@ -167,6 +169,7 @@ export async function extractExpressEndpoints(args: {
         symbol: mount.symbol,
         loadBindings,
         files: fileSet,
+        aliases,
       });
 
       if (resolved === undefined || !analyses.has(resolved.file)) {

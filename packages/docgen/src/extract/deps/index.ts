@@ -3,7 +3,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { Gap, Skip } from '../../types/core.js';
 import type { DepsResult, ModuleEntry } from '../../types/entries.js';
-import { resolveRelativeImport } from '../../util/modules.js';
+import { resolveImport } from '../../util/modules.js';
+import { aliasCandidates, loadPathAliases } from '../../util/tsconfig.js';
 import { toPosix } from '../../util/paths.js';
 import { literalString, parseSourceFile, ts } from '../../util/ts-ast.js';
 import type { Extractor, ExtractorContext } from '../types.js';
@@ -47,6 +48,7 @@ export const depsExtractor: Extractor<ModuleEntry> = {
     }
 
     const fileSet = new Set(files);
+    const aliases = await loadPathAliases(context.root);
     const entries: ModuleEntry[] = [];
     const gaps: Gap[] = [];
     const skips: Skip[] = [];
@@ -65,7 +67,13 @@ export const depsExtractor: Extractor<ModuleEntry> = {
       const unresolved: string[] = [];
 
       for (const specifier of collectSpecifiers(source)) {
-        if (!specifier.startsWith('.')) {
+        const isRelative = specifier.startsWith('.');
+        // An aliased specifier looks external but points inside the repo.
+        // Counting `@/lib/db` as a package called `@/lib` invents a dependency
+        // that does not exist and drops a real edge from the import graph.
+        const isAliased = !isRelative && aliasCandidates(specifier, aliases).length > 0;
+
+        if (!isRelative && !isAliased) {
           // Trim a deep import to its package name: '@scope/pkg/sub' -> '@scope/pkg'.
           externals.add(packageNameOf(specifier));
           continue;
@@ -74,7 +82,7 @@ export const depsExtractor: Extractor<ModuleEntry> = {
         // reporting it as unresolved would bury the imports that matter.
         if (ASSET_EXTENSION.test(specifier)) continue;
 
-        const resolved = resolveRelativeImport(relative, specifier, fileSet);
+        const resolved = resolveImport(relative, specifier, fileSet, aliases);
         if (resolved === undefined) unresolved.push(specifier);
         else if (resolved !== relative) internal.add(resolved);
       }

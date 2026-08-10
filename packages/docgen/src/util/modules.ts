@@ -1,5 +1,7 @@
 import path from 'node:path';
 import { literalString, ts } from './ts-ast.js';
+import { aliasCandidates } from './tsconfig.js';
+import type { PathAlias } from './tsconfig.js';
 
 /**
  * Cross-file symbol resolution.
@@ -32,6 +34,39 @@ export function resolveRelativeImport(
 ): string | undefined {
   if (!specifier.startsWith('.')) return undefined;
   const base = path.posix.join(path.posix.dirname(fromFile), specifier);
+  return firstExisting(base, files);
+}
+
+/**
+ * Resolve any import — relative, or through a tsconfig `paths` alias.
+ *
+ * Aliases are the common case in modern repos, not the exception: a Next.js
+ * app typically routes almost every internal import through `@/`. Treating
+ * those as unresolvable made the import graph look like a pile of orphan
+ * modules and broke every cross-file chain that passed through one.
+ *
+ * A bare package specifier still resolves to undefined — `react` is not a file
+ * in this repo, and pretending otherwise is what the caller reports as a gap.
+ */
+export function resolveImport(
+  fromFile: string,
+  specifier: string,
+  files: ReadonlySet<string>,
+  aliases: readonly PathAlias[] = [],
+): string | undefined {
+  const relative = resolveRelativeImport(fromFile, specifier, files);
+  if (relative !== undefined) return relative;
+  if (specifier.startsWith('.')) return undefined;
+
+  for (const candidate of aliasCandidates(specifier, aliases)) {
+    const resolved = firstExisting(candidate, files);
+    if (resolved !== undefined) return resolved;
+  }
+  return undefined;
+}
+
+/** First path that exists in the scanned set, trying each extension in turn. */
+function firstExisting(base: string, files: ReadonlySet<string>): string | undefined {
   // TypeScript sources are frequently imported with a .js specifier.
   const withoutJs = base.replace(/\.(js|jsx|mjs)$/, '');
 
@@ -180,6 +215,8 @@ export async function resolveSymbolToFile(args: {
    */
   loadBindings: (file: string) => Promise<ModuleBindings | undefined>;
   files: ReadonlySet<string>;
+  /** tsconfig `paths` aliases, so a chain through `@/routes` still resolves. */
+  aliases?: readonly PathAlias[];
   maxHops?: number;
 }): Promise<{ file: string; exportedName: string } | undefined> {
   let currentFile = args.fromFile;
@@ -198,7 +235,7 @@ export async function resolveSymbolToFile(args: {
     // Following an import: move to the source module.
     const imported = bindings.imports.get(currentSymbol);
     if (imported !== undefined) {
-      const target = resolveRelativeImport(currentFile, imported.specifier, args.files);
+      const target = resolveImport(currentFile, imported.specifier, args.files, args.aliases);
       if (target === undefined) return undefined;
       currentFile = target;
       currentSymbol = imported.importedName;
@@ -208,7 +245,7 @@ export async function resolveSymbolToFile(args: {
     // Following a re-export barrel.
     const exported = bindings.exports.get(currentSymbol);
     if (exported !== undefined && exported.kind === 'reexport') {
-      const target = resolveRelativeImport(currentFile, exported.specifier, args.files);
+      const target = resolveImport(currentFile, exported.specifier, args.files, args.aliases);
       if (target === undefined) return undefined;
       currentFile = target;
       currentSymbol = exported.importedName;

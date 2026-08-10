@@ -4,7 +4,8 @@ import path from 'node:path';
 import type { Gap } from '../../types/core.js';
 import type { RouteEntry } from '../../types/entries.js';
 import { toPosix } from '../../util/paths.js';
-import { resolveRelativeImport } from '../../util/modules.js';
+import { resolveImport } from '../../util/modules.js';
+import { loadPathAliases } from '../../util/tsconfig.js';
 import {
   getProperty,
   importedModules,
@@ -60,6 +61,7 @@ export async function extractReactRouterRoutes(args: {
     .map(toPosix)
     .sort();
   const fileSet = new Set(files);
+  const aliases = await loadPathAliases(args.root);
 
   const entries: RouteEntry[] = [];
   const gaps: Gap[] = [];
@@ -94,7 +96,7 @@ export async function extractReactRouterRoutes(args: {
 
     routerFiles.push(relative);
     for (const specifier of imports) {
-      const resolved = resolveRelativeImport(relative, specifier, fileSet);
+      const resolved = resolveImport(relative, specifier, fileSet, aliases);
       if (resolved !== undefined && resolved !== relative) tableCandidates.add(resolved);
     }
   }
