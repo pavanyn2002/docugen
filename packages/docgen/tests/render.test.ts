@@ -215,7 +215,7 @@ describe('empty sections state why they are empty', () => {
     const files = renderAll(await runOn(path.join(FIXTURES, 'monorepo')));
 
     expect(fileNamed(files, 'README.md')).toContain('This documentation is **incomplete**');
-    expect(fileNamed(files, 'README.md')).toContain('FastAPI');
+    expect(fileNamed(files, 'README.md')).toContain('Flask');
   });
 
   it('never claims a route is public when guards are undetermined', async () => {

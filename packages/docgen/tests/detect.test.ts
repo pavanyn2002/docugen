@@ -122,11 +122,19 @@ describe('stack detection', () => {
   // empty section is otherwise indistinguishable from a clean repo.
   it('reports a detected technology it cannot document', async () => {
     const report = await detect(path.join(FIXTURES, 'monorepo'));
-    const fastapi = report.unsupported.find((tech) => tech.id === 'fastapi');
+    const flask = report.unsupported.find((tech) => tech.id === 'flask');
 
-    expect(fastapi).toBeDefined();
-    expect(fastapi?.unsupportedNote).toContain('not extracted');
-    expect(fastapi?.evidence.file).toBe('backend/requirements.txt');
+    expect(flask).toBeDefined();
+    expect(flask?.unsupportedNote).toContain('not extracted');
+    expect(flask?.evidence.file).toBe('backend/requirements.txt');
+  });
+
+  // FastAPI moved from unsupported to supported. The distinction is the point
+  // of this module, so it is asserted rather than left to the absence above.
+  it('does not list a technology it can now document as unsupported', async () => {
+    const report = await detect(path.join(FIXTURES, 'monorepo'));
+    expect(report.unsupported.find((tech) => tech.id === 'fastapi')).toBeUndefined();
+    expect(report.technologies.find((tech) => tech.id === 'fastapi')?.covers).toContain('endpoints');
   });
 
   it('detects an entirely unsupported stack rather than reporting nothing', async () => {

@@ -6,6 +6,8 @@ import { inapplicable, skip } from '../types.js';
 import { extractExpressEndpoints } from './express.js';
 import { extractNextApiEndpoints } from './next-api.js';
 import { extractNestEndpoints } from './nest.js';
+import { extractFastApiEndpoints } from './fastapi.js';
+import { extractDjangoEndpoints } from './django.js';
 import { crossCheckAgainstSpec } from './openapi.js';
 import { compareStrings } from '../../util/sort.js';
 
@@ -53,6 +55,20 @@ export const endpointsExtractor: Extractor<EndpointEntry> = {
       }
     }
 
+    const fastapi = await extractFastApiEndpoints({ root: context.root, exclude });
+    if (fastapi.found) {
+      detected.push('fastapi');
+      entries.push(...fastapi.entries);
+      gaps.push(...fastapi.gaps);
+    }
+
+    const django = await extractDjangoEndpoints({ root: context.root, exclude });
+    if (django.found) {
+      detected.push('django');
+      entries.push(...django.entries);
+      gaps.push(...django.gaps);
+    }
+
     if (detected.length === 0) {
       return inapplicable<EndpointEntry>(
         'endpoints',
@@ -60,7 +76,8 @@ export const endpointsExtractor: Extractor<EndpointEntry> = {
           skip(
             'endpoints',
             'no-endpoint-source-detected',
-            'No Express router, NestJS controller, or Next.js API handler was found.',
+            'No Express router, NestJS controller, Next.js API handler, FastAPI route, or ' +
+              'Django urlconf was found.',
           ),
         ],
         Date.now() - startedAt,

@@ -79,8 +79,7 @@ export const TECH_SIGNATURES: readonly TechSignature[] = Object.freeze([
     name: 'FastAPI',
     category: 'web-framework',
     dependencies: ['fastapi'],
-    covers: [],
-    unsupportedNote: 'Python routes and endpoints are not extracted.',
+    covers: ['endpoints'],
   },
   {
     id: 'flask',
@@ -95,8 +94,7 @@ export const TECH_SIGNATURES: readonly TechSignature[] = Object.freeze([
     name: 'Django',
     category: 'web-framework',
     dependencies: ['django', 'Django'],
-    covers: ['schema'],
-    unsupportedNote: 'URL configuration is not parsed, so routes are missing.',
+    covers: ['schema', 'endpoints'],
   },
   {
     id: 'rails',
