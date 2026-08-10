@@ -1,14 +1,13 @@
 import { colors } from '../util/colors.js';
 import { loadConfig } from '../config/load.js';
-import { ALWAYS_EXCLUDE } from '../config/schema.js';
 import { loadCards } from '../infer/store.js';
 import { loadAnswers } from '../questions/store.js';
 import { loadRequirements } from '../requirements/store.js';
 import { scanTestReferences } from '../trace/scan.js';
 import { buildMatrix } from '../trace/matrix.js';
 import { syncGenerated } from '../verify/write.js';
+import type { SyncReport } from '../verify/write.js';
 import { DocgenError } from '../util/errors.js';
-import { toPosix } from '../util/paths.js';
 import type { Logger } from '../util/logger.js';
 
 export interface TraceCommandOptions {
@@ -42,14 +41,14 @@ export async function runTraceCommand(options: TraceCommandOptions): Promise<voi
   const references = await scanTestReferences({
     root: config.root,
     globs: config.trace.include,
-    exclude: [...config.exclude, ...ALWAYS_EXCLUDE],
+    exclude: config.effectiveExclude,
   });
 
   const matrix = buildMatrix({ requirements, cards, references, answers });
 
   // Writing through the shared path keeps the repo passing `docgen check`,
   // and regenerates the pages that depend on the matrix.
-  await syncGenerated({ config, logger: options.logger });
+  const sync = await syncGenerated({ config, logger: options.logger });
 
   if (options.json === true) {
     options.logger.output(
@@ -67,7 +66,7 @@ export async function runTraceCommand(options: TraceCommandOptions): Promise<voi
       ),
     );
   } else {
-    report(matrix, references.length, toPosix(config.outDir), options.logger);
+    report(matrix, references.length, sync, options.logger);
   }
 
   if (
@@ -93,7 +92,7 @@ export async function runTraceCommand(options: TraceCommandOptions): Promise<voi
 function report(
   matrix: ReturnType<typeof buildMatrix>,
   referenceCount: number,
-  outDir: string,
+  sync: SyncReport,
   logger: Logger,
 ): void {
   const percent =
@@ -118,7 +117,19 @@ function report(
     );
   }
 
-  logger.info(`\n  ${colors().dim(`written to ${outDir}/test-cases.md and ${outDir}/traceability.md`)}`);
+  // Naming files that were not written is the same class of error this tool
+  // exists to catch: with nothing triaged there is no matrix to render, and
+  // claiming otherwise sends the reader looking for a page that is not there.
+  const traceFiles = sync.written.filter(
+    (file) => file.endsWith('test-cases.md') || file.endsWith('traceability.md'),
+  );
+  logger.info(
+    `\n  ${colors().dim(
+      traceFiles.length > 0
+        ? `written to ${traceFiles.join(' and ')}`
+        : 'nothing written — no requirement has been triaged yet, so there is no matrix to render',
+    )}`,
+  );
 }
 
 /** Zero is the good outcome here, so it is the one that gets the colour. */

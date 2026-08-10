@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { createLogger } from '../src/util/logger.js';
+import { runTraceCommand } from '../src/commands/trace.js';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -283,5 +285,82 @@ describe('the trace pages', () => {
     const args = { matrix, context, outDir: 'docs/generated' } as const;
     expect(renderTraceabilityPage(args)).toBe(renderTraceabilityPage(args));
     expect(renderTestCasesPage(args)).toBe(renderTestCasesPage(args));
+  });
+});
+
+describe('what `docgen trace` claims it wrote', () => {
+  const created: string[] = [];
+
+  async function makeRepo(files: Record<string, string>): Promise<string> {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'docgen-trace-cmd-'));
+    created.push(dir);
+    for (const [name, contents] of Object.entries(files)) {
+      const target = path.join(dir, name);
+      await fs.mkdir(path.dirname(target), { recursive: true });
+      await fs.writeFile(target, contents, 'utf8');
+    }
+    return dir;
+  }
+
+  function captureLogger() {
+    const lines: string[] = [];
+    const sink = { write: (chunk: string) => (lines.push(chunk), true) };
+    return {
+      lines,
+      logger: createLogger({
+        level: 'info',
+        stdout: sink as unknown as NodeJS.WritableStream,
+        stderr: sink as unknown as NodeJS.WritableStream,
+      }),
+    };
+  }
+
+  afterEach(async () => {
+    await Promise.all(created.splice(0).map((dir) => fs.rm(dir, { recursive: true, force: true })));
+  });
+
+  /**
+   * Regression: the closing line named both trace pages unconditionally, so a
+   * repo with nothing triaged was told they had been written when no matrix
+   * exists to render and neither file was created. Naming a file that is not
+   * there is the same class of error the tool exists to catch.
+   */
+  it('does not name pages it did not write', async () => {
+    const root = await makeRepo({
+      'package.json': '{"dependencies":{"next":"^15.0.0"}}',
+      'app/page.tsx': 'export default function Home() { return null; }',
+    });
+
+    const { lines, logger } = captureLogger();
+    await runTraceCommand({ cwd: root, logger });
+    const output = lines.join('');
+
+    expect(output).not.toContain('test-cases.md');
+    expect(output).toContain('nothing written');
+    await expect(fs.stat(path.join(root, 'docs/generated/test-cases.md'))).rejects.toThrow();
+  });
+
+  /**
+   * The exclude list is assembled once in loadConfig. Rebuilding it by hand
+   * here dropped the repo's own .gitignore, so a fixture inside an ignored
+   * directory was scanned for requirement citations.
+   */
+  it('does not scan tests inside a gitignored directory', async () => {
+    const root = await makeRepo({
+      'package.json': '{"dependencies":{"next":"^15.0.0"}}',
+      'app/page.tsx': 'export default function Home() { return null; }',
+      '.gitignore': '/output/\n',
+      'output/copy.test.ts': "it('REQ-ghost-01: a stale copy', () => {});",
+    });
+
+    const { lines, logger } = captureLogger();
+    await runTraceCommand({ cwd: root, json: true, logger });
+    const payload = JSON.parse(lines.join('')) as {
+      danglingReferences: readonly unknown[];
+      testFilesScanned: number;
+    };
+
+    expect(payload.testFilesScanned).toBe(0);
+    expect(payload.danglingReferences).toEqual([]);
   });
 });

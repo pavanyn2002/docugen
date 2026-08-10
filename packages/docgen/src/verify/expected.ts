@@ -15,7 +15,6 @@ import { renderTestCasesPage, renderTraceabilityPage } from '../trace/render.js'
 import type { RunResult } from '../pipeline.js';
 import { compareStrings } from '../util/sort.js';
 import { toPosix } from '../util/paths.js';
-import { ALWAYS_EXCLUDE } from '../config/schema.js';
 
 /**
  * Every file docgen would write, given the current code and the current stores.
@@ -80,7 +79,7 @@ export async function computeExpectedFiles(run: RunResult): Promise<readonly Ren
     const references = await scanTestReferences({
       root,
       globs: run.config.trace.include,
-      exclude: [...run.config.exclude, ...ALWAYS_EXCLUDE],
+      exclude: run.config.effectiveExclude,
     });
     const matrix = buildMatrix({ requirements, cards, references, answers });
 

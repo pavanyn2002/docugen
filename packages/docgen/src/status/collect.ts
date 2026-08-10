@@ -1,6 +1,5 @@
 import path from 'node:path';
 import { loadConfig } from '../config/load.js';
-import { ALWAYS_EXCLUDE } from '../config/schema.js';
 import { runExtraction } from '../pipeline.js';
 import { chunkSurfaces } from '../surface/chunk.js';
 import { loadCards } from '../infer/store.js';
@@ -83,7 +82,7 @@ export async function collectStatus(args: {
   const references = await scanTestReferences({
     root: config.root,
     globs: config.trace.include,
-    exclude: [...config.exclude, ...ALWAYS_EXCLUDE],
+    exclude: config.effectiveExclude,
   });
   const matrix = buildMatrix({ requirements, cards, references, answers });
 
