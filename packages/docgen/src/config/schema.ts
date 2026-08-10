@@ -126,6 +126,17 @@ export const docgenConfigSchema = z
     gitattributes: z.boolean().default(true),
 
     /**
+     * Skip files the repo's own `.gitignore` excludes.
+     *
+     * On by default because an untracked file is not part of the commit:
+     * reading one makes output depend on the state of a working directory
+     * rather than on the source, which breaks determinism and makes `check`
+     * fail in CI. Turn it off only to document generated code that is
+     * deliberately ignored but still needs to appear.
+     */
+    respectGitignore: z.boolean().default(true),
+
+    /**
      * Where to look for tests citing a requirement id.
      *
      * Overridable because "what counts as a test" varies enormously across
@@ -178,6 +189,11 @@ export interface ResolvedConfig extends DocgenConfig {
   readonly root: string;
   /** Absolute path of the config file that was loaded, if any. */
   readonly configFile?: string;
-  /** ALWAYS_EXCLUDE plus the user's `exclude`. */
+  /** ALWAYS_EXCLUDE, the user's `exclude`, and the repo's `.gitignore`. */
   readonly effectiveExclude: readonly string[];
+  /**
+   * `.gitignore` re-inclusion rules that could not be applied. Surfaced by the
+   * run report so an over-broad exclusion is visible rather than silent.
+   */
+  readonly gitignoreNegations: readonly string[];
 }

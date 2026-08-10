@@ -201,6 +201,17 @@ function reportStack(result: RunResult, logger: Logger): void {
     logger.info(`  ${mark} ${tech.name}${where}`);
   }
 
+  // A `!re-included` path is excluded here but tracked by git, so its absence
+  // from the output would otherwise look like the repo simply has nothing there.
+  const negations = result.config.gitignoreNegations;
+  if (negations.length > 0) {
+    logger.warn(
+      `.gitignore has ${negations.length} re-inclusion rule(s) docgen cannot apply, so files ` +
+        'they restore are excluded. Add them to `include` in docgen.config if they hold source:',
+    );
+    for (const negation of negations.slice(0, 5)) logger.warn(`  ${negation}`);
+  }
+
   if (unsupported.length > 0) {
     logger.warn(
       `docgen cannot document ${unsupported.length} detected technolog${unsupported.length === 1 ? 'y' : 'ies'}. ` +

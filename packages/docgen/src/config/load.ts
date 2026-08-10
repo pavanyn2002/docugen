@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createJiti } from 'jiti';
 import { docgenConfigSchema, ALWAYS_EXCLUDE } from './schema.js';
+import { readGitignore } from './gitignore.js';
 import type { ResolvedConfig } from './schema.js';
 import { DocgenError, describeUnknownError } from '../util/errors.js';
 
@@ -156,10 +157,17 @@ export async function loadConfig(options: {
     });
   }
 
+  const gitignore = parsed.data.respectGitignore ? await readGitignore(root) : undefined;
+
   return {
     ...parsed.data,
     root,
     ...(file === undefined ? {} : { configFile: file }),
-    effectiveExclude: [...ALWAYS_EXCLUDE, ...parsed.data.exclude],
+    effectiveExclude: [
+      ...ALWAYS_EXCLUDE,
+      ...parsed.data.exclude,
+      ...(gitignore?.patterns ?? []),
+    ],
+    gitignoreNegations: gitignore?.unsupportedNegations ?? [],
   };
 }
