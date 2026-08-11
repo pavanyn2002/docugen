@@ -2,10 +2,13 @@ import { afterEach, describe, expect, it } from 'vitest';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { BLOCK_END, BLOCK_START, upsertManagedBlock } from '../src/adapters/block.js';
 import { installAdapters } from '../src/adapters/install.js';
 import { renderAgentInstructions, renderCursorRule } from '../src/adapters/instructions.js';
 import { resolveInvocation } from '../src/commands/init.js';
+import { renderDocgenSkill } from '../src/adapters/skills.js';
+import { renderPrePushHook } from '../src/adapters/hooks.js';
 
 const created: string[] = [];
 
@@ -103,6 +106,14 @@ describe('agent instructions', () => {
     expect(rule.startsWith('---\n')).toBe(true);
     expect(rule).toContain('alwaysApply: true');
   });
+
+  it('gives every host the same three lifecycle operations', () => {
+    const text = renderDocgenSkill({ invocation: 'docgen' });
+    expect(text).toContain('name: govern-documentation');
+    expect(text).toContain('docgen session start --json');
+    expect(text).toContain('docgen session after-edit --json');
+    expect(text).toContain('docgen session end --json');
+  });
 });
 
 describe('installing adapters', () => {
@@ -110,7 +121,11 @@ describe('installing adapters', () => {
     const root = await makeRepo();
     const outcomes = await installAdapters({ root, invocation: 'docgen' });
 
-    expect(outcomes.map((outcome) => outcome.file)).toEqual(['AGENTS.md']);
+    expect(outcomes.map((outcome) => outcome.file)).toEqual([
+      '.agents/skills/govern-documentation/SKILL.md',
+      '.mcp.json',
+      'AGENTS.md',
+    ]);
     expect(await fs.readFile(path.join(root, 'AGENTS.md'), 'utf8')).toContain('docgen ask --mine');
   });
 
@@ -143,11 +158,72 @@ describe('installing adapters', () => {
     const outcomes = await installAdapters({ root, invocation: 'docgen', all: true });
 
     expect(outcomes.map((outcome) => outcome.file).sort()).toEqual([
+      '.agents/skills/govern-documentation/SKILL.md',
+      '.claude/skills/govern-documentation/SKILL.md',
+      '.codex/config.toml',
       '.cursor/rules/docgen.mdc',
       '.github/workflows/docgen.yml',
+      '.mcp.json',
       'AGENTS.md',
       'CLAUDE.md',
     ]);
+  });
+
+  it('merges the MCP server without removing team servers', async () => {
+    const root = await makeRepo({ '.mcp.json': JSON.stringify({ mcpServers: { team: { command: 'team-server' } }, custom: true }) });
+    await installAdapters({ root, invocation: 'npx docgen' });
+    const config = JSON.parse(await fs.readFile(path.join(root, '.mcp.json'), 'utf8')) as {
+      custom: boolean; mcpServers: Record<string, { command: string; args?: string[] }>;
+    };
+    expect(config.custom).toBe(true);
+    expect(config.mcpServers.team?.command).toBe('team-server');
+    expect(config.mcpServers.docgen).toEqual({ command: 'npx', args: ['docgen', 'mcp'] });
+  });
+
+  it('preserves Codex project config and installs the documented MCP table', async () => {
+    const root = await makeRepo({ '.codex/config.toml': 'model = "gpt-5"\n' });
+    await installAdapters({ root, invocation: 'npx docgen' });
+    const config = await fs.readFile(path.join(root, '.codex/config.toml'), 'utf8');
+    expect(config).toContain('model = "gpt-5"');
+    expect(config).toContain('[mcp_servers.docgen]');
+    expect(config).toContain('command = "npx"');
+    expect(config).toContain('args = ["docgen","mcp"]');
+    expect(config).toContain('default_tools_approval_mode = "writes"');
+  });
+
+  it('refuses to overwrite a team-owned Codex MCP table', async () => {
+    const original = '[mcp_servers.docgen]\ncommand = "team-docgen"\n';
+    const root = await makeRepo({ '.codex/config.toml': original });
+    await expect(installAdapters({ root, invocation: 'docgen' })).rejects.toMatchObject({ code: 'codex-mcp-owned' });
+    expect(await fs.readFile(path.join(root, '.codex/config.toml'), 'utf8')).toBe(original);
+  });
+
+  it('refuses to overwrite invalid MCP configuration', async () => {
+    const root = await makeRepo({ '.mcp.json': '{nope' });
+    await expect(installAdapters({ root, invocation: 'docgen' })).rejects.toMatchObject({ code: 'mcp-config-invalid' });
+    expect(await fs.readFile(path.join(root, '.mcp.json'), 'utf8')).toBe('{nope');
+  });
+
+  it('renders a deterministic pre-push gate without session writes', () => {
+    const hook = renderPrePushHook('npx docgen');
+    expect(hook).toContain('npx docgen check');
+    expect(hook).not.toContain('session end');
+  });
+
+  it('installs the opt-in hook and activates the repository hook path', async () => {
+    const root = await makeRepo();
+    execFileSync('git', ['init'], { cwd: root, stdio: 'ignore' });
+    const outcomes = await installAdapters({ root, invocation: 'docgen', hooks: true });
+    expect(outcomes.map((outcome) => outcome.file)).toContain('.githooks/pre-push');
+    expect(await fs.readFile(path.join(root, '.githooks/pre-push'), 'utf8')).toContain('docgen check');
+    expect(execFileSync('git', ['config', '--local', '--get', 'core.hooksPath'], { cwd: root, encoding: 'utf8' }).trim()).toBe('.githooks');
+  });
+
+  it('refuses to overwrite a team-owned pre-push hook', async () => {
+    const root = await makeRepo({ '.githooks/pre-push': '#!/bin/sh\necho team\n' });
+    execFileSync('git', ['init'], { cwd: root, stdio: 'ignore' });
+    await expect(installAdapters({ root, invocation: 'docgen', hooks: true })).rejects.toMatchObject({ code: 'git-hook-owned' });
+    expect(await fs.readFile(path.join(root, '.githooks/pre-push'), 'utf8')).toContain('echo team');
   });
 
   it('adds an update policy only where docgen is a pinned dependency', async () => {
@@ -190,6 +266,8 @@ describe('installing adapters', () => {
     const workflow = await fs.readFile(path.join(root, '.github/workflows/docgen.yml'), 'utf8');
     expect(workflow).toContain('branches: [develop]');
     expect(workflow).toContain('npx docgen check');
+    expect(workflow).toContain('fetch-depth: 0');
+    expect(workflow).toContain('4b825dc642cb6eb9a060e54bf8d69288fbee4904');
   });
 
   it('fetches and pins docgen in CI when it is not a repo dependency', async () => {

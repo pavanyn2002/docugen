@@ -75,6 +75,24 @@ export default defineConfig({
     include: ['**/*.{test,spec}.{ts,tsx,js,jsx}', '**/tests/**/*.py', /* … */],
   },
 
+  // Opt in gradually. Enabled policies are enforced by `docgen check` in CI.
+  governance: {
+    policies: {
+      changedFeaturesRequirePlan: false,
+      changesRequireHandoff: false,
+      criticalFeaturesRequireVerification: false,
+      requirementsRequireTests: false,
+    },
+    criticalityAtLeast: 'critical', // 'high' | 'critical'
+  },
+
+  privacy: {
+    localOnly: false,
+    redactSecrets: true,
+    allowedAgents: ['claude', 'codex', 'cursor', 'api'],
+    // allowedModels: ['organization-approved-model-id'],
+  },
+
   // Only these cost money, and only when `docgen bootstrap` runs.
   infer: {
     agent: 'auto',              // 'auto' | 'claude' | 'codex' | 'cursor' | 'api'
@@ -168,6 +186,39 @@ trace: { include: ['**/*.{test,spec}.ts', 'qa/**/*.robot'] }
 The context limits are the cost control. Raising `maxFilesPerSurface` gives the model more to work with and costs proportionally more per surface. When files are dropped to stay within budget, the prompt tells the model which ones were omitted, so it records an unknown rather than describing a surface it only partly saw.
 
 Set `agent` explicitly when the team must all use the same backend. An explicitly named backend that is unavailable is an error, never a silent downgrade to a different model.
+
+### `governance.*`
+
+Enable policies one at a time after the repository has a usable baseline. The
+change-scoped plan and handoff policies require `docgen check --base <revision>`;
+the generated GitHub workflow supplies the pull-request base automatically.
+
+- `changedFeaturesRequirePlan` requires an affected feature to have an approved,
+  in-progress, or completed plan.
+- `changesRequireHandoff` requires the tester handoff to name the exact base and
+  changed file set.
+- `criticalFeaturesRequireVerification` requires sufficiently critical active
+  features to have an owner, matched code evidence, a behavior card, and no
+  unanswered verification questions.
+- `requirementsRequireTests` requires every confirmed testable requirement or
+  bug to be cited by a test, and rejects citations to unknown requirements.
+
+Record exceptions explicitly with an owner, reason, and expiry using
+`docgen policy exception add`; permanent exceptions are unsupported.
+
+### `privacy.*`
+
+`redactSecrets` is enabled by default. Before a model call, Docgen replaces
+private-key blocks, credential-bearing URLs, common provider tokens, JWTs, and
+values assigned to password/token/secret/API-key fields. The disclosure printed
+immediately before each call names the included files, total prompt bytes,
+provider, model, and redaction count.
+
+`allowedAgents` restricts which backend may receive repository context. When
+`allowedModels` is present, `infer.model` becomes mandatory and must exactly
+match one listed model id; Docgen never silently falls back to a different
+model. `localOnly: true` disables model-backed inference entirely while leaving
+indexing, synchronization, policy checks, and generated documentation working.
 
 ## Verifying your config took effect
 

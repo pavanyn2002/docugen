@@ -32,6 +32,9 @@ Start with **[Getting started](getting-started.md)** — about five minutes, on 
 | [CI and automation](ci.md) | The drift gate, machine-readable output |
 | [Rolling out across repos](rollout.md) | A sequence that survives contact with a real team |
 | [Troubleshooting](troubleshooting.md) | Specific failures and what to do about them |
+| [Docgen v1 implementation plan](implementation-plan.md) | Evidence graph, feature lifecycle, tester handoffs, migration, and release gates |
+| [Security threat model](security/threat-model.md) | Assets, trust boundaries, attacker stories, controls, and severity calibration |
+| [Docgen v1 product contract](v1-product-contract.md) | Non-negotiable trust, determinism, ownership, privacy, and governance rules |
 
 ## The short version
 

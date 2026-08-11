@@ -16,6 +16,8 @@ export interface ExtractorContext {
   readonly root: string;
   readonly config: ResolvedConfig;
   readonly logger: Logger;
+  /** Repo-relative POSIX files whose graph partitions are being rebuilt. */
+  readonly partitionFiles?: ReadonlySet<string>;
 }
 
 export interface Extractor<TEntry extends EntryBase = EntryBase> {
@@ -49,4 +51,31 @@ export function inapplicable<TEntry extends EntryBase>(
 
 export function skip(extractor: ExtractorId, kind: string, message: string): Skip {
   return { extractor, kind, message };
+}
+
+function touchesPartition(value: unknown, files: ReadonlySet<string>, seen: Set<object>): boolean {
+  if (value === null || typeof value !== 'object') return false;
+  if (seen.has(value)) return false;
+  seen.add(value);
+  if ('file' in value && typeof value.file === 'string' && files.has(value.file.replaceAll('\\', '/'))) {
+    return true;
+  }
+  if (Array.isArray(value)) return value.some((item) => touchesPartition(item, files, seen));
+  return Object.values(value).some((item) => touchesPartition(item, files, seen));
+}
+
+/** Keep only extractor evidence that can contribute to the requested file partitions. */
+export function scopeExtractResult<TEntry extends EntryBase>(
+  result: ExtractResult<TEntry>,
+  files: ReadonlySet<string> | undefined,
+): ExtractResult<TEntry> {
+  if (files === undefined) return result;
+  return {
+    ...result,
+    entries: result.entries.filter((entry) => touchesPartition(entry, files, new Set())),
+    // Source-less gaps belong to the global partition, which every scoped run rebuilds.
+    gaps: result.gaps.filter(
+      (gap) => gap.source === undefined || files.has(gap.source.file.replaceAll('\\', '/')),
+    ),
+  };
 }

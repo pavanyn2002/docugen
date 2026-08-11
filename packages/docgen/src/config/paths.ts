@@ -17,6 +17,26 @@ export const ANSWERS_DIR = 'docs/.answers';
 /** Triaged requirements, bugs, and decisions. Also human-authored. */
 export const REQUIREMENTS_DIR = 'docs/.requirements';
 
+/** Stable, human-owned product feature records. */
+export const FEATURES_DIR = 'docs/.features';
+
+/** Human-owned feature plans and their lifecycle history. */
+export const PLANS_DIR = 'docs/.plans';
+
+/** Attributed snapshots of governed code changes. */
+export const CHANGES_DIR = 'docs/.changes';
+
+/** Human-reviewed decisions for replacing, retaining, or archiving legacy documentation. */
+export const LEGACY_DIR = 'docs/.legacy';
+export const LEGACY_MIGRATION_FILE = `${LEGACY_DIR}/migration.json`;
+export const LEGACY_REPLACEMENT_PLAN_FILE = `${LEGACY_DIR}/replacement-plan.json`;
+export const LEGACY_ARCHIVE_PLAN_FILE = `${LEGACY_DIR}/archive-plan.json`;
+export const LEGACY_ARCHIVE_DIR = 'docs/legacy-archive';
+
+/** Human-owned, time-bounded governance exceptions. */
+export const GOVERNANCE_DIR = 'docs/.governance';
+export const GOVERNANCE_EXCEPTIONS_FILE = `${GOVERNANCE_DIR}/exceptions.json`;
+
 /**
  * Where tests that cite a requirement id are looked for.
  *

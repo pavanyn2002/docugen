@@ -19,6 +19,7 @@ export const STATIC_LANE_DIRS: readonly string[] = Object.freeze([
   'surface',
   'render',
   'config',
+  'graph',
   'util',
   'types',
 ]);

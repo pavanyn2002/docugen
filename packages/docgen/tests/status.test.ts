@@ -52,6 +52,7 @@ function status(overrides: Partial<RepoStatus> = {}): RepoStatus {
     untracedSurfaces: 0,
     driftingFiles: 0,
     unsupportedTechnologies: [],
+    graph: { nodes: 0, edges: 0, gaps: 0, features: 0, criticalFeatures: 0, plans: 0, changes: 0 },
     ...overrides,
   };
 }
@@ -64,6 +65,7 @@ describe('collecting status', () => {
     expect(result.surfaces).toBeGreaterThan(0);
     expect(result.described).toBe(0);
     expect(result.openQuestions).toBe(0);
+    expect(result.graph.nodes).toBeGreaterThan(0);
   });
 
   it('reports drift before anything has been generated', async () => {
@@ -164,6 +166,29 @@ describe('the fleet page', () => {
       generatedAt: '2026-03-01T00:00:00.000Z',
     } as const;
     expect(renderFleetPage(args)).toBe(renderFleetPage(args));
+  });
+
+  it('summarizes graph and governed-record coverage without inventing a score', () => {
+    const page = renderFleetPage({
+      repos: [
+        status({
+          graph: {
+            nodes: 120,
+            edges: 240,
+            gaps: 3,
+            features: 8,
+            criticalFeatures: 2,
+            plans: 5,
+            changes: 11,
+          },
+        }),
+      ],
+      failures: [],
+      generatedAt: '2026-08-12T00:00:00.000Z',
+    });
+    expect(page).toContain('**120 nodes**');
+    expect(page).toContain('| app | 120 | 240 | 3 | 8 | 2 | 5 | 11 |');
+    expect(page).not.toContain('score');
   });
 });
 

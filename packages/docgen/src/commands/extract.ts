@@ -9,6 +9,7 @@ import { writeAll } from '../render/index.js';
 import { DocgenError } from '../util/errors.js';
 import type { Logger } from '../util/logger.js';
 import { compareStrings } from '../util/sort.js';
+import { loadFeatureRecords } from '../features/store.js';
 
 export interface ExtractCommandOptions {
   readonly cwd: string;
@@ -61,6 +62,7 @@ export async function runExtractCommand(options: ExtractCommandOptions): Promise
   const result = await runExtraction({
     config,
     logger: options.logger,
+    includeSymbols: (await loadFeatureRecords(config.root)).length > 0,
     ...(only === undefined ? {} : { only }),
   });
 

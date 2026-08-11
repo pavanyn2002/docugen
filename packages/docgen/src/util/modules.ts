@@ -97,12 +97,15 @@ export type ExportBinding =
 export interface ModuleBindings {
   readonly imports: ReadonlyMap<string, ImportBinding>;
   readonly exports: ReadonlyMap<string, ExportBinding>;
+  /** Modules whose public names are forwarded with `export * from '...'`. */
+  readonly starExports: readonly string[];
 }
 
 /** Collect the import and export bindings of one parsed module. */
 export function readModuleBindings(source: ts.SourceFile): ModuleBindings {
   const imports = new Map<string, ImportBinding>();
   const exports = new Map<string, ExportBinding>();
+  const starExports: string[] = [];
 
   for (const statement of source.statements) {
     if (ts.isImportDeclaration(statement)) {
@@ -121,6 +124,8 @@ export function readModuleBindings(source: ts.SourceFile): ModuleBindings {
             importedName: element.propertyName?.text ?? element.name.text,
           });
         }
+      } else if (named !== undefined && ts.isNamespaceImport(named)) {
+        imports.set(named.name.text, { specifier, importedName: '*' });
       }
       continue;
     }
@@ -128,7 +133,11 @@ export function readModuleBindings(source: ts.SourceFile): ModuleBindings {
     if (ts.isExportDeclaration(statement)) {
       const specifier = literalString(statement.moduleSpecifier);
       const clause = statement.exportClause;
-      if (clause === undefined || !ts.isNamedExports(clause)) continue;
+      if (clause === undefined) {
+        if (specifier !== undefined) starExports.push(specifier);
+        continue;
+      }
+      if (!ts.isNamedExports(clause)) continue;
 
       for (const element of clause.elements) {
         const importedName = element.propertyName?.text ?? element.name.text;
@@ -180,7 +189,7 @@ export function readModuleBindings(source: ts.SourceFile): ModuleBindings {
   };
   visit(source);
 
-  return { imports, exports };
+  return { imports, exports, starExports: [...new Set(starExports)].sort() };
 }
 
 /** `await import('x')`, `import('x')`, or `require('x')` — returns 'x'. */

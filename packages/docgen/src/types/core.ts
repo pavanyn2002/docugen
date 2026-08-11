@@ -67,8 +67,8 @@ export interface SourceRef {
  * with a plausible value. Gaps are the honest output of a failed inference and
  * become Phase 1 questions.
  */
-/** What produced a Gap. The surface chunker can fail to place things too. */
-export type GapSource = ExtractorId | 'surface';
+/** What produced a Gap. Surface chunking and symbol adapters can also fail honestly. */
+export type GapSource = ExtractorId | 'surface' | 'symbol';
 
 export interface Gap {
   readonly extractor: GapSource;

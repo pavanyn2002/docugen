@@ -7,6 +7,26 @@ import { parseOnly, runExtractCommand } from '../src/commands/extract.js';
 import { EXTRACTOR_IDS } from '../src/types/core.js';
 import { createLogger } from '../src/util/logger.js';
 import { DocgenError } from '../src/util/errors.js';
+import { resolveGraphIndexPath, runIndexGraphCommand } from '../src/commands/index-graph.js';
+import { DEFAULT_GRAPH_INDEX, readEvidenceGraph } from '../src/graph/store.js';
+import {
+  DEFAULT_FILE_FINGERPRINT_INDEX,
+  readFileFingerprints,
+} from '../src/graph/fingerprints.js';
+import {
+  DEFAULT_GRAPH_PARTITION_INDEX,
+  readGraphPartitions,
+} from '../src/graph/partition-store.js';
+import { mergeGraphPartitions } from '../src/graph/partitions.js';
+import { serialiseEvidenceGraph } from '../src/graph/serialize.js';
+import { loadConfig } from '../src/config/load.js';
+import { runExtraction } from '../src/pipeline.js';
+import {
+  parseGraphDirection,
+  parseGraphEdgeKinds,
+  parseGraphNodeKinds,
+  runGraphSearchCommand,
+} from '../src/commands/query-graph.js';
 
 const created: string[] = [];
 
@@ -61,11 +81,25 @@ describe('command surface', () => {
       'answer',
       'ask',
       'bootstrap',
+      'change',
       'check',
+      'explain',
       'extract',
+      'feature',
       'fleet',
+      'handoff',
+      'impact',
+      'index',
       'init',
+      'legacy',
+      'mcp',
+      'path',
+      'plan',
+      'policy',
+      'query',
       'report',
+      'security',
+      'session',
       'status',
       'sync',
       'trace',
@@ -73,10 +107,296 @@ describe('command surface', () => {
     ]);
   });
 
+  it('registers the common agent lifecycle', () => {
+    const session = buildCli().commands.find((command) => command.name() === 'session');
+    expect(session?.commands.map((command) => command.name()).sort()).toEqual([
+      'after-edit',
+      'end',
+      'start',
+    ]);
+  });
+
   it('describes every command, so --help is usable', () => {
     for (const command of buildCli().commands) {
       expect(command.description()).not.toBe('');
     }
+  });
+
+  it('registers the complete approval-gated legacy workflow', () => {
+    const legacy = buildCli().commands.find((command) => command.name() === 'legacy');
+    expect(legacy?.commands.map((command) => command.name()).sort()).toEqual([
+      'approve',
+      'archive',
+      'classify',
+      'inventory',
+      'plan',
+    ]);
+  });
+});
+
+describe('docgen index', () => {
+  it('writes a validated symbol graph to the ignored local cache', async () => {
+    const root = await makeRepo({
+      'package.json': '{"name":"index-fixture"}',
+      'src/app.ts': 'function helper() {}\nexport function run() { helper(); }\n',
+    });
+    const { logger } = captureLogger();
+
+    await runIndexGraphCommand({ cwd: root, logger });
+
+    const file = path.join(root, DEFAULT_GRAPH_INDEX);
+    const graph = await readEvidenceGraph(file);
+    const fingerprints = await readFileFingerprints(path.join(root, DEFAULT_FILE_FINGERPRINT_INDEX));
+    const partitions = await readGraphPartitions(path.join(root, DEFAULT_GRAPH_PARTITION_INDEX));
+    expect(graph.nodes.some((node) => node.kind === 'symbol' && node.label === 'run')).toBe(true);
+    expect(graph.edges.some((edge) => edge.kind === 'calls')).toBe(true);
+    expect(fingerprints?.files.map((entry) => entry.file)).toEqual(['package.json', 'src/app.ts']);
+    expect(partitions?.partitions.some((partition) => partition.key === 'src/app.ts')).toBe(true);
+    await expect(fs.readFile(path.join(path.dirname(file), '.gitignore'), 'utf8')).resolves.toBe(
+      '*\n!.gitignore\n',
+    );
+
+    const clean = await runExtraction({
+      config: await loadConfig({ root }),
+      logger,
+      includeSymbols: true,
+    });
+    expect(serialiseEvidenceGraph(mergeGraphPartitions(partitions!))).toBe(
+      serialiseEvidenceGraph(clean.graph),
+    );
+
+    const second = captureLogger();
+    await runIndexGraphCommand({ cwd: root, logger: second.logger, json: true });
+    expect(JSON.parse(second.stdout.join(''))).toMatchObject({
+      cacheHit: true,
+      extractionSkipped: true,
+      symbolAdapters: [
+        {
+          id: 'python',
+          version: '2',
+          backend: 'tree-sitter',
+        },
+        {
+          id: 'typescript-javascript',
+          version: '4',
+          backend: 'typescript-compiler-api',
+        },
+      ],
+      partitions: {
+        mode: 'cached',
+        equivalent: true,
+      },
+    });
+  });
+
+  it('rebuilds when the symbol extraction profile changes', async () => {
+    const root = await makeRepo({
+      'src/app.ts': 'export function run() {}\n',
+    });
+    await runIndexGraphCommand({ cwd: root, logger: captureLogger().logger });
+
+    const second = captureLogger();
+    await runIndexGraphCommand({
+      cwd: root,
+      logger: second.logger,
+      symbols: false,
+      json: true,
+    });
+
+    expect(JSON.parse(second.stdout.join(''))).toMatchObject({
+      cacheHit: false,
+      extractionSkipped: false,
+      includeSymbols: false,
+      partitions: { mode: 'full' },
+    });
+  });
+
+  it('indexes Python symbols through the built-in Tree-sitter adapter', async () => {
+    const root = await makeRepo({
+      'pyproject.toml': '[project]\nname = "python-index-fixture"\nversion = "1.0.0"\n',
+      'app.py': 'def helper():\n    pass\n\ndef run():\n    helper()\n',
+    });
+    await runIndexGraphCommand({ cwd: root, logger: captureLogger().logger });
+
+    const graph = await readEvidenceGraph(path.join(root, DEFAULT_GRAPH_INDEX));
+    expect(graph.nodes.find((node) => node.label === 'run')).toMatchObject({
+      kind: 'symbol',
+      properties: { language: 'python', parserBackend: 'tree-sitter' },
+    });
+    expect(graph.edges.find((edge) => edge.kind === 'calls')).toMatchObject({
+      from: 'symbol:app.py#function:run',
+      to: 'symbol:app.py#function:helper',
+    });
+  });
+
+  it('indexes proven cross-file database access against the extracted schema', async () => {
+    const root = await makeRepo({
+      'package.json': '{"dependencies":{"@prisma/client":"1.0.0"}}',
+      'prisma/schema.prisma': [
+        'model User {',
+        '  id Int @id',
+        '}',
+      ].join('\n'),
+      'src/db.ts': [
+        "import { PrismaClient } from '@prisma/client';",
+        'export const db = new PrismaClient();',
+      ].join('\n'),
+      'src/users.ts': [
+        "import { db } from './db';",
+        'export function listUsers() { return db.user.findMany(); }',
+      ].join('\n'),
+    });
+    await runIndexGraphCommand({ cwd: root, logger: captureLogger().logger });
+
+    const graph = await readEvidenceGraph(path.join(root, DEFAULT_GRAPH_INDEX));
+    const access = graph.edges.find(
+      (edge) => edge.kind === 'references' && edge.properties?.referenceKind === 'database-access',
+    );
+    expect(access).toMatchObject({
+      from: 'symbol:src/users.ts#function:listUsers',
+      properties: { orm: 'prisma', operation: 'findMany', model: 'user' },
+    });
+    expect(graph.nodes.find((node) => node.id === access?.to)).toMatchObject({
+      kind: 'schema',
+      label: 'User',
+    });
+  });
+
+  it('indexes a cross-file queue producer against its extracted consumer job', async () => {
+    const root = await makeRepo({
+      'package.json': '{"dependencies":{"bullmq":"1.0.0"}}',
+      'src/queue.ts': [
+        "import { Queue } from 'bullmq';",
+        "export const emailQueue = new Queue('emails');",
+      ].join('\n'),
+      'src/producer.ts': [
+        "import { emailQueue } from './queue';",
+        "export function notify() { return emailQueue.add('welcome', {}); }",
+      ].join('\n'),
+      'src/worker.ts': [
+        "import { Worker } from 'bullmq';",
+        "new Worker('emails', async () => undefined);",
+      ].join('\n'),
+    });
+    await runIndexGraphCommand({ cwd: root, logger: captureLogger().logger });
+
+    const graph = await readEvidenceGraph(path.join(root, DEFAULT_GRAPH_INDEX));
+    const producer = graph.edges.find(
+      (edge) => edge.kind === 'references' && edge.properties?.referenceKind === 'queue-producer',
+    );
+    expect(producer).toMatchObject({
+      from: 'symbol:src/producer.ts#function:notify',
+      properties: { runtime: 'bullmq', channel: 'emails', jobName: 'welcome' },
+    });
+    expect(graph.nodes.find((node) => node.id === producer?.to)).toMatchObject({
+      kind: 'job',
+      label: 'emails',
+      properties: { jobKind: 'queue-consumer', channel: 'emails' },
+    });
+  });
+
+  it('rebuilds when the resolved configuration changes without file changes', async () => {
+    const root = await makeRepo({
+      'config-a.json': '{"extractors":{"routes":true}}',
+      'config-b.json': '{"extractors":{"routes":false}}',
+      'src/app.ts': 'export function run() {}\n',
+    });
+    await runIndexGraphCommand({
+      cwd: root,
+      configFile: 'config-a.json',
+      logger: captureLogger().logger,
+    });
+
+    const second = captureLogger();
+    await runIndexGraphCommand({
+      cwd: root,
+      configFile: 'config-b.json',
+      logger: second.logger,
+      json: true,
+    });
+
+    expect(JSON.parse(second.stdout.join(''))).toMatchObject({
+      cacheHit: false,
+      extractionSkipped: false,
+      changes: { added: 0, changed: 0, deleted: 0 },
+      partitions: { mode: 'full' },
+    });
+  });
+
+  it('rebuilds only the reverse-dependency closure and remains clean-build equivalent', async () => {
+    const root = await makeRepo({
+      'package.json': '{"name":"scoped-index"}',
+      'src/a.ts': "import { target } from './b';\nexport function caller() { target(); }\n",
+      'src/b.ts': 'export function target() { return 1; }\n',
+      'src/c.ts': 'export function independent() { return 1; }\n',
+    });
+    await runIndexGraphCommand({ cwd: root, logger: captureLogger().logger });
+    await fs.writeFile(
+      path.join(root, 'src', 'b.ts'),
+      'function helper() { return 2; }\nexport function target() { return helper(); }\n',
+      'utf8',
+    );
+
+    const second = captureLogger();
+    await runIndexGraphCommand({ cwd: root, logger: second.logger, json: true });
+    expect(JSON.parse(second.stdout.join(''))).toMatchObject({
+      cacheHit: false,
+      extractionSkipped: false,
+      extractionScope: { mode: 'scoped', files: 2 },
+      partitions: { mode: 'incremental', reused: 1, verification: 'partition-integrity' },
+    });
+
+    const indexed = await readEvidenceGraph(path.join(root, DEFAULT_GRAPH_INDEX));
+    const clean = await runExtraction({
+      config: await loadConfig({ root }),
+      logger: captureLogger().logger,
+      includeSymbols: true,
+    });
+    expect(serialiseEvidenceGraph(indexed)).toBe(serialiseEvidenceGraph(clean.graph));
+
+    const third = captureLogger();
+    await runIndexGraphCommand({ cwd: root, logger: third.logger, json: true });
+    expect(JSON.parse(third.stdout.join(''))).toMatchObject({
+      cacheHit: true,
+      extractionSkipped: true,
+      partitions: { mode: 'cached', verification: 'cache-integrity' },
+    });
+  });
+
+  it('supports a dry run and rejects indexes outside the repository', async () => {
+    const root = await makeRepo({ 'src/app.ts': 'export function run() {}\n' });
+    const { logger } = captureLogger();
+
+    await runIndexGraphCommand({ cwd: root, logger, dryRun: true });
+
+    await expect(fs.stat(path.join(root, DEFAULT_GRAPH_INDEX))).rejects.toThrow();
+    expect(() => resolveGraphIndexPath(root, '../outside.json')).toThrow(/inside the target repository/);
+  });
+});
+
+describe('live graph commands', () => {
+  it('validates graph filters and directions', () => {
+    expect(parseGraphNodeKinds('route, symbol')).toEqual(['route', 'symbol']);
+    expect(parseGraphEdgeKinds('calls,extends')).toEqual(['calls', 'extends']);
+    expect(parseGraphDirection(undefined)).toBe('outgoing');
+    expect(parseGraphDirection('both')).toBe('both');
+    expect(() => parseGraphNodeKinds('widget')).toThrow(/widget/);
+    expect(() => parseGraphDirection('sideways')).toThrow(/sideways/);
+  });
+
+  it('searches a graph rebuilt from the current working tree', async () => {
+    const root = await makeRepo({
+      'src/checkout.ts': 'export function checkout() {}\n',
+    });
+    const { logger, stdout } = captureLogger();
+
+    await runGraphSearchCommand({ cwd: root, text: 'checkout', kinds: 'symbol', json: true, logger });
+
+    expect(JSON.parse(stdout.join(''))).toMatchObject({
+      query: 'checkout',
+      count: 1,
+      nodes: [{ kind: 'symbol', label: 'checkout' }],
+    });
   });
 });
 

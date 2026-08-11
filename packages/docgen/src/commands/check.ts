@@ -10,12 +10,17 @@ import { buildPending } from '../requirements/pending.js';
 import { DocgenError } from '../util/errors.js';
 import { toPosix } from '../util/paths.js';
 import type { Logger } from '../util/logger.js';
+import { loadFeatureRecords } from '../features/store.js';
+import { evaluateGovernance } from '../governance/evaluate.js';
+import { parsePolicyDate } from './policy.js';
 
 export interface CheckCommandOptions {
   readonly cwd: string;
   readonly configFile?: string;
   /** Also fail when questions are unanswered or answers untriaged. */
   readonly strict?: boolean;
+  readonly base?: string;
+  readonly asOf?: string;
   readonly json?: boolean;
   readonly logger: Logger;
 }
@@ -39,7 +44,11 @@ export async function runCheckCommand(options: CheckCommandOptions): Promise<voi
     ...(options.configFile === undefined ? {} : { configFile: options.configFile }),
   });
 
-  const run = await runExtraction({ config, logger: options.logger });
+  const run = await runExtraction({
+    config,
+    logger: options.logger,
+    includeSymbols: (await loadFeatureRecords(config.root)).length > 0,
+  });
   const expected = await computeExpectedFiles(run);
   const drift = await findDrift(config.root, toPosix(config.outDir), expected);
 
@@ -48,23 +57,30 @@ export async function runCheckCommand(options: CheckCommandOptions): Promise<voi
   const requirements = await loadRequirements(config.root);
   const openQuestions = buildQueue({ cards, answers }).questions.length;
   const untriaged = buildPending({ cards, answers, requirements }).length;
+  const governance = await evaluateGovernance({
+    config,
+    graph: run.graph,
+    ...(options.base === undefined ? {} : { base: options.base }),
+    now: parsePolicyDate(options.asOf),
+  });
 
   if (options.json === true) {
     options.logger.output(
       JSON.stringify(
         {
-          ok: drift.length === 0 && !(options.strict === true && (openQuestions > 0 || untriaged > 0)),
+          ok: drift.length === 0 && governance.ok && !(options.strict === true && (openQuestions > 0 || untriaged > 0)),
           drift,
           openQuestions,
           untriagedAnswers: untriaged,
           checkedFiles: expected.length,
+          governance,
         },
         null,
         2,
       ),
     );
   } else {
-    report(drift, expected.length, openQuestions, untriaged, options);
+    report(drift, expected.length, openQuestions, untriaged, governance, options);
   }
 
   if (drift.length > 0) {
@@ -87,6 +103,14 @@ export async function runCheckCommand(options: CheckCommandOptions): Promise<voi
         'if this gate should only check that the generated files are current.',
     });
   }
+
+  if (!governance.ok) {
+    throw new DocgenError({
+      code: 'governance-policy-failed',
+      message: `${governance.violations.length} governance policy violation(s) block this change.`,
+      remedy: 'Fix the policy failures shown above, or record an owned, time-bounded exception with `docgen policy exception add`.',
+    });
+  }
 }
 
 function report(
@@ -94,12 +118,18 @@ function report(
   checked: number,
   openQuestions: number,
   untriaged: number,
+  governance: Awaited<ReturnType<typeof evaluateGovernance>>,
   options: CheckCommandOptions,
 ): void {
   options.logger.heading('docgen check');
   options.logger.info(`  checked   ${checked} generated file(s)`);
   options.logger.info(`  questions ${openQuestions} unanswered`);
   options.logger.info(`  untriaged ${untriaged} answer(s)`);
+  options.logger.info(`  policies  ${governance.violations.length} violation(s), ${governance.suppressed.length} suppressed`);
+
+  for (const violation of governance.violations.slice(0, 20)) {
+    options.logger.info(`    ${colors().red('fail')} ${violation.policy}/${violation.subject}: ${violation.message}`);
+  }
 
   if (drift.length === 0) {
     options.logger.info(`\n  ${colors().green('up to date')}`);

@@ -2,6 +2,10 @@
 
 The gate that stops documentation rotting is `docgen check`. It never calls a model, so it costs nothing per pull request and cannot be flaky.
 
+Agents run `docgen session end` before handoff, but CI remains the universal
+enforcement boundary: an interrupted editor or disabled local hook cannot
+bypass the pull-request check.
+
 ## The quickest way
 
 ```bash
@@ -26,10 +30,12 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    env:
+      DOCGEN_BASE: ${{ github.event.pull_request.base.sha || (github.event.before != '0000000000000000000000000000000000000000' && github.event.before) || '4b825dc642cb6eb9a060e54bf8d69288fbee4904' }}
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -38,7 +44,7 @@ jobs:
       - run: npm ci
 
       - name: Check documentation is current
-        run: npx docgen check
+        run: npx docgen check --base "$DOCGEN_BASE"
 ```
 
 When it is not a dependency — a Python or Go repo, say — the workflow fetches a pinned version instead, and skips `npm ci` entirely:
@@ -97,6 +103,10 @@ This is right for a pilot repository whose queue is drained. It is the wrong fle
 
 The gate is one command with no dependencies beyond Node, so it drops into anything.
 
+For an earlier local signal, `docgen init --hooks` installs an opt-in pre-push
+hook that runs the same non-mutating check. It refuses to replace a team-owned
+hook or a different configured hooks path.
+
 **GitLab CI**
 
 ```yaml
@@ -130,7 +140,27 @@ If you do want it in CI — a weekly scheduled job is a reasonable place — ins
 docgen fleet ../*/ --out fleet.md
 ```
 
-Free, no model. Suitable for a nightly job that publishes one page across every repository. See [Rolling out across repos](rollout.md).
+Free, no model. Suitable for a nightly job that publishes one page across every
+repository. The dashboard reports documentation coverage and drift alongside
+evidence-graph nodes, edges, extraction gaps, features, critical features,
+plans, and attributed changes. See [Rolling out across repos](rollout.md).
+
+## Supply-chain checks and SBOMs
+
+Docgen can enforce deterministic dependency hygiene without network access:
+
+```bash
+docgen security scan --strict
+docgen security sbom --out artifacts/sbom.cdx.json
+```
+
+The strict scan fails for findings and dependency formats Docgen cannot inspect,
+so enable it after reviewing the first report. The generated CycloneDX 1.6 SBOM
+is stable for an unchanged lockfile and can be uploaded as a CI artifact.
+
+This does not replace Dependabot, `npm audit`, OSV-Scanner, or another current
+advisory source. The JSON report always states that CVE coverage was not
+evaluated, making that boundary machine-readable.
 
 ## Machine-readable output
 
@@ -138,7 +168,7 @@ Every reporting command takes `--json` on stdout, with diagnostics on stderr:
 
 ```bash
 docgen check --json | jq '.drift'
-docgen status --json | jq '{surfaces, described, openQuestions}'
+docgen status --json | jq '{surfaces, described, openQuestions, graph}'
 docgen trace --json | jq '.untested'
 docgen ask --json | jq '.questions[] | {id, question, likelyOwner}'
 ```

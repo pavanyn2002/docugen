@@ -11,6 +11,7 @@ npx @tatvaops/docgen init        # tell the coding agent in this repo about it
 npx @tatvaops/docgen extract     # structure — free, no model, no network
 npx @tatvaops/docgen bootstrap   # behaviour — uses a coding CLI you already have
 npx @tatvaops/docgen ask --mine  # the questions waiting on you
+npx @tatvaops/docgen security scan  # offline dependency provenance checks
 ```
 
 **New here? Start with [Getting started](docs/getting-started.md).**
@@ -42,6 +43,7 @@ The static lane is forbidden by an enforced import boundary from ever reaching a
 | [For QA](docs/for-qa.md) | How to read the output, and what "inferred" means for testing |
 | [Configuration](docs/configuration.md) | `docgen.config.ts`, and when you need one |
 | [CI and automation](docs/ci.md) | The drift gate, and keeping documentation current |
+| [Security threat model](docs/security/threat-model.md) | Assets, trust boundaries, controls, and severity |
 | [Rolling out across repos](docs/rollout.md) | Handing this to a team and many repositories |
 | [Troubleshooting](docs/troubleshooting.md) | When something looks wrong |
 
@@ -65,13 +67,16 @@ docs/
   .cards/               model output (data, regenerated)
   .answers/             developer answers (ground truth, never regenerated)
   .requirements/        triaged decisions (ground truth, never regenerated)
+  .security/            deterministic CycloneDX dependency inventory
 ```
 
-The three dot-directories are the parts that matter. They are plain YAML, committed to the repo, readable and editable by hand, and they survive every regeneration and prompt change.
+The answer and requirement directories are human-governed YAML. Cards are
+regenerated model data, while `.security/` contains a generated JSON inventory.
+All are committed so review and history remain available to the team.
 
 ## Guarantees
 
-- **Deterministic.** Same commit in, same bytes out — verified in CI on Node 20, 22, and 24. Sorting is locale-independent, paths are POSIX, line endings are LF, and dates come from the source commit rather than the clock.
+- **Deterministic.** Same commit in, same bytes out. Sorting is locale-independent, paths are POSIX, line endings are LF, and dates come from the source commit rather than the clock. The multi-OS, supported-Node release matrix remains a required v1 release gate.
 - **Two lanes, never mixed.** `extract`, `report`, `sync`, `check`, `trace`, `status` and `fleet` make no network call and cost nothing. `bootstrap` is the only command that calls a model, and it says so before it runs.
 - **No secrets.** `.env` values are never read or recorded — only variable names and where they are used.
 - **Never fabricates.** Anything static analysis cannot establish is recorded as a gap. Anything the model cannot establish becomes a question. Neither is filled with a plausible value.

@@ -56,6 +56,17 @@ describe('loadConfig', () => {
     });
     expect(config.diagrams.maxNodes).toBe(40);
     expect(config.openapi.mode).toBe('cross-check');
+    expect(config.governance.policies).toEqual({
+      changedFeaturesRequirePlan: false,
+      changesRequireHandoff: false,
+      criticalFeaturesRequireVerification: false,
+      requirementsRequireTests: false,
+    });
+    expect(config.privacy).toEqual({
+      localOnly: false,
+      redactSecrets: true,
+      allowedAgents: ['claude', 'codex', 'cursor', 'api'],
+    });
   });
 
   it('loads a JSON config and merges it over defaults', async () => {
@@ -130,5 +141,19 @@ describe('loadConfig', () => {
   it('has no trust-spec mode for openapi', async () => {
     const root = await makeRepo({ 'docgen.config.json': JSON.stringify({ openapi: { mode: 'trust-spec' } }) });
     await expect(loadConfig({ root })).rejects.toThrow(DocgenError);
+  });
+
+  it('loads opt-in governance policies and rejects unknown policy names', async () => {
+    const root = await makeRepo({ 'docgen.config.json': JSON.stringify({ governance: { policies: { requirementsRequireTests: true } } }) });
+    expect((await loadConfig({ root })).governance.policies.requirementsRequireTests).toBe(true);
+    const invalid = await makeRepo({ 'docgen.config.json': JSON.stringify({ governance: { policies: { trustEverything: true } } }) });
+    await expect(loadConfig({ root: invalid })).rejects.toThrow(DocgenError);
+  });
+
+  it('validates privacy provider and model allowlists', async () => {
+    const root = await makeRepo({ 'docgen.config.json': JSON.stringify({ privacy: { allowedAgents: ['codex'], allowedModels: ['gpt-approved'] } }) });
+    expect((await loadConfig({ root })).privacy).toMatchObject({ allowedAgents: ['codex'], allowedModels: ['gpt-approved'] });
+    const invalid = await makeRepo({ 'docgen.config.json': JSON.stringify({ privacy: { allowedAgents: [] } }) });
+    await expect(loadConfig({ root: invalid })).rejects.toThrow(DocgenError);
   });
 });

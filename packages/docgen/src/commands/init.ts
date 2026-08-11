@@ -15,6 +15,7 @@ export interface InitCommandOptions {
   readonly configFile?: string;
   /** Install every adapter, not only the ones this repo shows evidence of. */
   readonly all?: boolean;
+  readonly hooks?: boolean;
   readonly logger: Logger;
 }
 
@@ -42,6 +43,7 @@ export async function runInitCommand(options: InitCommandOptions): Promise<void>
     defaultBranch,
     version: ENGINE_VERSION,
     ...(options.all === undefined ? {} : { all: options.all }),
+    ...(options.hooks === undefined ? {} : { hooks: options.hooks }),
   });
 
   options.logger.info(`  invocation  ${invocation}`);
@@ -59,15 +61,15 @@ export async function runInitCommand(options: InitCommandOptions): Promise<void>
 
   options.logger.info(
     `\n  ${colors().dim(
-      'Only the block between the docgen markers is managed. Anything you write outside ' +
-        'those markers is preserved.',
+      'Shared instruction files preserve everything outside docgen markers. ' +
+        'Docgen-owned adapter files are deterministic and MCP JSON is merged by key.',
     )}`,
   );
 
   options.logger.heading('Next');
-  options.logger.info('  1. `docgen extract`   — structure, free, no model');
-  options.logger.info('  2. `docgen bootstrap` — behaviour, uses your coding CLI, costs money');
-  options.logger.info('  3. `docgen ask`       — the questions that turn inferred into verified');
+  options.logger.info('  1. `docgen session start` - evidence, plans, and questions');
+  options.logger.info('  2. `docgen bootstrap`     - optional behaviour inference; costs money');
+  options.logger.info('  3. `docgen session end`   - docs, tester handoff, and gate');
 }
 
 /**

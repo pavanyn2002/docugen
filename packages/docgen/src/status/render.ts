@@ -31,8 +31,28 @@ export function renderFleetPage(args: FleetPageArgs): string {
       testable: sum.testable + repo.testable,
       tested: sum.tested + repo.tested,
       drifting: sum.drifting + repo.driftingFiles,
+      graphNodes: sum.graphNodes + repo.graph.nodes,
+      graphEdges: sum.graphEdges + repo.graph.edges,
+      graphGaps: sum.graphGaps + repo.graph.gaps,
+      features: sum.features + repo.graph.features,
+      plans: sum.plans + repo.graph.plans,
+      changes: sum.changes + repo.graph.changes,
     }),
-    { surfaces: 0, described: 0, openQuestions: 0, untriaged: 0, testable: 0, tested: 0, drifting: 0 },
+    {
+      surfaces: 0,
+      described: 0,
+      openQuestions: 0,
+      untriaged: 0,
+      testable: 0,
+      tested: 0,
+      drifting: 0,
+      graphNodes: 0,
+      graphEdges: 0,
+      graphGaps: 0,
+      features: 0,
+      plans: 0,
+      changes: 0,
+    },
   );
 
   const lines: string[] = [
@@ -50,6 +70,8 @@ export function renderFleetPage(args: FleetPageArgs): string {
     totals.drifting > 0
       ? `- **${totals.drifting} generated files are out of date** and would change if \`docgen sync\` ran.`
       : '- Every repository\'s generated documentation is current.',
+    `- The shared evidence graphs contain **${totals.graphNodes} nodes**, **${totals.graphEdges} edges**, and **${totals.graphGaps} explicit extraction gaps**.`,
+    `- Governance records cover **${totals.features} features**, **${totals.plans} plans**, and **${totals.changes} attributed changes**.`,
     '',
     '## By repository',
     '',
@@ -65,6 +87,17 @@ export function renderFleetPage(args: FleetPageArgs): string {
         `${repo.driftingFiles === 0 ? '—' : `**${repo.driftingFiles}**`} |`,
     );
   }
+
+  lines.push(
+    '',
+    '## Evidence graph and governance',
+    '',
+    '| Repository | Nodes | Edges | Gaps | Features | Critical | Plans | Changes |',
+    '| --- | --- | --- | --- | --- | --- | --- | --- |',
+    ...repos.map((repo) =>
+      `| ${repo.name} | ${repo.graph.nodes} | ${repo.graph.edges} | ${repo.graph.gaps} | ${repo.graph.features} | ${repo.graph.criticalFeatures} | ${repo.graph.plans} | ${repo.graph.changes} |`,
+    ),
+  );
 
   lines.push('', '## What to do next', '');
   const actions = nextActions(repos);

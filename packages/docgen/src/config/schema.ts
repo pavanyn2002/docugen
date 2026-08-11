@@ -25,11 +25,21 @@ export const ALWAYS_EXCLUDE: readonly string[] = Object.freeze([
   // the first run's files, and any `.env`-shaped or code-shaped content in them
   // feeds back into the results.
   '**/docs/generated/**',
+  // Branch-scoped generated tester artifacts, managed by `docgen handoff`.
+  '**/docs/handoffs/**',
   // Same reason, for the Phase 1 stores: inferred cards and recorded answers
   // are docgen's own bookkeeping, not source material to be documented.
   '**/docs/.cards/**',
   '**/docs/.answers/**',
   '**/docs/.requirements/**',
+  '**/docs/.features/**',
+  '**/docs/.plans/**',
+  '**/docs/.changes/**',
+  '**/docs/.legacy/**',
+  '**/docs/.governance/**',
+  '**/docs/legacy-archive/**',
+  // Local evidence-graph index. It is rebuilt from source and may be large.
+  '**/.docgen/cache/**',
 ]);
 
 /** Node-count ceiling above which a diagram aggregates instead of emitting a hairball (SPEC 6.3). */
@@ -146,6 +156,38 @@ export const docgenConfigSchema = z
     trace: z
       .object({
         include: globList.default([...DEFAULT_TEST_GLOBS]),
+      })
+      .strict()
+      .default({}),
+
+    /** Deterministic CI policies. All are opt-in so fleet rollout can be staged safely. */
+    governance: z
+      .object({
+        policies: z
+          .object({
+            changedFeaturesRequirePlan: z.boolean().default(false),
+            changesRequireHandoff: z.boolean().default(false),
+            criticalFeaturesRequireVerification: z.boolean().default(false),
+            requirementsRequireTests: z.boolean().default(false),
+          })
+          .strict()
+          .default({}),
+        /** Minimum feature criticality governed by the verification policy. */
+        criticalityAtLeast: z.enum(['high', 'critical']).default('critical'),
+      })
+      .strict()
+      .default({}),
+
+    privacy: z
+      .object({
+        /** Disable every model-backed operation; static indexing and governance still work. */
+        localOnly: z.boolean().default(false),
+        /** Remove common credential forms before source or answers enter a prompt. */
+        redactSecrets: z.boolean().default(true),
+        /** Backends allowed to receive repository context. */
+        allowedAgents: z.array(z.enum(['claude', 'codex', 'cursor', 'api'])).min(1).readonly().default(['claude', 'codex', 'cursor', 'api']),
+        /** When present, inference must select one of these exact model ids. */
+        allowedModels: z.array(z.string().min(1)).min(1).readonly().optional(),
       })
       .strict()
       .default({}),

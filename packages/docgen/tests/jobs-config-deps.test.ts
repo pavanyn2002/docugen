@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { jobsExtractor } from '../src/extract/jobs/index.js';
+import { parseCodeJobs } from '../src/extract/jobs/code-jobs.js';
 import { parseWorkflowSchedules } from '../src/extract/jobs/manifests.js';
 import { configExtractor, isSecretLike } from '../src/extract/config/index.js';
 import { depsExtractor, findCycles, packageNameOf } from '../src/extract/deps/index.js';
@@ -69,6 +70,17 @@ describe('background jobs', () => {
     const gap = result.gaps.find((g) => g.kind === 'queue-without-local-worker');
 
     expect(gap?.message).toContain('nightly-reports');
+  });
+
+  it('retains the literal Bull queue channel for process consumers', () => {
+    const result = parseCodeJobs(
+      'worker.ts',
+      "import Bull from 'bull';\nconst mail = new Bull('mail');\nmail.process(handleMail);\n",
+    );
+
+    expect(result.entries).toEqual([
+      expect.objectContaining({ name: 'mail', channel: 'mail', runtime: 'bull' }),
+    ]);
   });
 
   it('extracts a node-cron schedule', async () => {

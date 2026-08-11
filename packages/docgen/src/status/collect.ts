@@ -48,6 +48,16 @@ export interface RepoStatus {
   readonly driftingFiles: number;
   /** Technologies detected but not parseable, so coverage is known-incomplete. */
   readonly unsupportedTechnologies: readonly string[];
+  /** The same evidence graph used by impact, governance, and generated pages. */
+  readonly graph: {
+    readonly nodes: number;
+    readonly edges: number;
+    readonly gaps: number;
+    readonly features: number;
+    readonly criticalFeatures: number;
+    readonly plans: number;
+    readonly changes: number;
+  };
 }
 
 export async function collectStatus(args: {
@@ -109,5 +119,18 @@ export async function collectStatus(args: {
     untracedSurfaces: matrix.untracedSurfaces.length,
     driftingFiles: drift.length,
     unsupportedTechnologies: run.stack.unsupported.map((tech) => tech.name),
+    graph: {
+      nodes: run.graph.nodes.length,
+      edges: run.graph.edges.length,
+      gaps: run.graph.gaps.length,
+      features: run.graph.nodes.filter((node) => node.kind === 'feature').length,
+      criticalFeatures: run.graph.nodes.filter(
+        (node) =>
+          node.kind === 'feature' &&
+          (node.properties?.['criticality'] === 'high' || node.properties?.['criticality'] === 'critical'),
+      ).length,
+      plans: run.graph.nodes.filter((node) => node.kind === 'plan').length,
+      changes: run.graph.nodes.filter((node) => node.kind === 'change').length,
+    },
   };
 }

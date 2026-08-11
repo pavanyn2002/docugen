@@ -15,6 +15,7 @@ import { renderTestCasesPage, renderTraceabilityPage } from '../trace/render.js'
 import type { RunResult } from '../pipeline.js';
 import { compareStrings } from '../util/sort.js';
 import { toPosix } from '../util/paths.js';
+import { computeGovernanceFiles } from '../governance/expected.js';
 
 /**
  * Every file docgen would write, given the current code and the current stores.
@@ -43,6 +44,7 @@ export async function computeExpectedFiles(run: RunResult): Promise<readonly Ren
       requirements: requirements.size > 0,
     }),
   ];
+  files.push(...(await computeGovernanceFiles(run)));
 
   for (const card of cards) {
     files.push({

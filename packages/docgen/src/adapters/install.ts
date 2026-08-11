@@ -3,6 +3,9 @@ import path from 'node:path';
 import { compareStrings } from '../util/sort.js';
 import { upsertManagedBlock } from './block.js';
 import { renderAgentInstructions, renderCursorRule } from './instructions.js';
+import { CLAUDE_SKILL_PATH, GENERIC_SKILL_PATH, renderDocgenSkill } from './skills.js';
+import { CODEX_MCP_CONFIG_PATH, MCP_CONFIG_PATH, upsertCodexMcpConfig, upsertMcpConfig } from './mcp.js';
+import { installGitHook } from './hooks.js';
 import {
   DEPENDABOT_PATH,
   GITHUB_WORKFLOW_PATH,
@@ -20,7 +23,7 @@ import {
  * clutter is how a tool gets uninstalled.
  */
 
-export type AdapterId = 'agents' | 'claude' | 'cursor' | 'ci' | 'updates';
+export type AdapterId = 'agents' | 'claude' | 'cursor' | 'generic-skill' | 'claude-skill' | 'mcp' | 'codex-mcp' | 'hooks' | 'ci' | 'updates';
 
 export interface AdapterOutcome {
   readonly id: AdapterId;
@@ -37,6 +40,8 @@ export interface InstallArgs {
   readonly defaultBranch?: string;
   /** Version to pin in CI when docgen is not a repo dependency. */
   readonly version?: string;
+  /** Install and activate the opt-in pre-push governance hook. */
+  readonly hooks?: boolean;
 }
 
 export async function installAdapters(args: InstallArgs): Promise<readonly AdapterOutcome[]> {
@@ -44,10 +49,27 @@ export async function installAdapters(args: InstallArgs): Promise<readonly Adapt
   const outcomes: AdapterOutcome[] = [];
 
   outcomes.push(await writeBlock(args.root, 'AGENTS.md', 'agents', instructions));
+  const skill = renderDocgenSkill({ invocation: args.invocation });
+  outcomes.push(await writeWholeFile(args.root, GENERIC_SKILL_PATH, 'generic-skill', skill));
+
+  if (args.all === true || (await exists(path.join(args.root, '.codex')))) {
+    const codexMcp = await upsertCodexMcpConfig(args.root, args.invocation);
+    outcomes.push(await writeWholeFile(args.root, CODEX_MCP_CONFIG_PATH, 'codex-mcp', codexMcp.contents));
+  }
 
   if (args.all === true || (await usesClaude(args.root))) {
     outcomes.push(await writeBlock(args.root, 'CLAUDE.md', 'claude', instructions));
+    outcomes.push(await writeWholeFile(args.root, CLAUDE_SKILL_PATH, 'claude-skill', skill));
   }
+
+  const mcp = await upsertMcpConfig(args.root, args.invocation);
+  if (mcp.action !== 'unchanged') {
+    const file = path.join(args.root, MCP_CONFIG_PATH);
+    await fs.writeFile(file, mcp.contents, 'utf8');
+  }
+  outcomes.push({ id: 'mcp', file: MCP_CONFIG_PATH, action: mcp.action });
+
+  if (args.hooks === true) outcomes.push(await installGitHook(args.root, args.invocation));
 
   if (args.all === true || (await exists(path.join(args.root, '.cursor')))) {
     // Cursor rules are whole files rather than blocks in a shared file, so

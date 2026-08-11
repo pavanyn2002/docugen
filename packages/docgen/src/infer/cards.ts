@@ -13,6 +13,7 @@ import { featureCardSchema } from './types.js';
 import type { CardFailure, FeatureCard, InferenceResult } from './types.js';
 import { renderAnswersForPrompt } from '../questions/store.js';
 import type { SurfaceAnswers } from '../questions/store.js';
+import { redactSecrets } from '../privacy/redact.js';
 
 /** Bumped whenever the prompt changes, so old cards are regenerated. */
 export const PROMPT_VERSION = 'feature-card.v1';
@@ -33,6 +34,7 @@ export interface InferOptions {
   readonly logger: Logger;
   /** Stop after this many surfaces. Used by `--limit` to bound a first run. */
   readonly maxSurfaces?: number;
+  readonly redactSecrets?: boolean;
 }
 
 /**
@@ -59,6 +61,7 @@ export async function inferCards(options: InferOptions): Promise<InferenceResult
       surface,
       bundle: options.bundle,
       limits: options.limits,
+      redact: options.redactSecrets !== false,
     });
 
     const inputHash = hashInputs(context.contentHash, surfaceAnswers.map((a) => a.questionId + a.answer));
@@ -84,10 +87,21 @@ export async function inferCards(options: InferOptions): Promise<InferenceResult
       }`,
     );
 
-    const prompt = template
+    const rawPrompt = template
       .replace('{{FACTS}}', context.facts)
       .replace('{{ANSWERS}}', renderAnswersForPrompt(surfaceAnswers))
       .replace('{{CODE}}', context.code);
+    const promptResult = options.redactSecrets === false
+      ? { text: rawPrompt, count: 0, kinds: [] as readonly string[] }
+      : redactSecrets(rawPrompt);
+    const prompt = promptResult.text;
+
+    options.logger.info(
+      `    disclosure: ${context.includedFiles.length} file(s), ${Buffer.byteLength(prompt)} bytes, ` +
+        `provider=${options.backend.id}, model=${options.model ?? 'backend-default'}, ` +
+        `redactions=${context.redactions + promptResult.count}`,
+    );
+    options.logger.info(`    files: ${context.includedFiles.join(', ') || '(none)'}`);
 
     const outcome = await options.backend.run({
       prompt,

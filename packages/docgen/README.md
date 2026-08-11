@@ -8,6 +8,7 @@ Answering a question is one command. That answer becomes permanent, and the ques
 
 ```bash
 npx @tatvaops/docgen init        # tell the coding agent in this repo about it
+npx @tatvaops/docgen session start # refresh evidence, plans, and questions
 npx @tatvaops/docgen extract     # structure — free, no model, no network
 npx @tatvaops/docgen bootstrap   # behaviour — uses a coding CLI you already have
 npx @tatvaops/docgen ask --mine  # the questions waiting on you
@@ -27,12 +28,22 @@ Documentation written by hand rots. Documentation invented by a model is worse t
 
 The static lane is forbidden by an enforced import boundary from ever reaching a model. A claim with no citation is rejected by the schema rather than published. Anything the model cannot establish becomes a question instead of a guess.
 
+Before any optional model call, Docgen redacts common credentials and reports
+the files, bytes, provider, model, and redaction count being sent. Repository
+configuration can allowlist providers and model ids or set `localOnly: true` to
+disable inference completely.
+
 ## Commands
 
 | | |
 |---|---|
 | `extract` | Static analysis. Free. |
 | `report` | Coverage and cross-extractor findings. Free. |
+| `legacy inventory` | Inventory stale prose and create an approval manifest. Free. |
+| `session` | Common start, after-edit, and end lifecycle for every coding agent. Free. |
+| `mcp` | Expose graph, impact, plan, question, and handoff tools over stdio. Free. |
+| `policy` | Enforce plans, handoffs, critical verification, tests, and expiring exceptions. Free. |
+| `security` | Scan dependency provenance and generate a CycloneDX SBOM offline. Free. |
 | `bootstrap` | Infer behaviour. **The only command that costs money.** |
 | `ask` | The open question queue. Free. |
 | `answer` | Record an answer as ground truth. Free. |
@@ -40,11 +51,16 @@ The static lane is forbidden by an enforced import boundary from ever reaching a
 | `trace` | Link requirements to the tests that check them. Free. |
 | `sync` | Bring every generated file up to date. Free. |
 | `check` | CI gate: fail when the docs are stale. Free. |
-| `status` | This repo's documentation health. Free. |
-| `fleet` | One dashboard across many repositories. Free. |
-| `init` | Install the agent and CI adapters. Free. |
+| `status` | This repo's documentation, evidence-graph, and governance health. Free. |
+| `fleet` | One graph-backed dashboard across many repositories. Free. |
+| `init` | Install agent skills, MCP, CI, and optional Git-hook adapters. Free. |
 
 Run `docgen <command> --help` for flags.
+
+`docgen security scan` checks lockfiles, integrity, dependency sources,
+install-time scripts, and Python pins/hashes. It does not download live
+advisories and therefore never claims CVE coverage. Pair it with a current
+advisory scanner in CI.
 
 ## Output
 
@@ -66,6 +82,8 @@ docs/
   .cards/               model output (data, regenerated)
   .answers/             developer answers (ground truth, never regenerated)
   .requirements/        triaged decisions (ground truth, never regenerated)
+  .legacy/              human-reviewed legacy migration decisions
+  legacy-archive/       recoverable, approval-gated moves of superseded prose
 ```
 
 Commit all of it. The cards make the next run cheap; the answers make the documentation true.
@@ -88,12 +106,13 @@ warn  incomplete — an empty section does not mean the repo has nothing there.
 |---|---|
 | **Routes** | Next.js App Router, Next.js Pages Router, React Router |
 | **Schema** | Prisma, Mongoose, SQL migrations (DDL), TypeORM, Sequelize, Django, SQLAlchemy |
-| **Endpoints** | Express (incl. cross-file mounts), NestJS, Next.js route handlers and Pages API |
-| **Recognised, not yet parsed** | Fastify, MedusaJS, FastAPI, Flask, Rails, Laravel, Spring Boot, MikroORM, Drizzle, Knex, GORM |
+| **Endpoints** | Express (incl. cross-file mounts), NestJS, Next.js route handlers and Pages API, FastAPI, Django |
+| **Symbols and flows** | TypeScript/JavaScript compiler AST; Python via the official Tree-sitter grammar; proven database access and Bull, BullMQ, or amqplib producer-to-consumer paths |
+| **Recognised, not yet parsed** | Fastify, MedusaJS, Flask, Rails, Laravel, Spring Boot, MikroORM, Drizzle, Knex, GORM |
 
 An existing OpenAPI or Swagger spec is **cross-checked, never trusted**. Code is what runs; an annotation is a claim about the code that may have rotted. Endpoints present in code but missing from the spec, and spec entries with no handler behind them, are both reported.
 
-Python models are read by pattern matching rather than a real parser — docgen is a Node tool and bundling a Python parser is not justified. Those entries are marked low-certainty and the run says they were read heuristically.
+Python symbol relationships use a real Tree-sitter syntax tree and are high-certainty. Python ORM model extraction still uses conservative pattern matching; those schema entries remain marked low-certainty and the run says they were read heuristically.
 
 ## Configuration
 

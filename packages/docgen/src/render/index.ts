@@ -21,6 +21,7 @@ import { CARDS_DIR, REQUIREMENTS_DIR } from '../config/paths.js';
 import { compareStrings } from '../util/sort.js';
 import { computeFindings } from '../analysis/findings.js';
 import type { FindingsReport } from '../analysis/findings.js';
+import { computeGovernanceFiles } from '../governance/expected.js';
 
 /** A file to write: repo-relative POSIX path and its full contents. */
 export interface RenderedFile {
@@ -141,10 +142,13 @@ export interface WriteReport {
  */
 export async function writeAll(run: RunResult): Promise<WriteReport> {
   const findings = await computeFindings(run);
-  const files = renderAll(run, findings, {
-    behaviour: await hasFilesIn(run.config.root, CARDS_DIR),
-    requirements: await hasFilesIn(run.config.root, REQUIREMENTS_DIR),
-  });
+  const files = [
+    ...renderAll(run, findings, {
+      behaviour: await hasFilesIn(run.config.root, CARDS_DIR),
+      requirements: await hasFilesIn(run.config.root, REQUIREMENTS_DIR),
+    }),
+    ...(await computeGovernanceFiles(run)),
+  ].sort((a, b) => compareStrings(a.path, b.path));
   const written: string[] = [];
 
   for (const file of files) {

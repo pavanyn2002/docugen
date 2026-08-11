@@ -1,4 +1,4 @@
-import type { Gap } from '../../types/core.js';
+import type { Gap, SourceRef } from '../../types/core.js';
 import type { JobEntry, JobKind } from '../../types/entries.js';
 import { literalString, parseSourceFile, positionOf, ts, walk } from '../../util/ts-ast.js';
 
@@ -20,12 +20,18 @@ const QUEUE_CLASSES = new Set(['Queue', 'Bull', 'QueueScheduler']);
 export function parseCodeJobs(
   file: string,
   contents: string,
-): { entries: readonly JobEntry[]; gaps: readonly Gap[] } {
+): {
+  entries: readonly JobEntry[];
+  gaps: readonly Gap[];
+  declaredQueues: readonly { channel: string; source: SourceRef }[];
+  workerQueues: readonly string[];
+} {
   const source = parseSourceFile(file, contents);
   const entries: JobEntry[] = [];
   const gaps: Gap[] = [];
   /** Queues declared as producer handles, and the workers that consume them. */
   const declaredQueues = new Map<string, ReturnType<typeof positionOf>>();
+  const queueByVariable = new Map<string, string>();
   const workerQueues = new Set<string>();
 
   const push = (entry: JobEntry): void => {
@@ -68,6 +74,8 @@ export function parseCodeJobs(
       // the consumer lives in another service — worth knowing in a fleet.
       if (!isWorker) {
         declaredQueues.set(queue, position);
+        const variable = enclosingVariableName(node);
+        if (variable !== undefined) queueByVariable.set(variable, queue);
         return;
       }
 
@@ -188,14 +196,16 @@ export function parseCodeJobs(
       if (!/\bBull\b|bullmq/.test(contents)) return;
       const queueVariable = ts.isIdentifier(callee.expression) ? callee.expression.text : undefined;
       if (queueVariable === undefined) return;
+      const channel = queueByVariable.get(queueVariable);
 
       push({
-        id: `job:processor:${queueVariable}:${position.line ?? 0}`,
+        id: `job:processor:${channel ?? queueVariable}:${position.line ?? 0}`,
         source: position,
         extractionMethod: 'ast',
         certainty: 'high',
-        name: queueVariable,
+        name: channel ?? queueVariable,
         kind: 'queue-consumer' as JobKind,
+        ...(channel === undefined ? {} : { channel }),
         handler: position,
         runtime: 'bull',
       });
@@ -205,19 +215,21 @@ export function parseCodeJobs(
   // A queue nobody consumes here is not necessarily wrong — in a microservice
   // fleet the worker usually lives in another repo — but a reader needs to be
   // told, or they will assume the messages are handled by this service.
-  for (const [queue, position] of declaredQueues) {
-    if (workerQueues.has(queue)) continue;
-    gaps.push({
-      extractor: 'jobs',
-      kind: 'queue-without-local-worker',
-      message:
-        `Queue '${queue}' is declared here for publishing, but no worker consuming it was found in ` +
-        'this repository. Its consumer is presumably another service.',
-      source: position,
-    });
-  }
+  return {
+    entries,
+    gaps,
+    declaredQueues: [...declaredQueues].map(([channel, source]) => ({ channel, source })),
+    workerQueues: [...workerQueues],
+  };
+}
 
-  return { entries, gaps };
+function enclosingVariableName(node: ts.Node): string | undefined {
+  let current: ts.Node | undefined = node.parent;
+  while (current !== undefined) {
+    if (ts.isVariableDeclaration(current) && ts.isIdentifier(current.name)) return current.name.text;
+    current = current.parent;
+  }
+  return undefined;
 }
 
 /** Cron expressions have 5 or 6 fields; intervals read like '30 seconds'. */

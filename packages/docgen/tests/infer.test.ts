@@ -17,6 +17,8 @@ import { DocgenError } from '../src/util/errors.js';
 import { createLogger } from '../src/util/logger.js';
 import type { AgentBackend, AgentOutcome, AgentRequest } from '../src/agents/types.js';
 import type { Surface } from '../src/surface/types.js';
+import { redactSecrets } from '../src/privacy/redact.js';
+import { runBootstrapCommand } from '../src/commands/bootstrap.js';
 
 const created: string[] = [];
 
@@ -149,6 +151,22 @@ describe('parsing model output', () => {
 });
 
 describe('surface context', () => {
+  it('redacts common credentials before source enters model context', async () => {
+    const root = await makeRepo({
+      'src/checkout.tsx': 'const password = "correct-horse-battery-staple";\nconst key = "ghp_abcdefghijklmnopqrstuvwxyz123456";\n',
+    });
+    const context = await buildSurfaceContext({ root, surface: surface(), bundle: {}, limits: { maxFiles: 10, maxBytesPerFile: 4000, maxTotalBytes: 40_000 } });
+    expect(context.code).not.toContain('correct-horse-battery-staple');
+    expect(context.code).not.toContain('ghp_abcdefghijklmnopqrstuvwxyz123456');
+    expect(context.code).toContain('[REDACTED:');
+    expect(context.redactions).toBe(2);
+  });
+
+  it('does not redact similarly named non-secret identifiers', () => {
+    const result = redactSecrets('const tokenCount = 4;\nconst passwordPolicy = true;\n');
+    expect(result).toEqual({ text: 'const tokenCount = 4;\nconst passwordPolicy = true;\n', count: 0, kinds: [] });
+  });
+
   it('tells the model which files it was not shown', async () => {
     const root = await makeRepo({
       'src/a.ts': 'export const a = 1;\n',
@@ -229,6 +247,17 @@ describe('inference run', () => {
     expect(result.failures).toEqual([]);
     expect(result.cards[0]?.promptVersion).toBe(PROMPT_VERSION);
     expect(result.cards[0]?.producedBy).toBe('fake');
+  });
+
+  it('redacts secrets from the final prompt and discloses the transfer before calling the backend', async () => {
+    const root = await makeRepo({ 'src/checkout.tsx': 'const apiKey = "sk-abcdefghijklmnopqrstuvwxyz123456";\n' });
+    const backend = fakeBackend([{ ok: true, text: JSON.stringify(VALID_CARD) }]);
+    const messages: string[] = [];
+    const disclosureLogger = { ...quiet, info: (message: string) => messages.push(message) };
+    await inferCards({ root, surfaces: [surface()], bundle: {}, answers: new Map(), backend, limits, timeoutMs: 1000, logger: disclosureLogger });
+    expect(backend.calls[0]?.prompt).not.toContain('sk-abcdefghijklmnopqrstuvwxyz123456');
+    expect(messages.some((message) => message.includes('provider=fake') && message.includes('redactions=1'))).toBe(true);
+    expect(messages).toContain('    files: src/checkout.tsx');
   });
 
   it('reuses an unchanged surface instead of paying for it again', async () => {
@@ -661,5 +690,27 @@ describe('backend resolution', () => {
     const backend = getBackend('api');
     if (await backend.isAvailable()) return;
     await expect(resolveBackend('api')).rejects.toThrow(/not available/);
+  });
+
+  it('rejects a backend excluded by repository privacy policy before probing it', async () => {
+    await expect(resolveBackend('api', ['codex'])).rejects.toMatchObject({ code: 'agent-not-allowed' });
+  });
+
+  it('blocks bootstrap completely in local-only mode', async () => {
+    const root = await makeRepo({
+      'package.json': JSON.stringify({ dependencies: { next: '^15.0.0' } }),
+      'app/page.tsx': 'export default function Page() { return null; }\n',
+      'docgen.config.json': JSON.stringify({ privacy: { localOnly: true } }),
+    });
+    await expect(runBootstrapCommand({ cwd: root, logger: quiet })).rejects.toMatchObject({ code: 'inference-disabled-local-only' });
+  });
+
+  it('requires an explicit approved model when a model allowlist exists', async () => {
+    const root = await makeRepo({
+      'package.json': JSON.stringify({ dependencies: { next: '^15.0.0' } }),
+      'app/page.tsx': 'export default function Page() { return null; }\n',
+      'docgen.config.json': JSON.stringify({ privacy: { allowedModels: ['approved-model'] } }),
+    });
+    await expect(runBootstrapCommand({ cwd: root, logger: quiet })).rejects.toMatchObject({ code: 'model-must-be-explicit' });
   });
 });

@@ -21,6 +21,207 @@ Diagnostics go to stderr; `--json` payloads go to stdout. You can pipe one witho
 
 ---
 
+## `docgen index`
+
+Build the local, schema-validated AST evidence graph. No model, network, or cost.
+
+```bash
+docgen index
+docgen index --dry-run --json
+docgen index --no-symbols
+```
+
+By default the canonical graph is written atomically to
+`.docgen/cache/evidence-graph.json`. A cache-local `.gitignore` prevents the
+rebuildable index from being committed. The same run writes
+`.docgen/cache/file-fingerprints.json` and reports added, changed, and deleted
+source counts. It also maintains `.docgen/cache/graph-partitions.json`, replaces
+the reverse dependency closure of changed files, and reuses unaffected
+partitions. Extractor results and emitted symbols are scoped to that closure;
+the symbol analyzers may still read other modules as resolution context, but do
+not rebuild their partitions. Reused partitions must remain byte-identical and
+the merged graph must pass normal graph validation. A failed integrity check
+automatically performs a clean extraction and is reported as `fallback` in text
+and JSON output. Clean-build equivalence is enforced by regression tests rather
+than paying for a second extraction on every edit. JSON output reports the
+number of files in `extractionScope` and identifies `partition-integrity`,
+`clean-equivalent`, or `cache-integrity` verification. When all
+fingerprints are unchanged, the resolved config, engine version, and symbol
+mode match, and the canonical graph agrees with its partitions, indexing reports `cached` and
+skips every extractor and AST parse. JSON output exposes `cacheHit` and
+`extractionSkipped` explicitly. It also lists the stable ID, version, backend,
+languages, and extensions in `symbolAdapters`; adapter metadata is part of the
+cache identity. Built-in symbol coverage currently includes TypeScript,
+JavaScript, and Python.
+
+| Flag | Effect |
+|---|---|
+| `-o, --out <path>` | Use another path inside the target repository. |
+| `--no-symbols` | Keep framework facts but omit function, class, method, and call relationships. |
+| `--dry-run` | Build and validate without writing. |
+| `--json` | Machine-readable summary on stdout. |
+
+---
+
+## Graph queries
+
+Queries rebuild the graph from the current working tree before answering, so
+they cannot silently serve a stale cache.
+
+```bash
+docgen query payment
+docgen query checkout --kinds route,endpoint,symbol
+docgen explain "endpoint:endpoints:endpoint:POST:/orders"
+docgen path "route:/checkout" "schema:payments" --direction both
+```
+
+`query` searches node ids and labels. `explain` shows direct relationships and
+source evidence. `path` returns a deterministic shortest path and can be
+restricted with `--edge-kinds` or `--max-depth`. All three support `--json`.
+Statically proven Prisma, Django, and SQLAlchemy operations appear as
+`references` edges from the calling symbol to the extracted schema node, with
+`referenceKind: database-access`, ORM, operation, and model properties.
+Bull, BullMQ, and amqplib publishers similarly appear as `references` edges to
+the extracted consumer job with `referenceKind: queue-producer`, runtime,
+literal channel, operation, and job name when one is declared.
+
+---
+
+## `docgen impact`
+
+Compare the current working tree with a Git revision and trace changed files to
+their downstream callers, endpoints, routes, jobs, schemas, and other graph
+entities. This is local static analysis and does not call a model or network.
+
+```bash
+docgen impact
+docgen impact --base origin/main
+docgen impact --base HEAD --max-depth 8 --json
+```
+
+Added, modified, deleted, and Git-detected renamed files are included. When a
+previous `.docgen/cache/evidence-graph.json` exists, it is also queried so
+deleted symbols and removed relationships remain visible. File introduction
+and last-change dates come from commits; uncommitted new files have no invented
+timestamp.
+
+| Flag | Effect |
+|---|---|
+| `--base <ref>` | Compare against this local Git commit, tag, or branch. Default: `HEAD`. |
+| `--max-depth <n>` | Maximum incoming graph relationships to traverse. Default: `6`. |
+| `--limit <n>` | Maximum impacted entities displayed per changed file. Default: `50`. |
+| `--json` | Machine-readable report on stdout. |
+
+---
+
+## `docgen feature`
+
+Register stable, human-owned feature identities and map code evidence to them.
+Feature records live in `docs/.features/<id>.json`; automatic generation never
+rewrites them.
+
+```bash
+docgen feature add checkout \
+  --title "Checkout" \
+  --files "src/checkout/**,src/payments/**" \
+  --owners "payments@example.com" \
+  --criticality high
+
+docgen feature list
+docgen feature show checkout --json
+```
+
+`feature add` accepts `--aliases` for previous stable names, `--nodes` for exact
+graph node IDs, `--description`, `--status`, and `--criticality`. The record is
+attributed to the current Git email and the explicit recording time. Feature
+introduction and last-change dates shown by `feature show` are different: they
+come only from commits touching selected evidence files.
+
+File and node selectors create `belongs-to-feature` graph relationships during
+every extraction. Consequently, `docgen impact` can report affected features
+without a model inferring product scope from filenames.
+
+---
+
+## `docgen plan`
+
+Create a human-owned implementation plan for a registered feature. Repeating
+`--acceptance`, `--risk`, or `--test-note` preserves each item separately;
+acceptance criteria receive stable IDs such as `AC-01`.
+
+```bash
+docgen plan create checkout-retry \
+  --feature checkout \
+  --title "Checkout retry handling" \
+  --summary "Make failed retries visible and idempotent" \
+  --acceptance "A failed payment can be retried without a duplicate order" \
+  --risk "Duplicate payment submission" \
+  --test-note "Verify the original idempotency key is reused"
+
+docgen plan list
+docgen plan show checkout-retry
+docgen plan status checkout-retry approved --note "Product approval"
+docgen plan status checkout-retry in-progress
+docgen plan status checkout-retry completed
+```
+
+Plans live in `docs/.plans/<id>.json`. Status changes follow a validated
+`draft -> approved -> in-progress -> completed` lifecycle, with cancellation
+paths, and append the actor, time, and optional note to an audit history.
+
+---
+
+## `docgen handoff`
+
+Generate a tester-ready Markdown handoff from the current Git diff, evidence
+graph, registered features, and approved, in-progress, or completed plans. Draft
+and cancelled intent is never presented to testers as approved acceptance.
+
+```bash
+docgen handoff --base origin/main
+docgen handoff --base HEAD --dry-run
+docgen handoff --out docs/handoffs/release-42.md --json
+```
+
+The default output is `docs/handoffs/tester-handoff.md`. It lists changed
+files, affected product features, statically reached routes/endpoints/jobs/data
+and configuration, Git-derived feature dates, acceptance criteria, risks, and
+tester notes. Extracted and human-owned sections are labeled separately. It
+does not use a model or invent missing acceptance criteria.
+
+---
+
+## `docgen change`
+
+Snapshot the current Git comparison as an immutable, attributed change record.
+The command validates every linked feature and plan and records the exact
+added, modified, deleted, and renamed files.
+
+```bash
+docgen change record checkout-retry-enabled \
+  --summary "Enable safe checkout retries" \
+  --features checkout \
+  --plans checkout-retry \
+  --kind fix \
+  --base origin/main
+```
+
+Records live in `docs/.changes/<id>.json`. `--kind` accepts `feature`, `fix`,
+`refactor`, `breaking`, or `docs`. The stored head SHA and date come from Git;
+the recorder and recording time identify the human assertion. Records are
+immutable and are projected into `change` nodes and `affected-by-change` graph
+relationships.
+
+After recording a change, run `docgen sync`. It deterministically updates:
+
+- `docs/generated/features.md` and one page per feature;
+- one generated page per plan, including acceptance and lifecycle history;
+- `docs/generated/changelog.md` from immutable change records.
+
+`docgen check` enforces these pages in CI without a model or network.
+
+---
+
 ## `docgen extract`
 
 Static analysis. Writes `docs/generated/`. No model, no network, no cost.
@@ -248,12 +449,15 @@ The CI gate. Fails when the committed documentation no longer matches the code.
 
 ```bash
 docgen check
+docgen check --base origin/main
 docgen check --strict
 docgen check --json
 ```
 
 | Flag | Effect |
 |---|---|
+| `--base <ref>` | Git comparison base for change-scoped plan and handoff policies. |
+| `--as-of <timestamp>` | Override exception evaluation time for reproducible audits. |
 | `--strict` | Also fail on unanswered questions and untriaged answers. |
 | `--json` | Machine-readable output on stdout. |
 
@@ -271,6 +475,173 @@ Fix with `docgen sync` and commit the result.
 
 ---
 
+## `docgen policy`
+
+Evaluate configured governance rules without invoking a model:
+
+```bash
+docgen policy check --base origin/main
+docgen policy check --base HEAD --json
+```
+
+The same evaluation is included in `docgen check`; this command provides
+policy-focused diagnostics. Change-scoped policies fail clearly when `--base`
+is omitted.
+
+```bash
+docgen policy exception add checkout-plan-delay \
+  --policy changed-feature-plan \
+  --subject checkout \
+  --owner payments@example.com \
+  --reason "Architecture review scheduled" \
+  --expires 2026-08-20T18:00:00.000Z
+docgen policy exception list
+```
+
+Exceptions are stored in `docs/.governance/exceptions.json`. IDs are immutable;
+owner, reason, and future expiry are mandatory. Expired entries remain
+auditable but stop suppressing failures.
+
+---
+
+## `docgen legacy inventory`
+
+Inventory existing prose without treating any statement in it as fact. Markdown,
+MDX, reStructuredText, AsciiDoc, and text files are hashed and labelled by
+ownership. Human-authored documents remain `unreviewed`; only exact byte
+duplicates are classified automatically. Local Markdown links are recorded as
+existing or missing references. Explicit file links and exact inline-code
+identifiers are mapped to graph nodes. Each candidate line is reported as
+`mapped`, `ambiguous`, or `unmapped`, and the document receives a separate
+evidence status. Mapping means “about this entity”; it never means that the
+surrounding prose is true.
+
+```bash
+docgen legacy inventory
+docgen legacy inventory --json
+docgen legacy inventory --write
+```
+
+The default command is read-only. `--write` creates
+`docs/.legacy/migration.json` once with every human document in a pending-review
+state. It refuses to overwrite the manifest, and every move/archive decision
+requires approval. The manifest records the canonical evidence-graph hash used
+for claim mappings, so a later code state cannot silently inherit old evidence.
+This command never moves, rewrites, or deletes a legacy file.
+
+| Flag | Effect |
+|---|---|
+| `--write` | Create the versioned human-review migration manifest. |
+| `--json` | Return the complete inventory and safety counters. |
+
+Semantic status is an attributed review decision, not an automatic consequence
+of finding a graph node:
+
+```bash
+docgen legacy classify docs/old-api.md contradicted \
+  --reason "The referenced endpoint was removed" \
+  --replacements docs/generated/features/api.md
+```
+
+Valid classifications are `current`, `partial`, `contradicted`, `orphaned`,
+and `unverifiable`; byte-identical `duplicate` documents are detected during
+inventory. The command verifies the document hash and evidence-graph hash,
+records the reviewer and timestamp in immutable history, and resets the
+proposed action to approval-pending. Defaults are `retain` for current,
+`replace` for partial/contradicted, `archive` for orphaned, and `review` for
+unverifiable. `--action` can override the proposal, but cannot approve it.
+
+| Flag | Effect |
+|---|---|
+| `--reason <text>` | Required evidence or human reasoning for the decision. |
+| `--action <action>` | Override the proposed `review`, `retain`, `replace`, or `archive` action. |
+| `--replacements <paths>` | Comma-separated generated pages intended to replace the old document. |
+| `--json` | Return the recorded transition and safety counters. |
+
+Generate derived operation plans after classifications or replacement files
+change:
+
+```bash
+docgen legacy plan
+```
+
+This writes `docs/.legacy/replacement-plan.json` and
+`docs/.legacy/archive-plan.json`. Replacement entries are not approval-ready
+until every named replacement exists. Archive entries are not executable until
+the matching manifest decision is approved; replacement actions also require
+all replacement files to exist.
+
+Approval and execution are separate commands:
+
+```bash
+docgen legacy approve docs/old-api.md \
+  --reason "Replacement reviewed by API owner"
+docgen legacy archive docs/old-api.md
+```
+
+Approval rechecks the original document hash and evidence-graph hash and appends
+attributed approval history. Archive repeats those checks, rejects symlinks and
+existing targets, and moves the file to
+`docs/legacy-archive/<original-path>`. It then records the source hash, actor,
+timestamp, and target in the authoritative migration manifest. If the manifest
+update fails, Docgen attempts to move the document back. There is no legacy
+delete command.
+
+---
+
+## `docgen security scan`
+
+Inspect dependency manifests and lockfiles without installing packages, calling
+a registry, or using a model.
+
+```bash
+docgen security scan
+docgen security scan --json
+docgen security scan --strict
+```
+
+The npm scanner checks lockfile coverage, registry archive integrity, insecure
+HTTP downloads, non-registry direct dependencies, and install-time scripts. The
+Python scanner checks exact `==` pins and `--hash` constraints in
+`requirements.txt`. Unsupported formats such as pnpm, Yarn, Poetry, Cargo, Go,
+and Bundler are emitted as explicit gaps.
+
+| Flag | Effect |
+|---|---|
+| `--json` | Machine-readable components, findings, gaps, and coverage limits. |
+| `--strict` | Fail when any finding or unsupported-format gap exists. |
+
+This is an offline reproducibility and provenance scan. It deliberately reports
+`vulnerabilityCoverage.status: "not-evaluated"`; run a current ecosystem
+advisory scanner in CI for CVEs.
+
+## `docgen security sbom`
+
+Generate a deterministic CycloneDX 1.6 inventory from the same offline scan.
+
+```bash
+docgen security sbom
+docgen security sbom --out artifacts/sbom.cdx.json
+docgen security sbom --json > sbom.cdx.json
+docgen security sbom --dry-run
+```
+
+The default tracked destination is `docs/.security/sbom.cdx.json`. Repeating the
+command against unchanged manifests and lockfiles produces identical bytes and
+the same deterministic serial number. `--json` prints the SBOM to stdout and
+does not write a file.
+
+| Flag | Effect |
+|---|---|
+| `-o, --out <path>` | Override the SBOM destination. |
+| `--dry-run` | Build and report the SBOM without writing it. |
+| `--json` | Print the CycloneDX document on stdout instead of writing it. |
+
+The repository-wide security assumptions and severity model are in
+[`security/threat-model.md`](security/threat-model.md).
+
+---
+
 ## `docgen status`
 
 One repository's documentation health, in one screen. No model, no cost.
@@ -284,7 +655,11 @@ docgen status --json
 |---|---|
 | `--json` | Machine-readable output on stdout. |
 
-Every count is paired with what it is a count of, and the last line names the single next step.
+The report includes documentation coverage and drift plus evidence-graph node,
+edge, and gap counts. It also shows the feature, critical-feature, plan, and
+attributed-change records used by impact analysis and governance. JSON output
+exposes these values under `graph`. Every count is paired with what it counts,
+and the last line names the single next step.
 
 ---
 
@@ -307,7 +682,40 @@ docgen fleet ../*/ --json
 | `-o, --out <path>` | Where to write the dashboard. Default: `docgen-fleet.md`. |
 | `--json` | Machine-readable output on stdout instead of writing a file. |
 
+The generated Markdown has separate repository-health and evidence-governance
+tables. Fleet totals come from each repository's extracted graph; Docgen does
+not invent a composite health score.
+
 Deliberately not a score. It shows the size of each gap and the next action per repo. A repository that cannot be read is listed as such rather than omitted — an absent row reads as "nothing to do here".
+
+---
+
+## `docgen session`
+
+The common lifecycle used by Codex, Claude Code, Cursor, and generic coding
+agents.
+
+```bash
+docgen session start --json
+docgen session after-edit --base HEAD --json
+docgen session end --base origin/main --json
+```
+
+`start` refreshes evidence and returns active plans and open questions.
+`after-edit` refreshes the incremental index and computes change impact. `end`
+synchronizes generated documentation, writes the tester handoff, and runs the
+deterministic gate. Add `--strict` to enforce unresolved questions and triage.
+
+---
+
+## `docgen mcp`
+
+Run the stdio MCP server used by supported coding agents. `docgen init` adds it
+to generic `.mcp.json` and, where Codex is detected, `.codex/config.toml`. Tools:
+`graph_search`, `graph_explain`, `graph_path`,
+`change_impact`, `plans_list`, `plan_show`, `questions_list`, and
+`handoff_generate`. Only `handoff_generate` writes a file; use its `dryRun`
+argument for a read-only preview.
 
 ---
 
@@ -318,21 +726,31 @@ Make the question queue reachable from the tools the team already uses.
 ```bash
 docgen init
 docgen init --all
+docgen init --hooks
 ```
 
 | Flag | Effect |
 |---|---|
 | `--all` | Install every adapter, not only the ones this repo shows evidence of. |
+| `--hooks` | Install the opt-in pre-push check. Existing hook ownership is never replaced. |
 
 | Adapter | Written when |
 |---|---|
 | `AGENTS.md` | Always. The one file every current coding agent reads. |
+| `.agents/skills/govern-documentation/SKILL.md` | Always. Portable generic agent skill. |
+| `.codex/config.toml` | The repo uses Codex, or `--all`; adds the project-scoped MCP server with write-tool approval. |
 | `CLAUDE.md` | The repo has `.claude/` or `CLAUDE.md`. |
+| `.claude/skills/govern-documentation/SKILL.md` | The repo uses Claude Code, or `--all`. |
 | `.cursor/rules/docgen.mdc` | The repo has `.cursor/`. |
+| `.mcp.json` | Always. Existing servers and unrelated fields are preserved. |
 | `.github/workflows/docgen.yml` | The repo has `.github/workflows/`. |
 | `.github/dependabot.yml` | docgen is a local dependency **and** the repo has no update policy of its own. |
+| `.githooks/pre-push` | Only with `--hooks`; runs the non-mutating `docgen check`. |
 
-Markdown adapters write a delimited block and preserve everything outside it. A file with mangled or out-of-order markers is appended to rather than "repaired" — replacing everything between them would delete the team's own content in exactly that case. Repeat runs are no-ops.
+Shared Markdown adapters write a delimited block and preserve everything
+outside it. Docgen-owned skill, Cursor, workflow, and hook files are
+deterministic; MCP configuration is merged without removing unrelated settings.
+Repeat runs are no-ops.
 
 ---
 

@@ -96,8 +96,18 @@ export async function probeBackends(): Promise<readonly BackendAvailability[]> {
  * a silent downgrade: switching models behind someone's back changes what the
  * documentation says and what it costs.
  */
-export async function resolveBackend(configured: AgentId | 'auto'): Promise<AgentBackend> {
+export async function resolveBackend(
+  configured: AgentId | 'auto',
+  allowed: readonly AgentId[] = AGENT_IDS,
+): Promise<AgentBackend> {
   if (configured !== 'auto') {
+    if (!allowed.includes(configured)) {
+      throw new DocgenError({
+        code: 'agent-not-allowed',
+        message: `The configured agent backend '${configured}' is not allowed by repository privacy policy.`,
+        remedy: `Choose one of: ${allowed.join(', ') || 'none; local-only policy blocks inference'}.`,
+      });
+    }
     const backend = getBackend(configured);
     if (!(await backend.isAvailable())) {
       throw new DocgenError({
@@ -109,11 +119,13 @@ export async function resolveBackend(configured: AgentId | 'auto'): Promise<Agen
     return backend;
   }
 
-  for (const backend of getBackends()) {
+  for (const backend of getBackends().filter((candidate) => allowed.includes(candidate.id as AgentId))) {
     if (await backend.isAvailable()) return backend;
   }
 
-  const hints = getBackends().map((backend) => `  - ${backend.name}: ${backend.setupHint}`);
+  const hints = getBackends()
+    .filter((backend) => allowed.includes(backend.id as AgentId))
+    .map((backend) => `  - ${backend.name}: ${backend.setupHint}`);
   throw new DocgenError({
     code: 'no-agent-available',
     message: 'No LLM backend is available, so nothing can be inferred.',

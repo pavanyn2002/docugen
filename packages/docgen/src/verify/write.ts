@@ -7,6 +7,7 @@ import { toPosix } from '../util/paths.js';
 import type { ResolvedConfig } from '../config/schema.js';
 import type { Logger } from '../util/logger.js';
 import { computeExpectedFiles, findDrift } from './expected.js';
+import { loadFeatureRecords } from '../features/store.js';
 
 export interface SyncReport {
   readonly written: readonly string[];
@@ -34,7 +35,11 @@ export async function syncGenerated(args: {
   const { config } = args;
   const outDir = toPosix(config.outDir);
 
-  const run = await runExtraction({ config, logger: args.logger });
+  const run = await runExtraction({
+    config,
+    logger: args.logger,
+    includeSymbols: (await loadFeatureRecords(config.root)).length > 0,
+  });
   const expected = await computeExpectedFiles(run);
   const drift = await findDrift(config.root, outDir, expected);
 

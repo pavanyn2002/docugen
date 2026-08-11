@@ -42,6 +42,12 @@ export async function runStatusCommand(options: StatusCommandOptions): Promise<v
   );
   options.logger.info(`  traced        ${status.tested}/${status.testable} cited by a test`);
   options.logger.info(
+    `  graph         ${status.graph.nodes} nodes, ${status.graph.edges} edges, ${status.graph.gaps} evidence gap(s)`,
+  );
+  options.logger.info(
+    `  governance    ${status.graph.features} feature(s), ${status.graph.plans} plan(s), ${status.graph.changes} change record(s)`,
+  );
+  options.logger.info(
     `  drift         ${
       status.driftingFiles === 0 ? colors().green('up to date') : `${status.driftingFiles} file(s) stale`
     }`,

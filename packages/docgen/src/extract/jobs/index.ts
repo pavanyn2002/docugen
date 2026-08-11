@@ -2,7 +2,7 @@ import fg from 'fast-glob';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import type { Gap, Skip } from '../../types/core.js';
+import type { Gap, Skip, SourceRef } from '../../types/core.js';
 import type { JobEntry, JobsResult } from '../../types/entries.js';
 import { toPosix } from '../../util/paths.js';
 import type { Extractor, ExtractorContext } from '../types.js';
@@ -38,6 +38,8 @@ export const jobsExtractor: Extractor<JobEntry> = {
     const gaps: Gap[] = [];
     const skips: Skip[] = [];
     const detected = new Set<string>();
+    const declaredQueues = new Map<string, SourceRef>();
+    const workerQueues = new Set<string>();
 
     for (const relative of files) {
       let contents: string;
@@ -62,7 +64,27 @@ export const jobsExtractor: Extractor<JobEntry> = {
         }
         entries.push(...parsed.entries);
         gaps.push(...parsed.gaps);
+        for (const declaration of parsed.declaredQueues) {
+          if (!declaredQueues.has(declaration.channel)) {
+            declaredQueues.set(declaration.channel, declaration.source);
+          }
+        }
+        for (const queue of parsed.workerQueues) workerQueues.add(queue);
       }
+    }
+
+    // Queue producers and workers usually live in different modules. Evaluate
+    // the repository as a whole before claiming that a consumer is external.
+    for (const [queue, source] of declaredQueues) {
+      if (workerQueues.has(queue)) continue;
+      gaps.push({
+        extractor: 'jobs',
+        kind: 'queue-without-local-worker',
+        message:
+          `Queue '${queue}' is declared here for publishing, but no worker consuming it was found in ` +
+          'this repository. Its consumer is presumably another service.',
+        source,
+      });
     }
 
     const manifests = await extractManifestJobs({ root: context.root, exclude });

@@ -18,6 +18,7 @@ import type {
 } from '../types/entries.js';
 import { toPosix } from '../util/paths.js';
 import type { Logger } from '../util/logger.js';
+import { DocgenError } from '../util/errors.js';
 
 export interface BootstrapCommandOptions {
   readonly cwd: string;
@@ -97,13 +98,37 @@ export async function runBootstrapCommand(options: BootstrapCommandOptions): Pro
   }
 
   if (options.dryRun === true) {
-    await reportBackends(options.logger);
+    await reportBackends(options.logger, config.privacy.allowedAgents, config.privacy.localOnly);
     options.logger.heading('Dry run');
     options.logger.info(`  ${colors().dim('no model was called and nothing was written')}`);
     return;
   }
 
-  const backend = await resolveBackend(config.infer.agent);
+  if (config.privacy.localOnly) {
+    throw new DocgenError({
+      code: 'inference-disabled-local-only',
+      message: 'Repository privacy policy is local-only, so no source may be sent to a model backend.',
+      remedy: 'Use static `docgen extract`, `index`, `sync`, and `check`; change privacy.localOnly only after an explicit data-governance decision.',
+    });
+  }
+  if (config.privacy.allowedModels !== undefined) {
+    if (config.infer.model === undefined) {
+      throw new DocgenError({
+        code: 'model-must-be-explicit',
+        message: 'Repository privacy policy defines allowedModels, but infer.model is not explicit.',
+        remedy: `Set infer.model to one of: ${config.privacy.allowedModels.join(', ')}.`,
+      });
+    }
+    if (!config.privacy.allowedModels.includes(config.infer.model)) {
+      throw new DocgenError({
+        code: 'model-not-allowed',
+        message: `Model '${config.infer.model}' is not allowed by repository privacy policy.`,
+        remedy: `Use one of: ${config.privacy.allowedModels.join(', ')}.`,
+      });
+    }
+  }
+
+  const backend = await resolveBackend(config.infer.agent, config.privacy.allowedAgents);
   options.logger.heading(`Inferring with ${backend.name}`);
   options.logger.warn(
     'Everything produced below is model-inferred and unverified. It is badged as such in the ' +
@@ -123,6 +148,7 @@ export async function runBootstrapCommand(options: BootstrapCommandOptions): Pro
     },
     timeoutMs: config.infer.timeoutMs,
     ...(config.infer.model === undefined ? {} : { model: config.infer.model }),
+    redactSecrets: config.privacy.redactSecrets,
     previous,
     ...(options.force === undefined ? {} : { force: options.force }),
     ...(options.limit === undefined ? {} : { maxSurfaces: options.limit }),
@@ -174,11 +200,13 @@ export async function runBootstrapCommand(options: BootstrapCommandOptions): Pro
   }
 }
 
-async function reportBackends(logger: Logger): Promise<void> {
+async function reportBackends(logger: Logger, allowed: readonly string[], localOnly: boolean): Promise<void> {
   logger.heading('Available backends');
   for (const backend of await probeBackends()) {
-    const mark = backend.available ? colors().green(' ok') : colors().dim('  -');
+    const permitted = !localOnly && allowed.includes(backend.id);
+    const mark = backend.available && permitted ? colors().green(' ok') : colors().dim('  -');
     logger.info(`  ${mark} ${backend.name}`);
-    if (!backend.available) logger.info(`       ${colors().dim(backend.setupHint)}`);
+    if (!permitted) logger.info(`       ${colors().dim(localOnly ? 'blocked by local-only privacy policy' : 'blocked by provider allowlist')}`);
+    else if (!backend.available) logger.info(`       ${colors().dim(backend.setupHint)}`);
   }
 }
