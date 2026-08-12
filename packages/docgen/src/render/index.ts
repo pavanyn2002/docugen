@@ -23,6 +23,7 @@ import { computeFindings } from '../analysis/findings.js';
 import type { FindingsReport } from '../analysis/findings.js';
 import { computeGovernanceFiles } from '../governance/expected.js';
 import { writeFileAtomically } from '../util/atomic.js';
+import { projectRenderResults } from './projection.js';
 
 /** A file to write: repo-relative POSIX path and its full contents. */
 export interface RenderedFile {
@@ -44,9 +45,11 @@ export function renderAll(
   const outDir = run.config.outDir.split(path.sep).join('/').replace(/\/+$/, '');
   const context = run.context;
   const stack = run.stack;
+  const projectedResults = projectRenderResults(run.graph, run.results);
+  const projectedRun: RunResult = { ...run, results: projectedResults };
 
   const get = <T>(id: Parameters<RunResult['results']['get']>[0]): T | undefined =>
-    run.results.get(id) as T | undefined;
+    projectedResults.get(id) as T | undefined;
 
   const routes = get<RoutesResult>('routes');
   const endpoints = get<EndpointsResult>('endpoints');
@@ -71,7 +74,7 @@ export function renderAll(
   });
 
   const files: RenderedFile[] = [
-    { path: `${outDir}/README.md`, contents: renderReadme(run, findings, lanes) },
+    { path: `${outDir}/README.md`, contents: renderReadme(projectedRun, findings, lanes) },
   ];
 
   // A section whose extractor did not run is omitted rather than written empty:

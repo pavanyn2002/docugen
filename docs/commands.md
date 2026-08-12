@@ -25,6 +25,13 @@ Diagnostics go to stderr; `--json` payloads go to stdout. You can pipe one witho
 
 Build the local, schema-validated AST evidence graph. No model, network, or cost.
 
+The same canonical graph now supplies the structural entries rendered into
+routes, API, schema, jobs, configuration, README summaries, and diagrams. A
+versioned, lossless render projection lives on each extracted entity node;
+extractor envelopes retain applicability, provider, skip, and gap diagnostics.
+Compatibility tests assert that switching this data source does not change the
+document contract, and secret-shaped defaults are removed before projection.
+
 ```bash
 docgen index
 docgen index --dry-run --json

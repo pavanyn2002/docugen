@@ -41,7 +41,7 @@ human-owned and what it may rewrite or remove.
 - [x] Expose the graph through the programmatic API and `RunResult`.
 - [x] Add graph queries for search, neighbors, paths, and explanations.
 - [x] Add a schema-validated, versioned on-disk index and atomic writes.
-- [ ] Switch renderers to graph projections only after compatibility snapshots pass.
+- [x] Switch structural renderers to versioned graph projections with compatibility tests.
 
 Gate: current generated documentation remains byte-identical while a clean
 extraction produces a valid deterministic graph.

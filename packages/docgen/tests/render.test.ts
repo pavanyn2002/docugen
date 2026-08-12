@@ -90,6 +90,21 @@ describe('rendered file set', () => {
 
     expect(renderAll(run).every((file) => file.path.startsWith('documentation/'))).toBe(true);
   });
+
+  it('renders structural entries from the evidence graph projection', async () => {
+    const run = await runOn(path.join(FIXTURES, 'express-service'));
+    const expected = renderAll(run);
+    const routes = run.results.get('routes');
+    expect(routes).toBeDefined();
+    if (routes === undefined) return;
+    const tampered = new Map(run.results);
+    tampered.set('routes', {
+      ...routes,
+      entries: routes.entries.map((entry) => ({ ...entry, path: '/not-from-the-graph' }) as never),
+    });
+
+    expect(renderAll({ ...run, results: tampered })).toEqual(expected);
+  });
 });
 
 // ── front matter and provenance ──────────────────────────────────────────────

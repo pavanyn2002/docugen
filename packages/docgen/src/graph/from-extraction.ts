@@ -79,7 +79,15 @@ function entryNode(args: {
     kind: args.kind,
     label: args.label,
     provenance,
-    properties: { extractorId: args.entry.id, ...(args.properties ?? {}) },
+    properties: {
+      extractorId: args.entry.id,
+      // Lossless, versioned projection used by deterministic renderers. The
+      // surrounding graph properties remain query-friendly; this payload
+      // preserves details such as schema indexes without reaching back into
+      // extractor-private return objects.
+      renderEntryV1: JSON.stringify(safeRenderEntry(args.entry)),
+      ...(args.properties ?? {}),
+    },
   });
   addFileRelationship({
     builder: args.builder,
@@ -89,6 +97,17 @@ function entryNode(args: {
     provenance,
   });
   return id;
+}
+
+function safeRenderEntry(entry: EntryBase): EntryBase {
+  if (
+    'isSecretLike' in entry && entry.isSecretLike === true &&
+    'defaultValue' in entry
+  ) {
+    const { defaultValue: _secretDefault, ...safe } = entry;
+    return safe as EntryBase;
+  }
+  return entry;
 }
 
 function addRoutes(builder: EvidenceGraphBuilder, result: RoutesResult): void {
