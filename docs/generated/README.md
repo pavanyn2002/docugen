@@ -1,7 +1,7 @@
 ---
 generated: true
 engine_version: 0.1.0
-evidence_fingerprint: sha256:aa6e2b5a43ef3411a55eeddc90f5c016b37b9e730b6f1caf59bc6b42fe42917d
+evidence_fingerprint: sha256:78c3df594ac0e7b9eb1d4f460a296ed21f5194d4eac9f6b03ad6bf24977a874e
 confidence: verified
 ---
 
@@ -19,7 +19,7 @@ Everything here is derived from the code by static analysis. No part of it was w
 | --- | --- | --- |
 | [Routes and screens](routes.md) | _not applicable_ | — |
 | [Database schema](schema.md) | _not applicable_ | — |
-| Module dependency graph | 177 | 1 |
+| Module dependency graph | 178 | 1 |
 | [API endpoints](api.md) | 0 | — |
 | [Background jobs](jobs.md) | _not applicable_ | — |
 | [Environment and configuration](config.md) | 1 | 1 |

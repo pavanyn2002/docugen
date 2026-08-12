@@ -85,7 +85,7 @@ Gate: a branch diff reports every documentation and testing surface it affects.
 - [x] Add human-owned plan records, stable acceptance IDs, and audited lifecycle commands.
 - [x] Generate feature overview, implementation, plan, acceptance, and changelog pages.
 - [x] Generate tester handoffs from the branch diff, graph, feature records, and plans.
-- [ ] Ground model context in graph neighborhoods and exact source evidence.
+- [x] Ground model context in bounded, extracted-only graph neighborhoods and exact source excerpts.
 - [x] Show a file/byte/provider disclosure before any model call.
 
 Gate: every feature change can produce a tester-ready handoff without asking the

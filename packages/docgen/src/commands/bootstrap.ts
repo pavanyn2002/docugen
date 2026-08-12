@@ -51,7 +51,7 @@ export async function runBootstrapCommand(options: BootstrapCommandOptions): Pro
 
   // Static lane first. Inference is grounded in these facts, and the surface
   // list is what gets chunked into cards.
-  const run = await runExtraction({ config, logger: options.logger });
+  const run = await runExtraction({ config, logger: options.logger, includeSymbols: true });
   const bundle = {
     routes: run.results.get('routes') as RoutesResult | undefined,
     endpoints: run.results.get('endpoints') as EndpointsResult | undefined,
@@ -139,6 +139,7 @@ export async function runBootstrapCommand(options: BootstrapCommandOptions): Pro
     root: config.root,
     surfaces: surfaceSet.surfaces,
     bundle,
+    graph: run.graph,
     answers,
     backend,
     limits: {

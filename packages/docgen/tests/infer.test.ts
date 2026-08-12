@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { extractJsonObject, inferCards, parseCardBody, PROMPT_VERSION } from '../src/infer/cards.js';
+import { extractJsonObject, inferCards, parseCardBody, PROMPT_VERSION, validateCardEvidence } from '../src/infer/cards.js';
 import { loadCards, saveCards, renderCardFile } from '../src/infer/store.js';
 import { featureCardSchema } from '../src/infer/types.js';
 import type { FeatureCard } from '../src/infer/types.js';
@@ -19,6 +19,8 @@ import type { AgentBackend, AgentOutcome, AgentRequest } from '../src/agents/typ
 import type { Surface } from '../src/surface/types.js';
 import { redactSecrets } from '../src/privacy/redact.js';
 import { runBootstrapCommand } from '../src/commands/bootstrap.js';
+import { EvidenceGraphBuilder } from '../src/graph/builder.js';
+import type { EvidenceGraph } from '../src/graph/types.js';
 
 const created: string[] = [];
 
@@ -77,10 +79,86 @@ function surface(overrides: Partial<Surface> = {}): Surface {
   };
 }
 
+function evidenceGraph(): EvidenceGraph {
+  const extracted = (file: string, line: number) => ({
+    origin: 'extracted' as const,
+    evidence: [{ file, line }],
+    certainty: 'high' as const,
+  });
+  const builder = new EvidenceGraphBuilder();
+  builder.addNode({
+    id: 'surface:screen:checkout',
+    kind: 'surface',
+    label: 'Checkout',
+    provenance: extracted('src/checkout.tsx', 1),
+  });
+  builder.addNode({
+    id: 'endpoint:POST /checkout',
+    kind: 'endpoint',
+    label: 'POST /checkout',
+    provenance: extracted('src/checkout.tsx', 1),
+  });
+  builder.addNode({
+    id: 'symbol:src/service.ts#charge',
+    kind: 'symbol',
+    label: 'charge',
+    provenance: extracted('src/service.ts', 40),
+  });
+  builder.addNode({
+    id: 'file:src/service.ts',
+    kind: 'file',
+    label: 'src/service.ts',
+    provenance: extracted('src/service.ts', 1),
+  });
+  builder.addNode({
+    id: 'requirement:payment-intent',
+    kind: 'requirement',
+    label: 'Payment intent',
+    provenance: {
+      origin: 'human',
+      evidence: [{ file: 'docs/requirements.yaml', line: 2 }],
+      actor: 'developer',
+    },
+  });
+  builder.addEdge({
+    id: 'edge:surface-endpoint',
+    kind: 'contains',
+    from: 'surface:screen:checkout',
+    to: 'endpoint:POST /checkout',
+    provenance: extracted('src/checkout.tsx', 1),
+  });
+  builder.addEdge({
+    id: 'edge:endpoint-handler',
+    kind: 'handled-by',
+    from: 'endpoint:POST /checkout',
+    to: 'symbol:src/service.ts#charge',
+    provenance: extracted('src/service.ts', 40),
+  });
+  builder.addEdge({
+    id: 'edge:symbol-file',
+    kind: 'defined-in',
+    from: 'symbol:src/service.ts#charge',
+    to: 'file:src/service.ts',
+    provenance: extracted('src/service.ts', 40),
+  });
+  builder.addEdge({
+    id: 'edge:endpoint-requirement',
+    kind: 'governed-by',
+    from: 'endpoint:POST /checkout',
+    to: 'requirement:payment-intent',
+    provenance: {
+      origin: 'human',
+      evidence: [{ file: 'docs/requirements.yaml', line: 2 }],
+      actor: 'developer',
+    },
+  });
+  return builder.build();
+}
+
 const VALID_CARD = {
-  summary: { text: 'Collects payment details.', evidence: [{ file: 'src/checkout.tsx', line: 12 }] },
+  summary: { text: 'Collects payment details.', evidence: [{ file: 'src/checkout.tsx', line: 1 }] },
   userVisibleBehaviour: [
-    { text: 'Shows a card form.', evidence: [{ file: 'src/checkout.tsx' }] },
+    { text: 'Shows a card form.', evidence: [{ file: 'src/checkout.tsx', line: 1 }] },
   ],
   states: [],
   edgeCases: [],
@@ -201,6 +279,32 @@ describe('surface context', () => {
     await fs.writeFile(path.join(root, 'src/checkout.tsx'), 'export const a = 2;\n', 'utf8');
     const after = await buildSurfaceContext({ root, surface: surface(), bundle: {}, limits });
     expect(after.contentHash).not.toBe(before.contentHash);
+  });
+
+  it('adds extracted graph neighbors and exact numbered source windows', async () => {
+    const service = Array.from({ length: 70 }, (_, index) =>
+      index === 39 ? 'export function charge() { return "charged"; }' : `// service line ${index + 1}`,
+    ).join('\n');
+    const root = await makeRepo({
+      'src/checkout.tsx': 'export const Checkout = () => null;\n',
+      'src/service.ts': service,
+      'docs/requirements.yaml': 'requirements:\n  - payment-intent\n',
+    });
+    const context = await buildSurfaceContext({
+      root,
+      surface: surface(),
+      bundle: {},
+      graph: evidenceGraph(),
+      limits: { maxFiles: 10, maxBytesPerFile: 20_000, maxTotalBytes: 40_000 },
+    });
+
+    expect(context.includedFiles).toEqual(['src/checkout.tsx', 'src/service.ts']);
+    expect(context.graph).toContain('symbol:src/service.ts#charge');
+    expect(context.graph).not.toContain('requirement:payment-intent');
+    expect(context.code).toMatch(/\s40 \| export function charge/);
+    expect(context.includedEvidence).toContainEqual({
+      file: 'src/service.ts', startLine: 1, endLine: 60,
+    });
   });
 
   it('does not present a missing guard as proof the route is public', () => {
@@ -414,6 +518,34 @@ describe('inference run', () => {
 
     expect(result.cards).toEqual([]);
     expect(result.failures).toHaveLength(1);
+  });
+
+  it('rejects a model citation to a file it was not shown', async () => {
+    const root = await makeRepo({ 'src/checkout.tsx': 'export const Checkout = () => null;\n' });
+    const backend = fakeBackend([{ ok: true, text: JSON.stringify({
+      ...VALID_CARD,
+      summary: { text: 'Invented.', evidence: [{ file: 'src/secret.ts', line: 1 }] },
+    }) }]);
+    const result = await inferCards({
+      root, surfaces: [surface()], bundle: {}, answers: new Map(), backend,
+      limits, timeoutMs: 1000, logger: quiet,
+    });
+    expect(result.cards).toEqual([]);
+    expect(result.failures[0]?.reason).toContain('was not included');
+  });
+
+  it('rejects an unseen line and a citation without an exact line', () => {
+    const body = featureCardSchema.parse(VALID_CARD);
+    expect(validateCardEvidence(body, [{ file: 'src/checkout.tsx', startLine: 1, endLine: 1 }]))
+      .toBeUndefined();
+    expect(validateCardEvidence(
+      { ...body, summary: { text: 'x', evidence: [{ file: 'src/checkout.tsx', line: 99 }] } },
+      [{ file: 'src/checkout.tsx', startLine: 1, endLine: 1 }],
+    )).toContain('line was not included');
+    expect(validateCardEvidence(
+      { ...body, summary: { text: 'x', evidence: [{ file: 'src/checkout.tsx' }] } },
+      [{ file: 'src/checkout.tsx', startLine: 1, endLine: 1 }],
+    )).toContain('without a line number');
   });
 
   it('honours maxSurfaces so a first run can be bounded', async () => {

@@ -292,6 +292,19 @@ docgen bootstrap --force       # ignore the cache
 
 **Caching.** A surface is re-inferred only when its code or its recorded answers changed, or when the prompt version changed. Everything else is reused for free. This is what makes it affordable to run repeatedly.
 
+**Grounding.** Before each call, Docugen starts at that surface in the static
+evidence graph and selects a deterministic, bounded neighborhood. Only
+`extracted` nodes and relationships are eligible; human requirements and prior
+model output cannot leak into the static-evidence lane. Source files reachable
+from that neighborhood are sent as numbered excerpts around exact evidence
+lines. A returned card is discarded if any claim cites an unseen file, omits a
+line number, or cites a line outside the transmitted excerpt.
+
+The disclosure immediately before a backend call reports its provider, model,
+prompt bytes, redactions, files, and graph node/edge counts. Prompt pack
+`feature-card.v2` introduced this contract, so cards produced by v1 are
+regenerated once on the next `bootstrap` run.
+
 Note that the cache key does **not** include the backend, so switching from Codex to Claude will not regenerate on its own. Use `--force` if you want that.
 
 **Backends**, tried in order under `infer.agent: "auto"`:

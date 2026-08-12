@@ -79,6 +79,7 @@ All are committed so review and history remain available to the team.
 
 - **Deterministic.** Same evidence in, same bytes out. Sorting is locale-independent, paths are POSIX, line endings are LF, and generated pages carry a canonical evidence fingerprint instead of a self-referential commit hash. Feature dates still come from Git. The multi-OS, supported-Node release matrix remains a required v1 release gate.
 - **Two lanes, never mixed.** `extract`, `report`, `sync`, `check`, `trace`, `status` and `fleet` make no network call and cost nothing. `bootstrap` is the only command that calls a model, and it says so before it runs.
+- **Graph-grounded inference.** `bootstrap` gives the model only a bounded, extracted-only neighborhood for one surface plus line-numbered source excerpts. Citations to files or lines the model did not receive are rejected instead of published.
 - **No secrets.** `.env` values are never read or recorded — only variable names and where they are used.
 - **Never fabricates.** Anything static analysis cannot establish is recorded as a gap. Anything the model cannot establish becomes a question. Neither is filled with a plausible value.
 - **Diagrams parse.** Every generated `.mmd` is run through the real Mermaid parser in CI.

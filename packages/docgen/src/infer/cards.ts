@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { AgentBackend } from '../agents/types.js';
 import type { Surface } from '../surface/types.js';
+import type { EvidenceGraph } from '../graph/types.js';
 import type { Logger } from '../util/logger.js';
 import { compareStrings } from '../util/sort.js';
 import { buildSurfaceContext } from './context.js';
@@ -14,14 +15,18 @@ import type { CardFailure, FeatureCard, InferenceResult } from './types.js';
 import { renderAnswersForPrompt } from '../questions/store.js';
 import type { SurfaceAnswers } from '../questions/store.js';
 import { redactSecrets } from '../privacy/redact.js';
+import type { EvidenceExcerpt } from './context.js';
+import type { FeatureCardBody } from './types.js';
+import { toPosix } from '../util/paths.js';
 
 /** Bumped whenever the prompt changes, so old cards are regenerated. */
-export const PROMPT_VERSION = 'feature-card.v1';
+export const PROMPT_VERSION = 'feature-card.v2';
 
 export interface InferOptions {
   readonly root: string;
   readonly surfaces: readonly Surface[];
   readonly bundle: ExtractionBundleLike;
+  readonly graph?: EvidenceGraph;
   readonly answers: ReadonlyMap<string, SurfaceAnswers>;
   readonly backend: AgentBackend;
   readonly limits: ContextLimits;
@@ -60,6 +65,7 @@ export async function inferCards(options: InferOptions): Promise<InferenceResult
       root: options.root,
       surface,
       bundle: options.bundle,
+      ...(options.graph === undefined ? {} : { graph: options.graph }),
       limits: options.limits,
       redact: options.redactSecrets !== false,
     });
@@ -89,6 +95,7 @@ export async function inferCards(options: InferOptions): Promise<InferenceResult
 
     const rawPrompt = template
       .replace('{{FACTS}}', context.facts)
+      .replace('{{GRAPH}}', context.graph)
       .replace('{{ANSWERS}}', renderAnswersForPrompt(surfaceAnswers))
       .replace('{{CODE}}', context.code);
     const promptResult = options.redactSecrets === false
@@ -99,6 +106,7 @@ export async function inferCards(options: InferOptions): Promise<InferenceResult
     options.logger.info(
       `    disclosure: ${context.includedFiles.length} file(s), ${Buffer.byteLength(prompt)} bytes, ` +
         `provider=${options.backend.id}, model=${options.model ?? 'backend-default'}, ` +
+        `graph=${context.graphNodeCount} nodes/${context.graphEdgeCount} edges, ` +
         `redactions=${context.redactions + promptResult.count}`,
     );
     options.logger.info(`    files: ${context.includedFiles.join(', ') || '(none)'}`);
@@ -128,6 +136,17 @@ export async function inferCards(options: InferOptions): Promise<InferenceResult
       continue;
     }
 
+    const evidenceIssue = validateCardEvidence(parsed.body, context.includedEvidence);
+    if (evidenceIssue !== undefined) {
+      failures.push({
+        surfaceId: surface.id,
+        slug: surface.slug,
+        title: surface.title,
+        reason: evidenceIssue,
+      });
+      continue;
+    }
+
     cards.push({
       surfaceId: surface.id,
       slug: surface.slug,
@@ -147,6 +166,45 @@ export async function inferCards(options: InferOptions): Promise<InferenceResult
     reused,
     backendId: options.backend.id,
   };
+}
+
+/** Reject citations to source that was not present in the transmitted prompt. */
+export function validateCardEvidence(
+  body: FeatureCardBody,
+  excerpts: readonly EvidenceExcerpt[],
+): string | undefined {
+  const claims = [body.summary, ...body.userVisibleBehaviour, ...body.states, ...body.edgeCases];
+  for (const claim of claims) {
+    for (const evidence of claim.evidence) {
+      const file = normaliseCitationPath(evidence.file);
+      if (file === undefined) {
+        return `The model cited an invalid or non-relative source path: '${evidence.file}'.`;
+      }
+      const fileRanges = excerpts.filter((excerpt) => excerpt.file === file);
+      if (fileRanges.length === 0) {
+        return `The model cited '${evidence.file}', but that file was not included in its context.`;
+      }
+      if (evidence.line === undefined) {
+        return `The model cited '${evidence.file}' without a line number; exact source evidence is required.`;
+      }
+      if (
+        !fileRanges.some(
+          (excerpt) => evidence.line! >= excerpt.startLine && evidence.line! <= excerpt.endLine,
+        )
+      ) {
+        return `The model cited '${evidence.file}:${evidence.line}', but that line was not included in its context.`;
+      }
+    }
+  }
+  return undefined;
+}
+
+function normaliseCitationPath(value: string): string | undefined {
+  const normalised = path.posix.normalize(toPosix(value).replace(/^\.\//, ''));
+  if (path.posix.isAbsolute(normalised) || normalised === '..' || normalised.startsWith('../')) {
+    return undefined;
+  }
+  return normalised;
 }
 
 type ParseOutcome =
