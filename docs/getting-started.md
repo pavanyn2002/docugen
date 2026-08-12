@@ -5,7 +5,7 @@ About five minutes, on any repository.
 ## 1. Check you can run it
 
 ```bash
-npx @tatvaops/docgen --version
+npx @pavanyn/docugen --version
 ```
 
 Needs Node 20.11 or newer. Nothing else is installed and nothing is written yet.
@@ -13,7 +13,7 @@ Needs Node 20.11 or newer. Nothing else is installed and nothing is written yet.
 ## 2. Look at the structure — free
 
 ```bash
-npx @tatvaops/docgen extract
+npx @pavanyn/docugen extract
 ```
 
 This reads your code and writes `docs/generated/`. It makes no network call, calls no model, and costs nothing. Everything it writes is `verified`: every row links to the file and line it came from, so any statement is one click from the code that proves it.
@@ -37,7 +37,7 @@ If nothing was found at all, see [Troubleshooting](troubleshooting.md#extract-fo
 ## 3. See what would be inferred — still free
 
 ```bash
-npx @tatvaops/docgen bootstrap --dry-run
+npx @pavanyn/docugen bootstrap --dry-run
 ```
 
 This reports how many surfaces exist and which model backends are available:
@@ -66,7 +66,7 @@ If no backend is available, see [Troubleshooting](troubleshooting.md#no-llm-back
 Start bounded, so you can see the output before paying for all of it:
 
 ```bash
-npx @tatvaops/docgen bootstrap --limit 3
+npx @pavanyn/docugen bootstrap --limit 3
 ```
 
 This drives a coding CLI you have already signed in to. For each surface it produces a **feature card**: what the surface does, what a user can observe, what states it can be in, edge cases actually present in the code — and every question it could not answer.
@@ -78,7 +78,7 @@ Open `docs/generated/behaviour.md`, then one of the pages under `behaviour/`. Ev
 ## 5. Answer the questions — this is the point
 
 ```bash
-npx @tatvaops/docgen ask --mine
+npx @pavanyn/docugen ask --mine
 ```
 
 ```
@@ -97,7 +97,7 @@ Is `/` intended to be reachable without authentication?
 Answer it with a number:
 
 ```bash
-npx @tatvaops/docgen answer screen auth-requirement 1
+npx @pavanyn/docugen answer screen auth-requirement 1
 ```
 
 That answer is now ground truth. It is recorded in `docs/.answers/` under your git identity, shown as `verified` in the documentation immediately, injected into every future generation so the model cannot contradict it, and the question is never asked again.
@@ -107,7 +107,7 @@ That answer is now ground truth. It is recorded in `docs/.answers/` under your g
 An answer says what *happens*. It does not say whether that is *intended* — and those lead to opposite outcomes:
 
 ```bash
-npx @tatvaops/docgen triage
+npx @pavanyn/docugen triage
 ```
 
 One keystroke per answer: intended behaviour, a defect, a technical decision, or context. This produces `docs/generated/requirements.md`, the only page that can be read as a specification.
@@ -115,8 +115,8 @@ One keystroke per answer: intended behaviour, a defect, a technical decision, or
 ## 7. Keep it current
 
 ```bash
-npx @tatvaops/docgen sync    # after any code change — free
-npx @tatvaops/docgen check   # CI gate: fails if the docs are stale — free
+npx @pavanyn/docugen sync    # after any code change — free
+npx @pavanyn/docugen check   # CI gate: fails if the docs are stale — free
 ```
 
 `sync` re-renders everything from the current code and the committed cards. It does **not** re-infer, so it costs nothing. Only `bootstrap` calls a model, and only for surfaces whose code actually changed.
@@ -124,7 +124,7 @@ npx @tatvaops/docgen check   # CI gate: fails if the docs are stale — free
 ## 8. Make it stick
 
 ```bash
-npx @tatvaops/docgen init
+npx @pavanyn/docugen init
 ```
 
 This writes a block into `AGENTS.md` (and `CLAUDE.md` / a Cursor rule where the repo already uses those) telling whatever coding agent is open in the repo to surface pending questions when work finishes. Where the repo uses GitHub Actions, it also adds the drift gate.

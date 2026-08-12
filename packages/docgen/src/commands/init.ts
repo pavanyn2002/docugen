@@ -122,7 +122,7 @@ export async function resolveInvocation(root: string): Promise<string> {
       devDependencies?: Record<string, string>;
     };
     const declared =
-      manifest.dependencies?.['@tatvaops/docgen'] ?? manifest.devDependencies?.['@tatvaops/docgen'];
+      manifest.dependencies?.['@pavanyn/docugen'] ?? manifest.devDependencies?.['@pavanyn/docugen'];
     if (declared !== undefined) return 'npx docgen';
   } catch {
     // No manifest, or unreadable — fall through to the bare command.

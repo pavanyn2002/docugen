@@ -16,7 +16,7 @@ docgen.config.js     docgen.config.cjs    docgen.config.json
 Two config files present at once is an error, not a precedence puzzle — delete all but one.
 
 ```ts
-import { defineConfig } from '@tatvaops/docgen/config';
+import { defineConfig } from '@pavanyn/docugen/config';
 
 export default defineConfig({
   exclude: ['src/legacy/**'],

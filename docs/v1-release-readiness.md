@@ -44,7 +44,7 @@ GitHub Release was created. The tag will not be rewritten.
 The immutable `v1.0.1` tag must point at the corrected release commit. Pushing it
 triggers `.github/workflows/release.yml`, which verifies the version, runs all
 tests, builds, inspects package contents, emits a CycloneDX SBOM, publishes
-`@tatvaops/docgen@1.0.1` with provenance, and creates the GitHub Release with
+`@pavanyn/docugen@1.0.1` with provenance, and creates the GitHub Release with
 the SBOM attached. The first publication requires an owner-created granular
 token in the protected GitHub `npm` environment. Afterward, the owner must
 configure the workflow as the package's trusted publisher and remove that

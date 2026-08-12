@@ -50,7 +50,7 @@ jobs:
       - run: npm run build
 
       - name: Inspect publish contents
-        run: npm pack --workspace @tatvaops/docgen --dry-run
+        run: npm pack --workspace @pavanyn/docugen --dry-run
 
       - name: Generate release SBOM
         run: node packages/docgen/dist/cli.js security sbom --out artifacts/docgen-${{ github.ref_name }}.cdx.json
@@ -81,11 +81,11 @@ jobs:
         if: steps.npm-bootstrap.outputs.enabled == 'true'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --workspace @tatvaops/docgen --access public --provenance
+        run: npm publish --workspace @pavanyn/docugen --access public --provenance
 
       - name: Publish package with trusted publishing
         if: steps.npm-bootstrap.outputs.enabled != 'true'
-        run: npm publish --workspace @tatvaops/docgen --access public --provenance
+        run: npm publish --workspace @pavanyn/docugen --access public --provenance
 
       - name: Create GitHub release and attach SBOM
         env:

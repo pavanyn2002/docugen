@@ -46,7 +46,7 @@ export function renderGithubWorkflow(args: CiWorkflowArgs): string {
         '      # the output, and that should be a deliberate commit rather than a',
         '      # build that fails one morning for no reason anyone changed.',
         '      - name: Check documentation is current',
-        `        run: npx --yes @tatvaops/docgen@${args.version} check --base "$DOCGEN_BASE"`,
+        `        run: npx --yes @pavanyn/docugen@${args.version} check --base "$DOCGEN_BASE"`,
       ];
 
   return `name: Documentation
@@ -100,7 +100,7 @@ export function renderDependabotConfig(): string {
   return `version: 2
 
 updates:
-  # Keeps @tatvaops/docgen moving so the fleet does not drift onto a dozen
+  # Keeps @pavanyn/docugen moving so the fleet does not drift onto a dozen
   # different engine versions. Review the diff: an engine upgrade can change
   # the generated output, which is exactly why the version is pinned.
   - package-ecosystem: npm
@@ -108,7 +108,7 @@ updates:
     schedule:
       interval: weekly
     allow:
-      - dependency-name: "@tatvaops/docgen"
+      - dependency-name: "@pavanyn/docugen"
     commit-message:
       prefix: chore
 `;

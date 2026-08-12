@@ -279,7 +279,7 @@ describe('installing adapters', () => {
     await installAdapters({ root, invocation: 'docgen', version: '1.2.3' });
 
     const workflow = await fs.readFile(path.join(root, '.github/workflows/docgen.yml'), 'utf8');
-    expect(workflow).toContain('npx --yes @tatvaops/docgen@1.2.3 check');
+    expect(workflow).toContain('npx --yes @pavanyn/docugen@1.2.3 check');
     expect(workflow).not.toContain('npm ci');
   });
 
@@ -304,7 +304,7 @@ describe('installing adapters', () => {
 describe('invocation detection', () => {
   it('uses npx when docgen is a dependency of the repo', async () => {
     const root = await makeRepo({
-      'package.json': JSON.stringify({ devDependencies: { '@tatvaops/docgen': '^0.1.0' } }),
+      'package.json': JSON.stringify({ devDependencies: { '@pavanyn/docugen': '^0.1.0' } }),
     });
     await expect(resolveInvocation(root)).resolves.toBe('npx docgen');
   });

@@ -7,11 +7,11 @@ Documentation that cannot lie.
 Answering a question is one command. That answer becomes permanent, and the question is never asked again.
 
 ```bash
-npx @tatvaops/docgen init        # tell the coding agent in this repo about it
-npx @tatvaops/docgen extract     # structure — free, no model, no network
-npx @tatvaops/docgen bootstrap   # behaviour — uses a coding CLI you already have
-npx @tatvaops/docgen ask --mine  # the questions waiting on you
-npx @tatvaops/docgen security scan  # offline dependency provenance checks
+npx @pavanyn/docugen init        # tell the coding agent in this repo about it
+npx @pavanyn/docugen extract     # structure — free, no model, no network
+npx @pavanyn/docugen bootstrap   # behaviour — uses a coding CLI you already have
+npx @pavanyn/docugen ask --mine  # the questions waiting on you
+npx @pavanyn/docugen security scan  # offline dependency provenance checks
 ```
 
 **New here? Start with [Getting started](docs/getting-started.md).**

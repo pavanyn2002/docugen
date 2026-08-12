@@ -23,7 +23,7 @@ function readVersion(): string {
         parsed !== null &&
         typeof parsed === 'object' &&
         'name' in parsed &&
-        parsed.name === '@tatvaops/docgen' &&
+        parsed.name === '@pavanyn/docugen' &&
         'version' in parsed &&
         typeof parsed.version === 'string'
       ) {

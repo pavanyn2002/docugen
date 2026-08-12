@@ -23,8 +23,8 @@ Somewhere you can judge whether the inferred output is any good.
 
 ```bash
 cd ../some-repo
-npx @tatvaops/docgen extract       # free
-npx @tatvaops/docgen bootstrap --limit 3
+npx @pavanyn/docugen extract       # free
+npx @pavanyn/docugen bootstrap --limit 3
 ```
 
 Read the three behaviour pages. Check a few of the evidence links. Answer a couple of questions and watch them turn `verified`.
@@ -37,7 +37,7 @@ Free, safe, and immediately useful on its own — structural documentation of fo
 
 ```bash
 for repo in ../*/; do
-  (cd "$repo" && npx @tatvaops/docgen extract && npx @tatvaops/docgen init)
+  (cd "$repo" && npx @pavanyn/docugen extract && npx @pavanyn/docugen init)
 done
 ```
 
@@ -46,7 +46,7 @@ done
 ### 3. Get a baseline
 
 ```bash
-npx @tatvaops/docgen fleet ../*/ --out fleet.md
+npx @pavanyn/docugen fleet ../*/ --out fleet.md
 ```
 
 ```
@@ -67,7 +67,7 @@ Not all of them, and not at once. Pick by traffic, by risk, or by which team is 
 
 ```bash
 cd ../checkout-web
-npx @tatvaops/docgen bootstrap
+npx @pavanyn/docugen bootstrap
 ```
 
 Surfaces are processed one at a time, so it is slow but predictable, and every card is cached — a second run costs nothing for unchanged surfaces.
@@ -83,7 +83,7 @@ For a push rather than a pull, `docgen ask --json` carries the likely owner per 
 Answers accumulate faster than they get classified. A weekly pass takes minutes:
 
 ```bash
-npx @tatvaops/docgen triage
+npx @pavanyn/docugen triage
 ```
 
 That is what produces `requirements.md`, which is what QA can actually use.
@@ -93,7 +93,7 @@ That is what produces `requirements.md`, which is what QA can actually use.
 Once a repository's queue is drained:
 
 ```bash
-npx @tatvaops/docgen check --strict
+npx @pavanyn/docugen check --strict
 ```
 
 Do this per repository as it earns it, never fleet-wide at the start.
@@ -103,7 +103,7 @@ Do this per repository as it earns it, never fleet-wide at the start.
 Pin deliberately. An engine upgrade can change generated output, and that should be a reviewed commit rather than a surprise.
 
 ```bash
-npm install --save-dev @tatvaops/docgen@1.0.1
+npm install --save-dev @pavanyn/docugen@1.0.1
 ```
 
 `docgen init` picks this up: it writes `npx docgen` into the workflow and the agent instructions, so the repo's own pinned version is what runs everywhere. Where docgen is not a repo dependency, the workflow fetches a pinned version instead, and Dependabot is not added — there is nothing for it to bump.
@@ -127,7 +127,7 @@ The full version is [For QA](for-qa.md).
 ## Keeping an eye on it
 
 ```bash
-npx @tatvaops/docgen fleet ../*/ --out fleet.md
+npx @pavanyn/docugen fleet ../*/ --out fleet.md
 ```
 
 Free, so a nightly job is fine. Watch two numbers over time: **described / surfaces** (is coverage growing) and **untriaged** (are answers turning into requirements, or piling up).

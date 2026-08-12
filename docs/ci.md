@@ -51,7 +51,7 @@ When it is not a dependency — a Python or Go repo, say — the workflow fetche
 
 ```yaml
       - name: Check documentation is current
-        run: npx --yes @tatvaops/docgen@1.0.1 check
+        run: npx --yes @pavanyn/docugen@1.0.1 check
 ```
 
 ## Why the version is pinned
@@ -68,7 +68,7 @@ updates:
     schedule:
       interval: weekly
     allow:
-      - dependency-name: "@tatvaops/docgen"
+      - dependency-name: "@pavanyn/docugen"
 ```
 
 It never touches a repo that already has an update policy of its own.
@@ -113,7 +113,7 @@ hook or a different configured hooks path.
 documentation:
   image: node:22
   script:
-    - npx --yes @tatvaops/docgen@1.0.1 check
+    - npx --yes @pavanyn/docugen@1.0.1 check
 ```
 
 **A git pre-push hook**
@@ -175,7 +175,7 @@ provenance-capable OIDC permissions.
 
 For the first publication, add a granular npm publishing token with bypass 2FA
 as the `NPM_TOKEN` secret in the protected GitHub `npm` environment. Once the
-package exists, configure `@tatvaops/docgen` trusted publishing for
+package exists, configure `@pavanyn/docugen` trusted publishing for
 `.github/workflows/release.yml`, remove `NPM_TOKEN`, and use OIDC thereafter.
 The workflow pins npm 11.5.1, the minimum trusted-publishing client, and does
 not create tags or bypass release approval.

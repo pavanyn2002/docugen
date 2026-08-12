@@ -9,8 +9,8 @@
     "node": ">=20.11.0"
   },
   "scripts": {
-    "build": "npm run build --workspace @tatvaops/docgen",
-    "test": "npm run test --workspace @tatvaops/docgen",
-    "typecheck": "npm run typecheck --workspace @tatvaops/docgen"
+    "build": "npm run build --workspace @pavanyn/docugen",
+    "test": "npm run test --workspace @pavanyn/docugen",
+    "typecheck": "npm run typecheck --workspace @pavanyn/docugen"
   }
 }

@@ -13,6 +13,7 @@ first publishable v1 artifact.
 
 ### Included
 
+- Public npm distribution under the personal scope `@pavanyn/docugen`.
 - Deterministic structural documentation generated from an evidence graph.
 - TypeScript/JavaScript and Python symbol indexing with incremental graph caches.
 - Feature, plan, requirement, test, change-impact, and tester-handoff traceability.

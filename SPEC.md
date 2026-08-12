@@ -151,7 +151,7 @@ These four gap lists are high-value on their own — they surface real rot immed
 ## 7. Tech constraints
 
 - **Language:** TypeScript, Node 20+
-- **Distribution:** npm package, runnable via `npx @tatvaops/docgen`
+- **Distribution:** npm package, runnable via `npx @pavanyn/docugen`
 - **Target codebases:** heterogeneous and not known ahead of time. The tool is handed to developers who run it on their own repo. Observed in-house shapes to prioritise: Next.js 15 App Router + React 19; Express 4 + Mongoose 5 + amqplib + swagger-jsdoc; React SPA on raw webpack; MedusaJS.
 - **Repo layout of targets:** polyrepo, npm (one target uses yarn 4). Never assume a monorepo.
 - **Config file:** `docgen.config.ts` at target repo root — extractor toggles, include/exclude globs, output dir, surface-chunking overrides

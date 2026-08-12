@@ -1,5 +1,5 @@
 {
-  "name": "@tatvaops/docgen",
+  "name": "@pavanyn/docugen",
   "version": "1.0.1",
   "description": "Deterministic codebase documentation engine. Extracts what the code proves; never states what it cannot verify.",
   "type": "module",

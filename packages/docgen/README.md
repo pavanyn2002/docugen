@@ -1,4 +1,4 @@
-# @tatvaops/docgen
+# @pavanyn/docugen
 
 Documentation that cannot lie.
 
@@ -7,11 +7,11 @@ Documentation that cannot lie.
 Answering a question is one command. That answer becomes permanent, and the question is never asked again.
 
 ```bash
-npx @tatvaops/docgen init        # tell the coding agent in this repo about it
-npx @tatvaops/docgen session start # refresh evidence, plans, and questions
-npx @tatvaops/docgen extract     # structure — free, no model, no network
-npx @tatvaops/docgen bootstrap   # behaviour — uses a coding CLI you already have
-npx @tatvaops/docgen ask --mine  # the questions waiting on you
+npx @pavanyn/docugen init        # tell the coding agent in this repo about it
+npx @pavanyn/docugen session start # refresh evidence, plans, and questions
+npx @pavanyn/docugen extract     # structure — free, no model, no network
+npx @pavanyn/docugen bootstrap   # behaviour — uses a coding CLI you already have
+npx @pavanyn/docugen ask --mine  # the questions waiting on you
 ```
 
 Node 20.11 or newer. Nothing else — `bootstrap` drives a coding CLI you have already signed in to (Claude Code, Codex, or Cursor Agent), so nobody needs a new API key.
@@ -123,7 +123,7 @@ Python symbol relationships use a real Tree-sitter syntax tree and are high-cert
 Optional; defaults work on most repositories. To customise, add `docgen.config.ts` at the repo root:
 
 ```ts
-import { defineConfig } from '@tatvaops/docgen/config';
+import { defineConfig } from '@pavanyn/docugen/config';
 
 export default defineConfig({
   exclude: ['src/legacy/**'],
