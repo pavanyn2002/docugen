@@ -2,6 +2,34 @@
 
 All notable changes to Docugen are documented here.
 
+## 1.0.2 — 2026-08-12
+
+Patch-release hardening for multi-service repositories and generated-output
+security.
+
+### Fixed
+
+- Suppressed secret-like and credential-shaped source defaults before they can
+  enter extraction results, the evidence graph, JSON, or generated pages.
+- Scoped endpoint identity and duplicate detection by workspace and runtime
+  application, including Express router mount propagation and conservative
+  handling of unmounted routers.
+- Scoped OpenAPI cross-checks, schema identity/findings, and environment
+  declarations to their owning workspaces.
+- Added deterministic explicit schema anchors that remain unique across repeated
+  names and case-colliding headings.
+- Included created or modified `.gitattributes` files in JSON and human-readable
+  write reports without reporting an already-correct file.
+- Replaced the generic missing-Git warning with structured diagnostics for
+  non-repositories, empty repositories, missing Git, timeouts, dubious
+  ownership, permissions, and invalid HEAD state.
+
+### Compatibility
+
+- Single-workspace entry IDs and compact tables remain unchanged where no
+  ownership collision requires a discriminator. New workspace/application
+  fields are additive.
+
 ## 1.0.1 — 2026-08-12
 
 First production release of the local-first documentation-governance CLI.

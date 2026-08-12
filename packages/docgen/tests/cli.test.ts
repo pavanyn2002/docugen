@@ -553,4 +553,39 @@ describe('docgen extract', () => {
       'Generated documentation',
     );
   });
+
+  it('includes .gitattributes in JSON writes when created', async () => {
+    const root = await makeRepo({ 'package.json': '{"name":"x"}' });
+    const { logger, stdout } = captureLogger();
+    await runExtractCommand({ cwd: root, json: true, logger });
+    expect(JSON.parse(stdout.join('')).written).toContain('.gitattributes');
+  });
+
+  it('includes .gitattributes in JSON writes when modified', async () => {
+    const root = await makeRepo({
+      'package.json': '{"name":"x"}',
+      '.gitattributes': '* text=auto eol=lf\n',
+    });
+    const { logger, stdout } = captureLogger();
+    await runExtractCommand({ cwd: root, json: true, logger });
+    expect(JSON.parse(stdout.join('')).written).toContain('.gitattributes');
+  });
+
+  it('omits .gitattributes from JSON writes when already correct', async () => {
+    const root = await makeRepo({
+      'package.json': '{"name":"x"}',
+      '.gitattributes': 'docs/generated/** linguist-generated=true\n',
+    });
+    const { logger, stdout } = captureLogger();
+    await runExtractCommand({ cwd: root, json: true, logger });
+    expect(JSON.parse(stdout.join('')).written).not.toContain('.gitattributes');
+  });
+
+  it('reports no actual JSON writes during --dry-run', async () => {
+    const root = await makeRepo({ 'package.json': '{"name":"x"}' });
+    const { logger, stdout } = captureLogger();
+    await runExtractCommand({ cwd: root, json: true, dryRun: true, logger });
+    expect(JSON.parse(stdout.join('')).written).toEqual([]);
+    await expect(fs.stat(path.join(root, '.gitattributes'))).rejects.toMatchObject({ code: 'ENOENT' });
+  });
 });

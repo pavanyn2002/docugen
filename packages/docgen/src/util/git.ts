@@ -27,6 +27,25 @@ export interface CommitInfo {
   readonly committedAt: string;
 }
 
+export type GitHeadFailureKind =
+  | 'not-repository'
+  | 'no-commits'
+  | 'git-unavailable'
+  | 'timeout'
+  | 'dubious-ownership'
+  | 'permission-denied'
+  | 'invalid-head'
+  | 'unknown';
+
+export type GitHeadDiagnostic =
+  | { readonly ok: true; readonly commit: CommitInfo }
+  | {
+      readonly ok: false;
+      readonly kind: GitHeadFailureKind;
+      readonly message: string;
+      readonly remedy: string;
+    };
+
 export type GitChangeStatus = 'added' | 'modified' | 'deleted' | 'renamed';
 
 export interface GitFileChange {
@@ -69,6 +88,12 @@ export function filterGitChanges(
  * permanently failing drift gate later.
  */
 export async function resolveCommitInfo(root: string): Promise<CommitInfo | undefined> {
+  const diagnostic = await resolveGitHeadDiagnostic(root);
+  return diagnostic.ok ? diagnostic.commit : undefined;
+}
+
+/** Resolve HEAD without collapsing materially different Git failures. */
+export async function resolveGitHeadDiagnostic(root: string): Promise<GitHeadDiagnostic> {
   try {
     const { stdout } = await execFileAsync('git', ['show', '-s', '--format=%H%n%cI', 'HEAD'], {
       cwd: root,
@@ -76,12 +101,53 @@ export async function resolveCommitInfo(root: string): Promise<CommitInfo | unde
       windowsHide: true,
     });
     const [sha, committedAt] = stdout.trim().split(/\r?\n/);
-    if (sha === undefined || !/^[0-9a-f]{40}$/.test(sha)) return undefined;
-    if (committedAt === undefined || committedAt.length === 0) return undefined;
-    return { sha, committedAt };
-  } catch {
-    return undefined;
+    if (sha === undefined || !/^[0-9a-f]{40}$/.test(sha) || committedAt === undefined || committedAt.length === 0) {
+      return gitHeadFailure('invalid-head');
+    }
+    return { ok: true, commit: { sha, committedAt } };
+  } catch (error) {
+    const diagnostic = classifyGitHeadError(error);
+    if (!diagnostic.ok && diagnostic.kind === 'dubious-ownership') {
+      return {
+        ...diagnostic,
+        remedy:
+          `Verify the owner of '${root}' first. Only if you trust this exact checkout, run ` +
+          `\`git config --global --add safe.directory "${root}"\`. Docugen will not run it or modify global Git configuration.`,
+      };
+    }
+    return diagnostic;
   }
+}
+
+/** Exported for deterministic mocked diagnostics. */
+export function classifyGitHeadError(error: unknown): GitHeadDiagnostic {
+  const record = typeof error === 'object' && error !== null ? error as Record<string, unknown> : {};
+  const code = typeof record.code === 'string' ? record.code : '';
+  const stderr = typeof record.stderr === 'string' ? record.stderr : '';
+  const message = `${stderr}\n${error instanceof Error ? error.message : String(error)}`.toLowerCase();
+  if (code === 'ENOENT') return gitHeadFailure('git-unavailable');
+  if (code === 'ETIMEDOUT' || record.killed === true || message.includes('timed out')) return gitHeadFailure('timeout');
+  if (message.includes('dubious ownership') || message.includes('safe.directory')) return gitHeadFailure('dubious-ownership');
+  if (message.includes('not a git repository')) return gitHeadFailure('not-repository');
+  if (message.includes('does not have any commits') || message.includes('unknown revision') || message.includes('bad revision') || message.includes('ambiguous argument')) return gitHeadFailure('no-commits');
+  if (code === 'EACCES' || code === 'EPERM' || message.includes('permission denied') || message.includes('access is denied')) return gitHeadFailure('permission-denied');
+  if (message.includes('invalid object name') || message.includes('bad object head') || message.includes('not a valid object name')) return gitHeadFailure('invalid-head');
+  return gitHeadFailure('unknown');
+}
+
+function gitHeadFailure(kind: GitHeadFailureKind): GitHeadDiagnostic {
+  const details: Record<GitHeadFailureKind, readonly [string, string]> = {
+    'not-repository': ['The target directory is not a Git repository.', 'Run Docugen inside a Git checkout, or initialize and commit the repository if Git provenance is required.'],
+    'no-commits': ['The Git repository has no readable HEAD commit.', 'Create the first commit, then rerun Docugen. Extraction can continue without commit provenance.'],
+    'git-unavailable': ['The Git executable is not installed or is not on PATH.', 'Install Git and ensure the `git` command is available to this process.'],
+    timeout: ['Reading Git HEAD timed out.', 'Check for a stalled Git process, slow filesystem, or repository corruption, then retry.'],
+    'dubious-ownership': ['Git refused the repository because its ownership is considered unsafe.', 'Verify the repository owner first. If you trust this exact checkout, an administrator may add its exact path to Git safe.directory; Docugen will not change global Git configuration.'],
+    'permission-denied': ['Git could not read the repository because access was denied.', 'Grant this process read access to the repository and its .git metadata, then retry.'],
+    'invalid-head': ['Git HEAD is invalid, unreadable, or does not resolve to a valid commit.', 'Inspect `.git/HEAD` and repository integrity with Git tooling, then repair or restore the checkout.'],
+    unknown: ['Git HEAD could not be read for an unclassified reason.', 'Run `git show -s --format=%H%n%cI HEAD` in the target repository and resolve the reported error.'],
+  };
+  const [message, remedy] = details[kind];
+  return { ok: false, kind, message, remedy };
 }
 
 function validateGitRef(ref: string): void {

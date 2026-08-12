@@ -22,6 +22,7 @@ import type {
   GraphProperties,
   GraphProvenance,
 } from './types.js';
+import { isCredentialLikeLiteral, isSecretLikeName } from '../privacy/redact.js';
 
 function extractedProvenance(
   extractor: ExtractorId,
@@ -101,8 +102,10 @@ function entryNode(args: {
 
 function safeRenderEntry(entry: EntryBase): EntryBase {
   if (
-    'isSecretLike' in entry && entry.isSecretLike === true &&
-    'defaultValue' in entry
+    'defaultValue' in entry && typeof entry.defaultValue === 'string' &&
+    (('isSecretLike' in entry && entry.isSecretLike === true) ||
+      ('name' in entry && typeof entry.name === 'string' && isSecretLikeName(entry.name)) ||
+      isCredentialLikeLiteral(entry.defaultValue))
   ) {
     const { defaultValue: _secretDefault, ...safe } = entry;
     return safe as EntryBase;
@@ -180,6 +183,9 @@ function addEndpoints(builder: EvidenceGraphBuilder, result: EndpointsResult): v
       properties: {
         method: endpoint.method,
         path: endpoint.path,
+        ...(endpoint.workspace === undefined ? {} : { workspace: endpoint.workspace }),
+        ...(endpoint.application === undefined ? {} : { application: endpoint.application }),
+        ...(endpoint.finalPathResolved === undefined ? {} : { finalPathResolved: endpoint.finalPathResolved }),
         params: endpoint.params,
         middleware: endpoint.middleware,
         ...(endpoint.specStatus === undefined ? {} : { specStatus: endpoint.specStatus }),
@@ -225,15 +231,19 @@ function addShape(
 function addSchema(builder: EvidenceGraphBuilder, result: SchemaResult, seed?: EvidenceGraph): void {
   const nodeByEntry = new Map<SchemaEntry, string>();
   const nodesByName = new Map<string, string[]>();
+  const schemaNameKey = (workspace: string | undefined, name: string): string =>
+    `${workspace ?? ''}\u0000${name}`;
 
   for (const node of seed?.nodes ?? []) {
     if (node.kind !== 'schema') continue;
     for (const name of [node.label, node.properties?.modelName].filter(
       (value): value is string => typeof value === 'string',
     )) {
-      const matches = nodesByName.get(name) ?? [];
+      const workspace = typeof node.properties?.workspace === 'string' ? node.properties.workspace : undefined;
+      const key = schemaNameKey(workspace, name);
+      const matches = nodesByName.get(key) ?? [];
       matches.push(node.id);
-      nodesByName.set(name, matches);
+      nodesByName.set(key, matches);
     }
   }
 
@@ -246,14 +256,16 @@ function addSchema(builder: EvidenceGraphBuilder, result: SchemaResult, seed?: E
       label: entry.name,
       properties: {
         schemaKind: entry.kind,
+        ...(entry.workspace === undefined ? {} : { workspace: entry.workspace }),
         ...(entry.modelName === undefined ? {} : { modelName: entry.modelName }),
       },
     });
     nodeByEntry.set(entry, id);
     for (const name of [entry.name, entry.modelName].filter((value): value is string => value !== undefined)) {
-      const matches = nodesByName.get(name) ?? [];
+      const key = schemaNameKey(entry.workspace, name);
+      const matches = nodesByName.get(key) ?? [];
       matches.push(id);
-      nodesByName.set(name, matches);
+      nodesByName.set(key, matches);
     }
 
     const provenance = extractedProvenance('schema', entry);
@@ -286,7 +298,7 @@ function addSchema(builder: EvidenceGraphBuilder, result: SchemaResult, seed?: E
     const from = nodeByEntry.get(entry);
     if (from === undefined) continue;
     for (const relation of entry.relations) {
-      const matches = nodesByName.get(relation.targetModel) ?? [];
+      const matches = nodesByName.get(schemaNameKey(entry.workspace, relation.targetModel)) ?? [];
       if (matches.length !== 1) {
         builder.addGap({
           extractor: 'schema',
@@ -414,8 +426,10 @@ function addConfig(builder: EvidenceGraphBuilder, result: ConfigResult): void {
       label: entry.name,
       properties: {
         configKind: entry.kind,
+        ...(entry.workspace === undefined ? {} : { workspace: entry.workspace }),
         isSecretLike: entry.isSecretLike,
-        ...(!entry.isSecretLike && entry.defaultValue !== undefined
+        ...(!entry.isSecretLike && !isSecretLikeName(entry.name) && entry.defaultValue !== undefined &&
+          !isCredentialLikeLiteral(entry.defaultValue)
           ? { defaultValue: entry.defaultValue }
           : {}),
       },

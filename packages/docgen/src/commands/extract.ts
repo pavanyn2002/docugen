@@ -95,9 +95,7 @@ function reportWrites(
 
   logger.heading(`Written (${report.written.length})`);
   for (const file of report.written) logger.info(`  ${file}`);
-  if (report.gitattributesUpdated) {
-    logger.info(`  ${colors().dim('.gitattributes updated with linguist-generated')}`);
-  }
+  if (report.gitattributesUpdated) logger.info(`  ${colors().dim('.gitattributes includes linguist-generated marker')}`);
 }
 
 /** JSON shape for `--json`. Excludes durations, which are not reproducible. */
@@ -114,6 +112,20 @@ function serialiseRunResult(result: RunResult): unknown {
           applicable: value.applicable,
           detected: [...value.detected],
           entryCount: value.entries.length,
+          ownership: value.entries.flatMap((entry) => {
+            const workspace = 'workspace' in entry && typeof entry.workspace === 'string' ? entry.workspace : undefined;
+            const application = 'application' in entry && typeof entry.application === 'string' ? entry.application : undefined;
+            const finalPathResolved = 'finalPathResolved' in entry && typeof entry.finalPathResolved === 'boolean'
+              ? entry.finalPathResolved
+              : undefined;
+            if (workspace === undefined && application === undefined && finalPathResolved === undefined) return [];
+            return [{
+              id: entry.id,
+              ...(workspace === undefined ? {} : { workspace }),
+              ...(application === undefined ? {} : { application }),
+              ...(finalPathResolved === undefined ? {} : { finalPathResolved }),
+            }];
+          }),
           gaps: value.gaps.map((gap) => ({ kind: gap.kind, message: gap.message, source: gap.source ?? null })),
           skips: value.skips.map((s) => ({ kind: s.kind, message: s.message })),
         },
@@ -147,7 +159,7 @@ function reportRun(result: RunResult, logger: Logger): void {
   logger.info(`  root      ${result.config.root}`);
   logger.info(`  config    ${configLabel}`);
   logger.info(`  outDir    ${result.config.outDir}`);
-  logger.info(`  commit    ${result.context.sourceCommit ?? colors().dim('(not a git checkout)')}`);
+  logger.info(`  commit    ${result.context.sourceCommit ?? colors().dim('(Git metadata unavailable; run docgen doctor)')}`);
 
   if (result.results.size > 0) {
     logger.heading('Extractors');

@@ -92,6 +92,10 @@ docs/
 
 Commit all of it. The cards make the next run cheap; the answers make the documentation true.
 
+With `extract --json`, `written` lists every file actually written by the
+command. It includes `.gitattributes` when the generated-file marker was created
+or changed, omits it when already correct, and is empty during `--dry-run`.
+
 ## Coverage across stacks
 
 docgen separates *recognising* a technology from *being able to parse* it. It detects the stack across every workspace — including `backend/` + `frontend/` splits with no root manifest — and says plainly what it could not read, because an unsupported stack and a genuinely empty repo otherwise look identical:
@@ -116,6 +120,29 @@ warn  incomplete — an empty section does not mean the repo has nothing there.
 
 An existing OpenAPI or Swagger spec is **cross-checked, never trusted**. Code is what runs; an annotation is a claim about the code that may have rotted. Endpoints present in code but missing from the spec, and spec entries with no handler behind them, are both reported.
 
+### Monorepos and multi-service repositories
+
+Run from the monorepo root when you want one inventory across the whole tree:
+
+```bash
+cd company-platform
+npx @pavanyn/docugen extract
+npx @pavanyn/docugen check --json
+```
+
+Docugen assigns endpoints, OpenAPI documents, schemas, and configuration to the
+nearest manifest directory. In multi-workspace output, tables label the owning
+workspace and runtime application. Identical routes or schema names in separate
+services are not reported as competing definitions; OpenAPI comparisons and
+environment declarations stay inside their applicable service. An unmounted
+router remains explicitly unresolved and is never guessed into another app.
+
+For service-local documentation and Git history, run separately from each
+service directory as well. A root run answers “what exists across this
+monorepo?”; a service run answers “what does this deployable service own?” and
+uses that service checkout's Git provenance. Root-level specs or configuration
+are treated conservatively unless their service relationship can be proved.
+
 Python symbol relationships use a real Tree-sitter syntax tree and are high-certainty. Python ORM model extraction still uses conservative pattern matching; those schema entries remain marked low-certainty and the run says they were read heuristically.
 
 ## Configuration
@@ -139,7 +166,7 @@ Unknown keys are rejected rather than ignored, so a typo fails loudly.
 - **Deterministic.** Same evidence in, same bytes out — the source suite is verified across Windows, Linux, and macOS on current toolchain runtimes, with a separate packed-artifact smoke test on the minimum supported Node 20.11 runtime. Sorting is locale-independent, paths are POSIX, line endings are LF, and generated pages carry a canonical evidence fingerprint. Feature dates still come from Git.
 - **Two lanes, never mixed.** Only `bootstrap` calls a model, and it says so before it runs. Nothing a model produced is ever stamped `verified`.
 - **Graph-grounded inference.** Model context is limited to a deterministic, extracted-only surface neighborhood and numbered source excerpts. Every returned citation is checked against the exact transmitted ranges.
-- **No secrets.** `.env` values are never read or recorded — only variable names and where they are used.
+- **No secrets.** `.env` values are never read or recorded — only variable names and where they are used. Literal source fallbacks are also discarded when the variable name is secret-like or the literal has a recognizable credential shape; the variable and source locations remain documented.
 - **Never fabricates.** Gaps are recorded, unknowns become questions, and neither is filled with a plausible value.
 - **Diagrams parse.** Every generated `.mmd` is run through the real Mermaid parser in CI, not a lookalike.
 

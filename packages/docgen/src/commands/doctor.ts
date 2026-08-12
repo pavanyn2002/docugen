@@ -8,7 +8,8 @@ import { inspectMigrations } from '../migrations/engine.js';
 import { PILOT_MANIFEST_FILE, pilotManifestSchema } from '../pilot/schema.js';
 import { findStaleAtomicFiles, removeAtomicFiles } from '../util/atomic.js';
 import { describeUnknownError, DocgenError } from '../util/errors.js';
-import { resolveCommitInfo } from '../util/git.js';
+import { resolveGitHeadDiagnostic } from '../util/git.js';
+import type { GitHeadFailureKind } from '../util/git.js';
 import type { Logger } from '../util/logger.js';
 
 export type DoctorCheckStatus = 'pass' | 'warn' | 'fail' | 'fixed';
@@ -17,6 +18,7 @@ export interface DoctorCheck {
   readonly status: DoctorCheckStatus;
   readonly message: string;
   readonly remedy?: string;
+  readonly gitFailureKind?: GitHeadFailureKind;
 }
 export interface DoctorReport {
   readonly ok: boolean;
@@ -41,9 +43,16 @@ export async function inspectRepositoryHealth(options: DoctorCommandOptions): Pr
   } catch (error) {
     checks.push({ id: 'config', status: 'fail', message: describeUnknownError(error), remedy: error instanceof DocgenError ? error.remedy : 'Repair the configuration.' });
   }
-  checks.push((await resolveCommitInfo(root)) === undefined
-    ? { id: 'git', status: 'warn', message: 'No readable Git HEAD; dates and diff governance will be incomplete.', remedy: 'Run Docgen inside a committed Git repository.' }
-    : { id: 'git', status: 'pass', message: 'Git HEAD is readable.' });
+  const git = await resolveGitHeadDiagnostic(root);
+  checks.push(git.ok
+    ? { id: 'git', status: 'pass', message: 'Git HEAD is readable.' }
+    : {
+        id: 'git',
+        status: 'warn',
+        gitFailureKind: git.kind,
+        message: `${git.message} Dates and Git-dependent governance will be incomplete.`,
+        remedy: git.remedy,
+      });
 
   const migrations = await inspectMigrations(root);
   const invalid = migrations.filter((item) => item.status === 'invalid' || item.status === 'unsupported');

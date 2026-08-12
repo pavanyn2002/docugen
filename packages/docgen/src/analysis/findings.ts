@@ -14,6 +14,7 @@ import type {
 import type { SourceRef } from '../types/core.js';
 import { toPosix } from '../util/paths.js';
 import { compareStrings } from '../util/sort.js';
+import { workspaceLabel } from '../detect/ownership.js';
 
 /**
  * Cross-extractor findings (SPEC 6.4).
@@ -245,7 +246,7 @@ async function unreferencedTables(
   const items = schema.entries
     .filter((entry) => seenOutsideDefinition.get(entry.id) !== true)
     .map((entry) => ({
-      label: entry.name,
+      label: entry.workspace === undefined ? entry.name : `${workspaceLabel(entry.workspace)}:${entry.name}`,
       detail: `defined in ${entry.source.file}`,
       source: entry.source,
     }));
@@ -274,7 +275,7 @@ function envDeclaredNeverRead(config: ConfigResult | undefined): Finding {
   const items = config.entries
     .filter((entry) => entry.declarations.length > 0 && entry.reads.length === 0)
     .map((entry) => ({
-      label: entry.name,
+      label: entry.workspace === undefined ? entry.name : `${workspaceLabel(entry.workspace)}:${entry.name}`,
       detail: `declared in ${entry.declarations.map((ref) => ref.file).join(', ')}`,
       ...(entry.declarations[0] === undefined ? {} : { source: entry.declarations[0] }),
     }));
@@ -298,7 +299,7 @@ function envReadNeverDeclared(config: ConfigResult | undefined): Finding {
   const items = config.entries
     .filter((entry) => entry.reads.length > 0 && entry.declarations.length === 0)
     .map((entry) => ({
-      label: entry.name,
+      label: entry.workspace === undefined ? entry.name : `${workspaceLabel(entry.workspace)}:${entry.name}`,
       detail: `read at ${entry.reads.length} site(s)`,
       ...(entry.reads[0] === undefined ? {} : { source: entry.reads[0] }),
     }));

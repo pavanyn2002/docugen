@@ -1,7 +1,7 @@
 ---
 generated: true
-engine_version: 1.0.1
-evidence_fingerprint: sha256:a6a0fadeb6cc6d026701579906eb273c4d014a7773d980e9263b30c65bf3dc13
+engine_version: 1.0.2
+evidence_fingerprint: sha256:0987c82f728a82d22bfc2a6c23120d98b34ad7b46540093e1b02028478c2cf13
 confidence: verified
 ---
 
@@ -25,9 +25,9 @@ _None._
 
 These are read by the code but appear in no `.env` file. They may be supplied by the deployment environment, or they may be missing — docgen cannot tell which.
 
-| Name | Read at | Declared in | Default |
-| --- | --- | --- | --- |
-| `COMSPEC` | [packages/docgen/src/agents/cli-backend.ts:141](../../packages/docgen/src/agents/cli-backend.ts#L141) | **not declared** | `'cmd.exe'` |
+| Workspace | Name | Read at | Declared in | Default |
+| --- | --- | --- | --- | --- |
+| `packages/docgen` | `COMSPEC` | [packages/docgen/src/agents/cli-backend.ts:141](../../packages/docgen/src/agents/cli-backend.ts#L141) | **not declared** | `'cmd.exe'` |
 
 ## Not determined (1)
 
@@ -38,5 +38,5 @@ These are read by the code but appear in no `.env` file. They may be supplied by
 
 | Kind | Detail | Source |
 | --- | --- | --- |
-| `env-read-never-declared` | 1 variable(s) are read but declared in no .env file: COMSPEC. These may be supplied by the deployment environment, or they may be missing. | — |
+| `env-read-never-declared` | 1 variable(s) are read but declared in no .env file: packages/docgen:COMSPEC. These may be supplied by the deployment environment, or they may be missing. | — |
 

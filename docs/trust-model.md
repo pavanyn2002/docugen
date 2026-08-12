@@ -65,7 +65,7 @@ It also states its own coverage: if answers are still untriaged, the page says h
 
 - Never state a behavioural claim without a badge.
 - Never fill a gap with a plausible value. A gap is recorded; an unknown becomes a question.
-- Never read or record `.env` **values** — only variable names and where they are used. `config.md` is committed, and those files hold credentials.
+- Never read or record `.env` **values** — only variable names and where they are used. Secret-like and recognizable credential-shaped literal fallbacks in source code are also discarded before graph or rendered output is built. `config.md` is committed, and those values may be credentials.
 - Never treat an OpenAPI or Swagger annotation as truth. It is cross-checked against the code, and disagreements are reported both ways. Code is what runs; an annotation is a claim about the code that may have rotted.
 - Fail loudly on malformed input, silently on absent input. A corrupt `docs/.answers/` file is an error, not a file to skip — skipping one would silently demote confirmed knowledge back to a guess.
 

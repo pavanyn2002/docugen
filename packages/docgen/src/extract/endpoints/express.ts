@@ -9,6 +9,8 @@ import { loadPathAliases } from '../../util/tsconfig.js';
 import type { ModuleBindings } from '../../util/modules.js';
 import { literalString, parseSourceFile, positionOf, ts, walk } from '../../util/ts-ast.js';
 import { joinPath, paramsOf } from './paths.js';
+import type { Workspace } from '../../detect/workspaces.js';
+import { applicationScope, owningWorkspace } from '../../detect/ownership.js';
 
 /**
  * Express routes.
@@ -96,6 +98,7 @@ export interface ExpressResult {
 export async function extractExpressEndpoints(args: {
   root: string;
   exclude: readonly string[];
+  workspaces?: readonly Workspace[];
 }): Promise<ExpressResult> {
   const files = (
     await fg(['**/*.{ts,js,mjs}'], { cwd: args.root, ignore: [...args.exclude], onlyFiles: true })
@@ -159,7 +162,7 @@ export async function extractExpressEndpoints(args: {
 
   // Resolve every mount to the file that declares the router it points at, so
   // a registration can be given the prefix it actually runs under.
-  const prefixesByRouter = new Map<string, Set<string>>();
+  const locationsByRouter = new Map<string, Map<string, Set<string>>>();
   const mountEdges = new Map<string, Array<{ readonly to: string; readonly prefix: string }>>();
   const gaps: Gap[] = [];
 
@@ -228,24 +231,35 @@ export async function extractExpressEndpoints(args: {
     }
   }
 
-  const queue: Array<{ readonly key: string; readonly prefix: string }> = [];
+  const queue: Array<{ readonly key: string; readonly prefix: string; readonly application: string }> = [];
   for (const analysis of analyses.values()) {
     for (const variable of analysis.appVariables) {
-      queue.push({ key: routerKey(analysis.file, variable), prefix: '' });
+      const workspace = owningWorkspace(analysis.file, args.workspaces ?? [{ dir: '', manifests: [] }]);
+      queue.push({
+        key: routerKey(analysis.file, variable),
+        prefix: '',
+        application: applicationScope(workspace, 'express', `${analysis.file}#${variable}`),
+      });
     }
   }
   const visited = new Set<string>();
   while (queue.length > 0) {
     const current = queue.shift();
     if (current === undefined) continue;
-    const visitKey = `${current.key}\u0000${current.prefix}`;
+    const visitKey = `${current.key}\u0000${current.application}\u0000${current.prefix}`;
     if (visited.has(visitKey)) continue;
     visited.add(visitKey);
-    const bucket = prefixesByRouter.get(current.key) ?? new Set<string>();
+    const byApplication = locationsByRouter.get(current.key) ?? new Map<string, Set<string>>();
+    const bucket = byApplication.get(current.application) ?? new Set<string>();
     bucket.add(current.prefix);
-    prefixesByRouter.set(current.key, bucket);
+    byApplication.set(current.application, bucket);
+    locationsByRouter.set(current.key, byApplication);
     for (const edge of mountEdges.get(current.key) ?? []) {
-      queue.push({ key: edge.to, prefix: joinPath(current.prefix, edge.prefix) });
+      queue.push({
+        key: edge.to,
+        prefix: joinPath(current.prefix, edge.prefix),
+        application: current.application,
+      });
     }
   }
 
@@ -254,17 +268,18 @@ export async function extractExpressEndpoints(args: {
   for (const analysis of analyses.values()) {
     if (analysis.registrations.length === 0) continue;
 
-    const registrationPrefixes = new Map<string, readonly string[]>();
+    const registrationLocations = new Map<string, ReadonlyMap<string, ReadonlySet<string>>>();
     for (const registration of analysis.registrations) {
-      const prefixes = [...(prefixesByRouter.get(routerKey(analysis.file, registration.routerVariable)) ?? [])]
-        .sort();
-      registrationPrefixes.set(registration.routerVariable, prefixes);
+      registrationLocations.set(
+        registration.routerVariable,
+        locationsByRouter.get(routerKey(analysis.file, registration.routerVariable)) ?? new Map(),
+      );
     }
 
     if (
       declaresMountableRouter(analysis) &&
       [...new Set(analysis.registrations.map((registration) => registration.routerVariable))].some(
-        (variable) => (prefixesByRouter.get(routerKey(analysis.file, variable))?.size ?? 0) === 0,
+        (variable) => (locationsByRouter.get(routerKey(analysis.file, variable))?.size ?? 0) === 0,
       )
     ) {
       // Routes on a router nobody mounts have no determinable URL.
@@ -279,10 +294,19 @@ export async function extractExpressEndpoints(args: {
     }
 
     for (const registration of analysis.registrations) {
-      const prefixes = registrationPrefixes.get(registration.routerVariable) ?? [];
-      const effectivePrefixes = prefixes.length === 0 ? [''] : prefixes;
-      for (const prefix of effectivePrefixes) {
+      const locations = registrationLocations.get(registration.routerVariable) ?? new Map();
+      const effectiveLocations = locations.size === 0
+        ? [{ application: undefined, prefix: '' }]
+        : [...locations.entries()]
+            .flatMap(([application, prefixes]) =>
+              [...prefixes].sort().map((prefix) => ({ application, prefix })),
+            )
+            .sort((a, b) =>
+              (a.application ?? '').localeCompare(b.application ?? '') || a.prefix.localeCompare(b.prefix),
+            );
+      for (const { application, prefix } of effectiveLocations) {
         const fullPath = joinPath(prefix, registration.path);
+        const workspace = owningWorkspace(analysis.file, args.workspaces ?? [{ dir: '', manifests: [] }]);
         entries.push({
           id: `endpoint:${registration.method}:${fullPath}`,
           source: { file: analysis.file, line: registration.line, column: registration.column },
@@ -290,6 +314,8 @@ export async function extractExpressEndpoints(args: {
           certainty: 'high',
           method: registration.method,
           path: fullPath,
+          ...(args.workspaces !== undefined && args.workspaces.length > 1 ? { workspace } : {}),
+          ...(application === undefined ? { finalPathResolved: false } : { application, finalPathResolved: true }),
           params: paramsOf(fullPath),
           handler: { file: analysis.file, line: registration.line },
           middleware: registration.middleware,

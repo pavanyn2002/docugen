@@ -15,9 +15,11 @@ export { DocgenError, isDocgenError } from './util/errors.js';
 export {
   EMPTY_GIT_TREE,
   filterGitChanges,
+  classifyGitHeadError,
   resolveCommitInfo,
   resolveFileCommitHistory,
   resolveGitChanges,
+  resolveGitHeadDiagnostic,
   resolveGitUserEmail,
   resolveSourceCommit,
 } from './util/git.js';
@@ -27,6 +29,8 @@ export type {
   GitChangeSet,
   GitChangeStatus,
   GitFileChange,
+  GitHeadDiagnostic,
+  GitHeadFailureKind,
 } from './util/git.js';
 export { createLogger } from './util/logger.js';
 export type { Logger, LogLevel } from './util/logger.js';

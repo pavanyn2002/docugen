@@ -7,6 +7,8 @@ import { toPosix } from '../../util/paths.js';
 import { parseSourceFile, positionOf, ts, walk } from '../../util/ts-ast.js';
 import type { Extractor, ExtractorContext } from '../types.js';
 import { inapplicable, skip } from '../types.js';
+import { owningWorkspace, workspaceLabel } from '../../detect/ownership.js';
+import { isCredentialLikeLiteral, isSecretLikeName } from '../../privacy/redact.js';
 
 /**
  * Environment variables and feature flags.
@@ -32,6 +34,8 @@ export const configExtractor: Extractor<ConfigEntry> = {
     const declarations = new Map<string, SourceRef[]>();
     const defaults = new Map<string, string>();
     const detected = new Set<string>();
+    const identity = (workspace: string, name: string): string => `${workspace}\u0000${name}`;
+    const workspaces = context.workspaces ?? [{ dir: '', manifests: [] }];
 
     // ── reads, from code ──────────────────────────────────────────────────────
     const sourceFiles = (
@@ -50,7 +54,15 @@ export const configExtractor: Extractor<ConfigEntry> = {
       if (!contents.includes('process.env') && !contents.includes('import.meta.env')) continue;
 
       detected.add('code');
-      collectEnvReads(relative, contents, reads, defaults);
+      const fileReads = new Map<string, SourceRef[]>();
+      const fileDefaults = new Map<string, string>();
+      collectEnvReads(relative, contents, fileReads, fileDefaults);
+      const workspace = owningWorkspace(relative, workspaces);
+      for (const [name, refs] of fileReads) {
+        const key = identity(workspace, name);
+        reads.set(key, [...(reads.get(key) ?? []), ...refs]);
+      }
+      for (const [name, value] of fileDefaults) defaults.set(identity(workspace, name), value);
     }
 
     // ── reads, from Python ────────────────────────────────────────────────────
@@ -70,7 +82,13 @@ export const configExtractor: Extractor<ConfigEntry> = {
       if (!/os\.(?:environ|getenv)/.test(contents)) continue;
 
       detected.add('python');
-      collectPythonEnvReads(relative, contents, reads);
+      const fileReads = new Map<string, SourceRef[]>();
+      collectPythonEnvReads(relative, contents, fileReads);
+      const workspace = owningWorkspace(relative, workspaces);
+      for (const [name, refs] of fileReads) {
+        const key = identity(workspace, name);
+        reads.set(key, [...(reads.get(key) ?? []), ...refs]);
+      }
     }
 
     // ── declarations, from .env files ─────────────────────────────────────────
@@ -93,7 +111,13 @@ export const configExtractor: Extractor<ConfigEntry> = {
         continue;
       }
       detected.add('dotenv');
-      collectEnvDeclarations(relative, contents, declarations);
+      const fileDeclarations = new Map<string, SourceRef[]>();
+      collectEnvDeclarations(relative, contents, fileDeclarations);
+      const workspace = owningWorkspace(relative, workspaces);
+      for (const [name, refs] of fileDeclarations) {
+        const key = identity(workspace, name);
+        declarations.set(key, [...(declarations.get(key) ?? []), ...refs]);
+      }
     }
 
     if (detected.size === 0) {
@@ -108,22 +132,30 @@ export const configExtractor: Extractor<ConfigEntry> = {
     const entries: ConfigEntry[] = [];
     const gaps: Gap[] = [];
 
-    for (const name of [...names].sort()) {
-      const readSites = reads.get(name) ?? [];
-      const declarationSites = declarations.get(name) ?? [];
-      const defaultValue = defaults.get(name);
+    for (const scopedName of [...names].sort()) {
+      const separator = scopedName.indexOf('\u0000');
+      const workspace = scopedName.slice(0, separator);
+      const name = scopedName.slice(separator + 1);
+      const readSites = reads.get(scopedName) ?? [];
+      const declarationSites = declarations.get(scopedName) ?? [];
+      const defaultValue = defaults.get(scopedName);
+      const secretLike = isSecretLikeName(name);
+      const scoped = workspaces.length > 1;
 
       entries.push({
-        id: `config:env:${name}`,
+        id: scoped ? `config:env:${workspace || '.'}:${name}` : `config:env:${name}`,
         source: (readSites[0] ?? declarationSites[0]) as SourceRef,
         extractionMethod: 'ast',
         certainty: 'high',
         name,
         kind: 'env',
+        ...(scoped ? { workspace } : {}),
         reads: readSites,
         declarations: declarationSites,
-        ...(defaultValue === undefined ? {} : { defaultValue }),
-        isSecretLike: isSecretLike(name),
+        ...(defaultValue === undefined || secretLike || isCredentialLikeLiteral(defaultValue)
+          ? {}
+          : { defaultValue }),
+        isSecretLike: secretLike,
       });
     }
 
@@ -137,7 +169,7 @@ export const configExtractor: Extractor<ConfigEntry> = {
         kind: 'env-declared-never-read',
         message:
           `${unread.length} variable(s) are declared but never read: ` +
-          `${unread.slice(0, 12).map((entry) => entry.name).join(', ')}${unread.length > 12 ? ', …' : ''}.`,
+          `${unread.slice(0, 12).map(scopedConfigLabel).join(', ')}${unread.length > 12 ? ', …' : ''}.`,
       });
     }
 
@@ -150,7 +182,7 @@ export const configExtractor: Extractor<ConfigEntry> = {
         kind: 'env-read-never-declared',
         message:
           `${undeclared.length} variable(s) are read but declared in no .env file: ` +
-          `${undeclared.slice(0, 12).map((entry) => entry.name).join(', ')}${undeclared.length > 12 ? ', …' : ''}. ` +
+          `${undeclared.slice(0, 12).map(scopedConfigLabel).join(', ')}${undeclared.length > 12 ? ', …' : ''}. ` +
           'These may be supplied by the deployment environment, or they may be missing.',
       });
     }
@@ -208,7 +240,8 @@ export function collectEnvReads(
         parent.operatorToken.kind === ts.SyntaxKind.BarBarToken) &&
       !defaults.has(name)
     ) {
-      defaults.set(name, parent.right.getText(source).slice(0, 60));
+      const value = parent.right.getText(source).slice(0, 60);
+      if (!isSecretLikeName(name) && !isCredentialLikeLiteral(value)) defaults.set(name, value);
     }
   });
 }
@@ -276,7 +309,9 @@ export function collectEnvDeclarations(
 
 /** Names that look like credentials, so a renderer can avoid echoing anything near them. */
 export function isSecretLike(name: string): boolean {
-  return /(?:SECRET|PASSWORD|PASSWD|TOKEN|API_?KEY|PRIVATE_?KEY|CREDENTIAL|AUTH|SALT|CERT|DSN|CONNECTION_?STRING)/i.test(
-    name,
-  );
+  return isSecretLikeName(name);
+}
+
+function scopedConfigLabel(entry: ConfigEntry): string {
+  return entry.workspace === undefined ? entry.name : `${workspaceLabel(entry.workspace)}:${entry.name}`;
 }

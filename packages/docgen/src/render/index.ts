@@ -164,7 +164,9 @@ export async function writeAll(run: RunResult): Promise<WriteReport> {
   const gitattributesUpdated =
     run.config.gitattributes && (await ensureGitattributes(run.config.root, run.config.outDir));
 
-  return { written, outDir: run.config.outDir, gitattributesUpdated };
+  if (gitattributesUpdated) written.push('.gitattributes');
+
+  return { written: written.sort(compareStrings), outDir: run.config.outDir, gitattributesUpdated };
 }
 
 /**

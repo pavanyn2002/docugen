@@ -3,6 +3,8 @@ import type { ConfigEntry, ConfigResult } from '../../types/entries.js';
 import type { StackReport } from '../../detect/stack.js';
 import { renderGaps, renderInapplicable, renderProvenance } from '../common.js';
 import { code, renderFrontMatter, note, section, sourceLink, table } from '../markdown.js';
+import { isCredentialLikeLiteral, isSecretLikeName } from '../../privacy/redact.js';
+import { workspaceLabel } from '../../detect/ownership.js';
 
 /**
  * config.md — every environment variable, where it is read, and where declared.
@@ -31,6 +33,9 @@ export function renderConfigPage(args: {
   ]);
 
   const columns = [
+    ...(result.entries.some((entry) => entry.workspace !== undefined)
+      ? [{ header: 'Workspace', render: (entry: ConfigEntry) => code(workspaceLabel(entry.workspace ?? '')) }]
+      : []),
     {
       header: 'Name',
       render: (entry: ConfigEntry) =>
@@ -55,7 +60,11 @@ export function renderConfigPage(args: {
     },
     {
       header: 'Default',
-      render: (entry: ConfigEntry) => (entry.defaultValue === undefined ? '—' : code(entry.defaultValue)),
+      render: (entry: ConfigEntry) =>
+        entry.defaultValue === undefined || entry.isSecretLike || isSecretLikeName(entry.name) ||
+        isCredentialLikeLiteral(entry.defaultValue)
+          ? '—'
+          : code(entry.defaultValue),
     },
   ];
 
@@ -98,7 +107,9 @@ export function renderConfigPage(args: {
       `Secret-shaped names (${secrets.length})`,
       `Names matching a credential pattern, marked 🔒 above. Listed so they can be checked ` +
         `against a secret manager; their values are not recorded anywhere in this documentation.\n\n` +
-        secrets.map((entry) => `- \`${entry.name}\``).join('\n') +
+        secrets.map((entry) =>
+          `- \`${entry.workspace === undefined ? entry.name : `${workspaceLabel(entry.workspace)}:${entry.name}`}\``,
+        ).join('\n') +
         '\n',
     );
   }

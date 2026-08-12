@@ -56,6 +56,12 @@ export type HttpMethod =
   | 'ALL';
 
 export interface EndpointEntry extends EntryBase {
+  /** Nearest manifest directory; empty string denotes the repository root. */
+  readonly workspace?: string;
+  /** Runtime application root. Endpoints conflict only inside this scope. */
+  readonly application?: string;
+  /** False when a router's final mounted URL could not be established. */
+  readonly finalPathResolved?: boolean;
   readonly method: HttpMethod;
   /** Full mounted path, with router prefixes resolved where statically knowable. */
   readonly path: string;
@@ -89,6 +95,7 @@ export type EndpointsResult = ExtractResult<EndpointEntry>;
 // ── schema ───────────────────────────────────────────────────────────────────
 
 export interface SchemaEntry extends EntryBase {
+  readonly workspace?: string;
   /** Table or collection name as it exists in the datastore. */
   readonly name: string;
   readonly kind: 'table' | 'collection' | 'view';
@@ -161,6 +168,7 @@ export type JobsResult = ExtractResult<JobEntry>;
 // ── config ───────────────────────────────────────────────────────────────────
 
 export interface ConfigEntry extends EntryBase {
+  readonly workspace?: string;
   /** Env var name or feature flag key. */
   readonly name: string;
   readonly kind: 'env' | 'flag';

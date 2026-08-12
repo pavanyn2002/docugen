@@ -1,0 +1,1 @@
+{"name":"multi-service-fixture","private":true,"workspaces":["service-a","service-b"]}
