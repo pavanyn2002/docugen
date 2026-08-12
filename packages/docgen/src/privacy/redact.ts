@@ -15,13 +15,30 @@ const rules: readonly Rule[] = [
   { kind: 'url-credential', pattern: /\b([a-z][a-z0-9+.-]*:\/\/[^\s/:@]+:)[^\s/@]+(@)/gi, replace: (_match, prefix, suffix) => `${prefix}[REDACTED:url-credential]${suffix}` },
   { kind: 'named-secret', pattern: /(\b(?:api[_-]?key|secret|token|password|passwd|pwd|client[_-]?secret|access[_-]?key)\b\s*[:=]\s*)(["'`])([^\r\n"'`]+)\2/gi, replace: (_match, prefix, quote) => `${prefix}${quote}[REDACTED:named-secret]${quote}` },
   { kind: 'named-secret', pattern: /(\b(?:api[_-]?key|secret|token|password|passwd|pwd|client[_-]?secret|access[_-]?key)\b\s*[:=]\s*)(?!["'`\[])([^\s,;}\]]{6,})/gi, replace: (_match, prefix) => `${prefix}[REDACTED:named-secret]` },
-  { kind: 'known-token', pattern: /\b(?:AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|sk-[A-Za-z0-9_-]{20,})\b/g, replace: '[REDACTED:known-token]' },
+  { kind: 'known-token', pattern: /\b(?:AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|sk-[A-Za-z0-9_-]{20,}|(?:sk|rk)_(?:test|live)_[A-Za-z0-9]{8,})\b/g, replace: '[REDACTED:known-token]' },
   { kind: 'jwt', pattern: /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g, replace: '[REDACTED:jwt]' },
 ];
 
 /** Names whose adjacent values must never be retained in generated evidence. */
 export function isSecretLikeName(name: string): boolean {
-  return /(?:SECRET|PASSWORD|PASSWD|TOKEN|API_?KEY|PRIVATE_?KEY|ACCESS_?KEY(?:_?ID)?|CREDENTIAL|AUTH|SALT|CERT(?:IFICATE)?|DSN|CONNECTION_?STRING)/i.test(name);
+  const tokens = name
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2')
+    .split(/[^A-Za-z0-9]+/)
+    .filter(Boolean)
+    .map((token) => token.toUpperCase());
+  if (tokens.length === 0) return false;
+
+  // Credential-bearing nouns are meaningful at token boundaries. Broad words
+  // such as AUTH, CERTIFICATE, and SALT are deliberately not signals by
+  // themselves: AUTH_CALLBACK_URL and SALT_ROUNDS are ordinary configuration.
+  if (tokens.some((token) =>
+    ['SECRET', 'TOKEN', 'PASSWORD', 'PASSWD', 'CREDENTIAL', 'CREDENTIALS'].includes(token),
+  )) return true;
+  if (tokens.at(-1) === 'DSN') return true;
+  if (tokens.at(-1) === 'KEY') return true;
+  if (tokens.length >= 2 && tokens.at(-2) === 'KEY' && tokens.at(-1) === 'ID') return true;
+  return tokens.length >= 2 && tokens.at(-2) === 'CONNECTION' && tokens.at(-1) === 'STRING';
 }
 
 /** True when a literal itself has a recognizable credential shape. */

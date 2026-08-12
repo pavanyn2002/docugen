@@ -79,6 +79,8 @@ export interface EndpointEntry extends EntryBase {
    * code is authoritative, the annotation is not.
    */
   readonly specStatus?: 'match' | 'mismatch' | 'undeclared';
+  /** Spec/annotation documents that were compared with this runtime endpoint. */
+  readonly openApiSources?: readonly SourceRef[];
 }
 
 /** A reference to a type/validator, not the resolved type itself. */
@@ -90,7 +92,18 @@ export interface ShapeRef {
   readonly source?: SourceRef;
 }
 
-export type EndpointsResult = ExtractResult<EndpointEntry>;
+export interface OpenApiCrossCheckSummary {
+  readonly operationsCompared: number;
+  readonly codeEndpointsAbsent: number;
+  readonly specOperationsWithoutHandlers: number;
+  readonly operationsSkippedAmbiguous: number;
+  readonly ambiguousDocuments: number;
+  readonly documentsParsed: number;
+}
+
+export interface EndpointsResult extends ExtractResult<EndpointEntry> {
+  readonly openapi?: OpenApiCrossCheckSummary;
+}
 
 // ── schema ───────────────────────────────────────────────────────────────────
 

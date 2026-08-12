@@ -306,6 +306,35 @@ describe('secret safety', () => {
     expect(rendered).toContain('AWS_ACCESS_KEY_ID');
     expect(rendered).not.toContain('AKIA1234567890123456');
   });
+
+  it('defends service-key defaults at render time but keeps benign auth URLs', () => {
+    const result: ConfigResult = {
+      extractor: 'config', applicable: true, detected: ['code'], gaps: [], skips: [], durationMs: 0,
+      entries: [
+        {
+          id: 'config:env:ADMIN_SERVICE_KEY', source: { file: 'src/config.ts', line: 1 },
+          extractionMethod: 'ast', certainty: 'high', name: 'ADMIN_SERVICE_KEY', kind: 'env',
+          reads: [{ file: 'src/config.ts', line: 1 }], declarations: [],
+          defaultValue: "'test-service-key'", isSecretLike: false,
+        },
+        {
+          id: 'config:env:AUTH_SERVICE_URL', source: { file: 'src/config.ts', line: 2 },
+          extractionMethod: 'ast', certainty: 'high', name: 'AUTH_SERVICE_URL', kind: 'env',
+          reads: [{ file: 'src/config.ts', line: 2 }], declarations: [],
+          defaultValue: "'http://localhost:8001'", isSecretLike: false,
+        },
+      ],
+    };
+    const rendered = renderConfigPage({
+      result,
+      stack: { workspaces: [{ dir: '', manifests: ['package.json'] }], technologies: [], unsupported: [] },
+      context: { engineVersion: 'test', evidenceFingerprint: 'test' },
+      outDir: 'docs/generated',
+    });
+    expect(rendered).toContain('ADMIN_SERVICE_KEY');
+    expect(rendered).not.toContain('test-service-key');
+    expect(rendered).toContain('http://localhost:8001');
+  });
 });
 
 describe('heuristic entries are badged', () => {

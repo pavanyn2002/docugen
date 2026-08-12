@@ -99,6 +99,7 @@ export const endpointsExtractor: Extractor<EndpointEntry> = {
       exclude,
       entries: deduped,
       workspaces,
+      expressOwnership: express.sourceOwnership,
     });
     if (crossCheck.specFound) detected.push('openapi-spec');
 
@@ -117,6 +118,7 @@ export const endpointsExtractor: Extractor<EndpointEntry> = {
         (a, b) =>compareStrings(a.kind, b.kind) ||compareStrings((a.source?.file ?? ''), b.source?.file ?? '') ||compareStrings(a.message, b.message),
       ),
       skips,
+      ...(crossCheck.summary === undefined ? {} : { openapi: crossCheck.summary }),
       durationMs: Date.now() - startedAt,
     };
   },

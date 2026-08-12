@@ -189,6 +189,9 @@ function addEndpoints(builder: EvidenceGraphBuilder, result: EndpointsResult): v
         params: endpoint.params,
         middleware: endpoint.middleware,
         ...(endpoint.specStatus === undefined ? {} : { specStatus: endpoint.specStatus }),
+        ...(endpoint.openApiSources === undefined
+          ? {}
+          : { openApiSources: endpoint.openApiSources.map((source) => `${source.file}:${source.line ?? 1}`) }),
       },
     });
     if (endpoint.handler !== undefined) {
@@ -196,6 +199,9 @@ function addEndpoints(builder: EvidenceGraphBuilder, result: EndpointsResult): v
     }
     if (endpoint.requestShape !== undefined) addShape(builder, endpoint, id, 'accepts', endpoint.requestShape);
     if (endpoint.responseShape !== undefined) addShape(builder, endpoint, id, 'returns', endpoint.responseShape);
+    for (const source of endpoint.openApiSources ?? []) {
+      addFileRelationship({ builder, from: id, kind: 'evidenced-by', ref: source, provenance });
+    }
   }
 }
 

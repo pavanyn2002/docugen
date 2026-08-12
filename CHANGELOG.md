@@ -2,6 +2,41 @@
 
 All notable changes to Docugen are documented here.
 
+## 1.0.3 — 2026-08-13
+
+Targeted Express, OpenAPI, and secret-classification patch.
+
+### Fixed
+
+- Added deterministic application ownership for Express instances held on
+  typed class properties, constructor assignments, property initializers, and
+  statically provable aliases; direct class-property endpoints and imported
+  router mounts now participate in the existing runtime-scoped analysis.
+- Added conservative static evaluation for mount-prefix literals, constants,
+  concatenation, templates, local literal objects, and provable imported
+  defaults. Partial prefixes retain stable placeholders and produce structured
+  `mount-prefix-unresolved` findings without orphaning the router.
+- Associated inline OpenAPI/Swagger operations with router mount graphs and
+  runtime applications, including multiple mounts/applications, while leaving
+  genuinely ambiguous documents unannotated and deduplicating scope warnings
+  per source document.
+- Added a rendered and JSON OpenAPI comparison summary separating compared
+  operations, both mismatch directions, skipped operations, and distinct
+  ambiguous documents.
+- Replaced broad secret-name substring matching with boundary-aware credential
+  tokens, suppressing generic service-key defaults while no longer treating
+  benign authentication URLs, certificate paths, or salt-round settings as
+  secrets solely because of those words.
+
+### Compatibility
+
+- Conventional single-variable Express applications and their existing IDs
+  remain unchanged. New class application identities, partial-prefix paths,
+  OpenAPI source metadata, and summary fields are additive.
+- v1.0.2 workspace scoping, schema anchors, Git diagnostics, write reporting,
+  source links, dry-run behavior, and known credential-literal suppression are
+  preserved.
+
 ## 1.0.2 — 2026-08-12
 
 Patch-release hardening for multi-service repositories and generated-output

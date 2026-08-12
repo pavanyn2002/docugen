@@ -112,18 +112,29 @@ function serialiseRunResult(result: RunResult): unknown {
           applicable: value.applicable,
           detected: [...value.detected],
           entryCount: value.entries.length,
+          ...((value as unknown as { openapi?: unknown }).openapi === undefined
+            ? {}
+            : { openapi: (value as unknown as { openapi: unknown }).openapi }),
           ownership: value.entries.flatMap((entry) => {
             const workspace = 'workspace' in entry && typeof entry.workspace === 'string' ? entry.workspace : undefined;
             const application = 'application' in entry && typeof entry.application === 'string' ? entry.application : undefined;
             const finalPathResolved = 'finalPathResolved' in entry && typeof entry.finalPathResolved === 'boolean'
               ? entry.finalPathResolved
               : undefined;
-            if (workspace === undefined && application === undefined && finalPathResolved === undefined) return [];
+            const specStatus = 'specStatus' in entry && typeof entry.specStatus === 'string'
+              ? entry.specStatus
+              : undefined;
+            const openApiSources = 'openApiSources' in entry && Array.isArray(entry.openApiSources)
+              ? entry.openApiSources
+              : undefined;
+            if (workspace === undefined && application === undefined && finalPathResolved === undefined && specStatus === undefined) return [];
             return [{
               id: entry.id,
               ...(workspace === undefined ? {} : { workspace }),
               ...(application === undefined ? {} : { application }),
               ...(finalPathResolved === undefined ? {} : { finalPathResolved }),
+              ...(specStatus === undefined ? {} : { specStatus }),
+              ...(openApiSources === undefined ? {} : { openApiSources }),
             }];
           }),
           gaps: value.gaps.map((gap) => ({ kind: gap.kind, message: gap.message, source: gap.source ?? null })),

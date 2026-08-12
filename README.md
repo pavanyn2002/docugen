@@ -102,6 +102,18 @@ service run gives the narrowest deployable-service view.
 modified `.gitattributes`. An already-correct marker is omitted, and `--dry-run`
 reports no actual writes.
 
+Express extraction supports applications held on class properties, including
+`this.app = express()`, and follows their router mounts across class methods.
+Computed mount prefixes are evaluated when provable; unresolved pieces remain
+visible as deterministic `{expression}` placeholders with a structured finding.
+Inline OpenAPI annotations are compared in their mounted runtime application,
+and repeated ambiguity warnings from one source document are deduplicated.
+
+Secret names are classified at credential-token boundaries: service keys and
+tokens suppress their defaults, while benign authentication-service URLs remain
+documentable. Recognizable credential-shaped literals remain suppressed even
+under generic configuration names.
+
 ## Guarantees
 
 - **Deterministic.** Same evidence in, same bytes out. Sorting is locale-independent, paths are POSIX, line endings are LF, and generated pages carry a canonical evidence fingerprint instead of a self-referential commit hash. Feature dates still come from Git. The source suite runs across Windows, Linux, and macOS on current toolchain runtimes, and the packed CLI is separately exercised on the minimum supported Node 20.11 runtime.

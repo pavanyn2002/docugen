@@ -114,11 +114,36 @@ warn  incomplete — an empty section does not mean the repo has nothing there.
 |---|---|
 | **Routes** | Next.js App Router, Next.js Pages Router, React Router |
 | **Schema** | Prisma, Mongoose, SQL migrations (DDL), TypeORM, Sequelize, Django, SQLAlchemy |
-| **Endpoints** | Express (incl. cross-file mounts), NestJS, Next.js route handlers and Pages API, FastAPI, Django |
+| **Endpoints** | Express (including cross-file mounts and class-property applications), NestJS, Next.js route handlers and Pages API, FastAPI, Django |
 | **Symbols and flows** | TypeScript/JavaScript compiler AST; Python via the official Tree-sitter grammar; proven database access and Bull, BullMQ, or amqplib producer-to-consumer paths |
 | **Recognised, not yet parsed** | Fastify, MedusaJS, Flask, Rails, Laravel, Spring Boot, MikroORM, Drizzle, Knex, GORM |
 
 An existing OpenAPI or Swagger spec is **cross-checked, never trusted**. Code is what runs; an annotation is a claim about the code that may have rotted. Endpoints present in code but missing from the spec, and spec entries with no handler behind them, are both reported.
+
+Express applications assigned through `this.app = express()` or a class-property
+initializer are scoped by source file, class, and property. Router mounts and
+direct calls such as `this.app.get(...)` are followed across class methods and
+static aliases. Mount prefixes made from literals, local constants,
+concatenation, template strings, literal configuration objects, or provable
+imported defaults are resolved without executing code. If only part of a prefix
+is knowable, the path keeps a stable placeholder such as
+`/api/{config.server.apiVersion}/payments` and a `mount-prefix-unresolved`
+finding records the expression and application. The router remains mounted;
+the placeholder is not presented as a fully resolved URL.
+
+Inline `@openapi` and `@swagger` blocks inherit their router's mount graph and
+are compared only with the applicable runtime application. A router mounted at
+multiple prefixes or into multiple applications is evaluated in each proven
+scope. Ambiguous source documents remain unannotated and produce at most one
+scope finding per workspace, source, application/reason—not one warning per
+operation. The generated summary distinguishes compared operations, both kinds
+of mismatch, skipped operations, and distinct ambiguous documents.
+
+Secret-name classification uses credential-token boundaries. Names such as
+`ADMIN_SERVICE_KEY`, `AUTH_TOKEN`, and `CLIENT_SECRET` suppress their defaults;
+broad words alone do not hide benign settings such as `AUTH_SERVICE_URL`,
+`CERTIFICATE_PATH`, or `SALT_ROUNDS`. Recognizable credential-shaped literals
+are still suppressed even when the configuration name is generic.
 
 ### Monorepos and multi-service repositories
 

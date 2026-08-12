@@ -214,9 +214,18 @@ describe('environment configuration', () => {
     },
   );
 
-  it.each(['AWS_ACCESS_KEY_ID', 'ACCESS_KEY', 'ACCESS_KEY_ID', 'CERTIFICATE', 'CONNECTION_STRING'])(
+  it.each([
+    'AWS_ACCESS_KEY_ID', 'ACCESS_KEY', 'ACCESS_KEY_ID', 'CONNECTION_STRING',
+    'ADMIN_SERVICE_KEY', 'USER_SERVICE_KEY', 'VENDOR_SERVICE_KEY', 'signingKey',
+    'AUTH_TOKEN', 'AUTH_SECRET', 'AUTH_KEY', 'PRIVATE_KEY', 'CLIENT_SECRET', 'PASSWORD_SALT',
+  ])(
     'treats %s as a secret-shaped name whose default must be suppressed',
     (name) => expect(isSecretLike(name)).toBe(true),
+  );
+
+  it.each(['AUTH_SERVICE_URL', 'AUTH_CALLBACK_URL', 'AUTH_MODE', 'CERTIFICATE_PATH', 'SALT_ROUNDS'])(
+    'does not over-classify benign setting %s',
+    (name) => expect(isSecretLike(name)).toBe(false),
   );
 
   it('never retains a secret-like or credential-shaped source fallback', async () => {
@@ -225,6 +234,19 @@ describe('environment configuration', () => {
     expect(aws).toBeDefined();
     expect(aws).not.toHaveProperty('defaultValue');
     expect(JSON.stringify(result)).not.toContain('AKIA1234567890123456');
+  });
+
+  it('suppresses service-key and shaped defaults while preserving a benign auth URL', async () => {
+    const result = await conf(path.join(FIXTURES, 'class-express-payment'));
+    for (const name of ['ADMIN_SERVICE_KEY', 'USER_SERVICE_KEY', 'UNKNOWN_VALUE']) {
+      expect(result.entries.find((entry) => entry.name === name)).not.toHaveProperty('defaultValue');
+    }
+    expect(result.entries.find((entry) => entry.name === 'AUTH_SERVICE_URL')?.defaultValue)
+      .toBe("'http://localhost:8001'");
+    const serialised = JSON.stringify(result);
+    expect(serialised).not.toContain('test-service-key');
+    expect(serialised).not.toContain('test-user-key');
+    expect(serialised).not.toContain('AKIA1234567890123456');
   });
 });
 
