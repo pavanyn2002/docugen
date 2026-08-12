@@ -51,6 +51,7 @@ export const GRAPH_EDGE_KINDS = [
   'declared-in',
   'read-by',
   'belongs-to-feature',
+  'belongs-to-surface',
   'affected-by-change',
   'evidenced-by',
   'confirmed-by',

@@ -5,6 +5,11 @@ import { loadConfig } from '../config/load.js';
 import { findFeatureRecord } from '../features/graph.js';
 import { loadFeatureRecords } from '../features/store.js';
 import { loadPlanRecords } from '../plans/store.js';
+import { analyzeChangeImpact } from '../graph/impact.js';
+import { summarizeChangeSurfaces } from '../graph/impact-summary.js';
+import { DEFAULT_GRAPH_INDEX, readEvidenceGraphIfExists } from '../graph/store.js';
+import { runExtraction } from '../pipeline.js';
+import path from 'node:path';
 import { DocgenError } from '../util/errors.js';
 import {
   filterGitChanges,
@@ -50,11 +55,13 @@ export async function runChangeRecordCommand(options: ChangeRecordCommandOptions
     root: options.cwd,
     ...(options.configFile === undefined ? {} : { configFile: options.configFile }),
   });
-  const [features, plans, changes, head] = await Promise.all([
+  const [features, plans, changes, head, run, baseline] = await Promise.all([
     loadFeatureRecords(config.root),
     loadPlanRecords(config.root),
     resolveGitChanges(config.root, options.base ?? 'HEAD'),
     resolveCommitInfo(config.root),
+    runExtraction({ config, logger: options.logger, includeSymbols: true }),
+    readEvidenceGraphIfExists(path.join(config.root, DEFAULT_GRAPH_INDEX)),
   ]);
   const scopedChanges = filterGitChanges(changes, config.effectiveExclude);
   if (scopedChanges.changes.length === 0) {
@@ -96,6 +103,20 @@ export async function runChangeRecordCommand(options: ChangeRecordCommandOptions
       remedy: 'Pass `--features <id>` or a `--plans <id>` linked to a feature.',
     });
   }
+  const impact = analyzeChangeImpact({
+    current: run.graph,
+    ...(baseline === undefined ? {} : { baseline }),
+    changes: scopedChanges,
+  });
+  const surfaces = summarizeChangeSurfaces({ report: impact, outDir: config.outDir, includeChangelog: true });
+  const outDir = config.outDir.split(path.sep).join('/').replace(/\/+$/, '');
+  const generatedPages = [...new Set([
+    ...surfaces.generatedPages,
+    `${outDir}/features.md`,
+    ...[...featureIds].map((id) => `${outDir}/features/${id}.md`),
+    ...planIds.map((id) => `${outDir}/plans/${id}.md`),
+    `${outDir}/changelog.md`,
+  ])].sort();
 
   const parsed = changeRecordSchema.safeParse({
     schemaVersion: CHANGE_RECORD_SCHEMA_VERSION,
@@ -104,6 +125,10 @@ export async function runChangeRecordCommand(options: ChangeRecordCommandOptions
     summary: options.summary,
     featureIds: [...featureIds],
     planIds,
+    surfaceIds: surfaces.surfaceIds,
+    requirementIds: surfaces.requirementIds,
+    testFiles: surfaces.testFiles,
+    generatedPages,
     base: scopedChanges.base,
     ...(head === undefined ? {} : { headCommit: head.sha, headDate: head.committedAt }),
     files: scopedChanges.changes,
@@ -127,6 +152,9 @@ export async function runChangeRecordCommand(options: ChangeRecordCommandOptions
   options.logger.info(`  kind      ${parsed.data.kind}`);
   options.logger.info(`  features  ${parsed.data.featureIds.join(', ')}`);
   options.logger.info(`  plans     ${parsed.data.planIds.join(', ') || 'none'}`);
+  options.logger.info(`  requirements ${parsed.data.requirementIds.join(', ') || 'none'}`);
+  options.logger.info(`  tests     ${parsed.data.testFiles.join(', ') || 'none'}`);
+  options.logger.info(`  pages     ${parsed.data.generatedPages.length}`);
   options.logger.info(`  files     ${parsed.data.files.length}`);
   options.logger.info(`  written   ${file}`);
 }

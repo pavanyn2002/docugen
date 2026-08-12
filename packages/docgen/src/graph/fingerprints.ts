@@ -1,10 +1,11 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import fg from 'fast-glob';
 import { z } from 'zod';
 import { DocgenError, describeUnknownError } from '../util/errors.js';
 import { compareStrings } from '../util/sort.js';
+import { writeFileAtomically } from '../util/atomic.js';
 import { toPosix } from '../util/paths.js';
 
 export const FILE_FINGERPRINT_SCHEMA_VERSION = 1 as const;
@@ -171,13 +172,9 @@ export async function writeFileFingerprints(
 ): Promise<{ readonly file: string; readonly bytes: number; readonly sha256: string }> {
   const contents = serialiseFileFingerprints(manifest);
   const absolute = path.resolve(file);
-  const temporary = `${absolute}.${process.pid}.${randomUUID()}.tmp`;
-  await fs.mkdir(path.dirname(absolute), { recursive: true });
   try {
-    await fs.writeFile(temporary, contents, 'utf8');
-    await fs.rename(temporary, absolute);
+    await writeFileAtomically(absolute, contents);
   } catch (cause) {
-    await fs.rm(temporary, { force: true }).catch(() => undefined);
     throw new DocgenError({
       code: 'fingerprint-index-write-failed',
       message: `Could not write file fingerprint index: ${absolute}.`,

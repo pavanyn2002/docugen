@@ -37,6 +37,9 @@ export const LEGACY_ARCHIVE_DIR = 'docs/legacy-archive';
 export const GOVERNANCE_DIR = 'docs/.governance';
 export const GOVERNANCE_EXCEPTIONS_FILE = `${GOVERNANCE_DIR}/exceptions.json`;
 
+/** Explicit schema-upgrade receipts and immutable pre-migration backups. */
+export const MIGRATIONS_DIR = 'docs/.migrations';
+
 /**
  * Where tests that cite a requirement id are looked for.
  *

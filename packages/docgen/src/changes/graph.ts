@@ -4,6 +4,8 @@ import { graphEdgeId, graphNodeId } from '../graph/ids.js';
 import type { EvidenceGraph, GraphProvenance } from '../graph/types.js';
 import { featureNodeId } from '../features/graph.js';
 import { planNodeId } from '../plans/graph.js';
+import { surfaceNodeId } from '../graph/surfaces.js';
+import { triagedRequirementNodeId } from '../requirements/graph.js';
 import type { StoredChangeRecord } from './schema.js';
 
 export function changeNodeId(id: string): string {
@@ -43,6 +45,10 @@ export function mapChangesIntoGraph(
         base: change.base,
         featureIds: change.featureIds,
         planIds: change.planIds,
+        surfaceIds: change.surfaceIds,
+        requirementIds: change.requirementIds,
+        testFiles: change.testFiles,
+        generatedPages: change.generatedPages,
         files: change.files.length,
         ...(change.headCommit === undefined ? {} : { headCommit: change.headCommit }),
         ...(change.headDate === undefined ? {} : { headDate: change.headDate }),
@@ -81,6 +87,28 @@ export function mapChangesIntoGraph(
         kind: 'governed-by',
         from: id,
         to: target,
+        provenance: human,
+      });
+    }
+    const directlyAffected = [
+      ...change.surfaceIds.map((value) => ({ kind: 'surface', value, target: surfaceNodeId(value) })),
+      ...change.requirementIds.map((value) => ({ kind: 'requirement', value, target: triagedRequirementNodeId(value) })),
+      ...change.testFiles.map((value) => ({ kind: 'test', value, target: graphNodeId('test', value) })),
+    ];
+    for (const affected of directlyAffected) {
+      if (!known.has(affected.target)) {
+        throw new DocgenError({
+          code: `change-${affected.kind}-missing`,
+          message: `Change '${change.id}' refers to missing ${affected.kind} '${affected.value}'.`,
+          remedy: 'Restore the linked evidence or correct the immutable change record.',
+          file: change.sourceFile,
+        });
+      }
+      builder.addEdge({
+        id: graphEdgeId('affected-by-change', affected.target, id),
+        kind: 'affected-by-change',
+        from: affected.target,
+        to: id,
         provenance: human,
       });
     }

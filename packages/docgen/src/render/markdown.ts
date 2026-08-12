@@ -17,8 +17,6 @@ export interface PageMeta {
   readonly title: string;
   readonly confidence: TrustLane;
   readonly context: GenerationContext;
-  /** Only README carries a timestamp; every other page must stay stable. */
-  readonly includeTimestamp?: boolean;
   /** Command that regenerates this page. Defaults to the static-lane one. */
   readonly regenerateWith?: string;
 }
@@ -35,12 +33,9 @@ export function renderFrontMatter(meta: PageMeta): string {
     '---',
     'generated: true',
     `engine_version: ${meta.context.engineVersion}`,
-    `source_commit: ${meta.context.sourceCommit ?? 'unknown'}`,
+    `evidence_fingerprint: ${meta.context.evidenceFingerprint === undefined ? 'unknown' : `sha256:${meta.context.evidenceFingerprint}`}`,
     `confidence: ${meta.confidence}`,
   ];
-  if (meta.includeTimestamp === true && meta.context.generatedAt !== undefined) {
-    lines.push(`source_commit_date: ${meta.context.generatedAt}`);
-  }
   lines.push('---', '', GENERATED_MARKER, '');
   lines.push(
     `<!-- Do not edit by hand. Regenerate with \`${

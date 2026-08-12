@@ -30,6 +30,24 @@ export type {
 } from './util/git.js';
 export { createLogger } from './util/logger.js';
 export type { Logger, LogLevel } from './util/logger.js';
+export {
+  ATOMIC_TEMP_MARKER,
+  findStaleAtomicFiles,
+  removeAtomicFiles,
+  writeFileAtomically,
+} from './util/atomic.js';
+export type { AtomicWriteOptions } from './util/atomic.js';
+export { inspectRepositoryHealth, runDoctorCommand } from './commands/doctor.js';
+export type { DoctorCheck, DoctorCheckStatus, DoctorReport } from './commands/doctor.js';
+export { runMigrateCommand } from './commands/migrate.js';
+export { applyMigrations, inspectMigrations, rollbackMigration } from './migrations/engine.js';
+export type { MigrationArtifactKind, MigrationInspection, MigrationStatus } from './migrations/engine.js';
+export { MIGRATION_RECEIPT_SCHEMA_VERSION, migrationChangeSchema, migrationReceiptSchema } from './migrations/schema.js';
+export type { MigrationChange, MigrationReceipt } from './migrations/schema.js';
+export { evaluatePilot, renderPilotReport } from './pilot/evaluate.js';
+export type { PilotQuality, PilotReport } from './pilot/evaluate.js';
+export { PILOT_MANIFEST_FILE, PILOT_MANIFEST_SCHEMA_VERSION, pilotExpectationSchema, pilotManifestSchema } from './pilot/schema.js';
+export type { PilotExpectation, PilotManifest } from './pilot/schema.js';
 export { ENGINE_VERSION } from './util/version.js';
 export { redactSecrets } from './privacy/redact.js';
 export type { RedactionResult } from './privacy/redact.js';
@@ -155,6 +173,10 @@ export type {
   GraphTraversalOptions,
 } from './graph/query.js';
 export { serialiseEvidenceGraph } from './graph/serialize.js';
+export { summarizeChangeSurfaces } from './graph/impact-summary.js';
+export type { ChangeSurfaceSummary } from './graph/impact-summary.js';
+export { mapSurfacesIntoGraph, surfaceNodeId } from './graph/surfaces.js';
+export { mapRequirementsIntoGraph, triagedRequirementNodeId } from './requirements/graph.js';
 export { enrichGraphWithTypeScriptSymbols } from './graph/symbols.js';
 export type { TypeScriptSymbolOptions } from './graph/symbols.js';
 export type { PythonSymbolOptions } from './graph/python-symbols.js';

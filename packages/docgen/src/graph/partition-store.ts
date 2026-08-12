@@ -1,9 +1,10 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
 import { DocgenError, describeUnknownError } from '../util/errors.js';
 import { compareStrings } from '../util/sort.js';
+import { writeFileAtomically } from '../util/atomic.js';
 import { EVIDENCE_GRAPH_SCHEMA_VERSION } from './types.js';
 import {
   GLOBAL_GRAPH_PARTITION,
@@ -117,13 +118,9 @@ export async function writeGraphPartitions(
   mergeGraphPartitions(manifest);
   const contents = serialiseGraphPartitions(manifest);
   const absolute = path.resolve(file);
-  const temporary = `${absolute}.${process.pid}.${randomUUID()}.tmp`;
-  await fs.mkdir(path.dirname(absolute), { recursive: true });
   try {
-    await fs.writeFile(temporary, contents, 'utf8');
-    await fs.rename(temporary, absolute);
+    await writeFileAtomically(absolute, contents);
   } catch (cause) {
-    await fs.rm(temporary, { force: true }).catch(() => undefined);
     throw new DocgenError({
       code: 'graph-partitions-write-failed',
       message: `Could not write graph partition index: ${absolute}.`,

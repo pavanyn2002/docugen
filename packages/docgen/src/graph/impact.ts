@@ -66,7 +66,10 @@ function impactInGraph(
     const neighbors = [
       ...index.neighbors(current.id, { direction: 'incoming' }),
       ...index
-        .neighbors(current.id, { direction: 'outgoing', edgeKinds: ['belongs-to-feature'] }),
+        .neighbors(current.id, {
+          direction: 'outgoing',
+          edgeKinds: ['belongs-to-feature', 'belongs-to-surface', 'tested-by'],
+        }),
     ];
     for (const neighbor of neighbors) {
       if (found.has(neighbor.node.id)) continue;

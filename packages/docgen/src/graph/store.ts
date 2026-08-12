@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
@@ -12,6 +12,7 @@ import {
   GRAPH_NODE_KINDS,
 } from './types.js';
 import type { EvidenceGraph } from './types.js';
+import { writeFileAtomically } from '../util/atomic.js';
 
 export const DEFAULT_GRAPH_INDEX = '.docgen/cache/evidence-graph.json';
 
@@ -172,14 +173,9 @@ export async function readEvidenceGraphIfExists(file: string): Promise<EvidenceG
 export async function writeEvidenceGraph(file: string, graph: EvidenceGraph): Promise<GraphWriteResult> {
   const contents = serialiseEvidenceGraph(graph);
   const absolute = path.resolve(file);
-  const temporary = `${absolute}.${process.pid}.${randomUUID()}.tmp`;
-  await fs.mkdir(path.dirname(absolute), { recursive: true });
-
   try {
-    await fs.writeFile(temporary, contents, 'utf8');
-    await fs.rename(temporary, absolute);
+    await writeFileAtomically(absolute, contents);
   } catch (cause) {
-    await fs.rm(temporary, { force: true }).catch(() => undefined);
     throw new DocgenError({
       code: 'graph-index-write-failed',
       message: `Could not write evidence graph index: ${absolute}.`,

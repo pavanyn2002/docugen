@@ -8,6 +8,7 @@ import type { ResolvedConfig } from '../config/schema.js';
 import type { Logger } from '../util/logger.js';
 import { computeExpectedFiles, findDrift } from './expected.js';
 import { loadFeatureRecords } from '../features/store.js';
+import { writeFileAtomically } from '../util/atomic.js';
 
 export interface SyncReport {
   readonly written: readonly string[];
@@ -51,8 +52,7 @@ export async function syncGenerated(args: {
   if (args.dryRun !== true) {
     for (const file of toWrite) {
       const absolute = path.join(config.root, file.path);
-      await fs.mkdir(path.dirname(absolute), { recursive: true });
-      await fs.writeFile(absolute, file.contents.replace(/\r\n/g, '\n'), 'utf8');
+      await writeFileAtomically(absolute, file.contents.replace(/\r\n/g, '\n'));
     }
     for (const file of toDelete) {
       await fs.rm(path.join(config.root, file), { force: true });

@@ -26,7 +26,7 @@ const PAGE_TITLES: Readonly<Record<ExtractorId, string>> = Object.freeze({
 });
 
 /**
- * README.md — the index, and the only page carrying a timestamp (SPEC 6.2).
+ * README.md — the generated index and coverage summary (SPEC 6.2).
  *
  * It also carries the coverage summary, because this is where a reader arrives
  * first and therefore where the limits of the documentation have to be stated.
@@ -41,7 +41,6 @@ export function renderReadme(
     title: 'Generated documentation',
     confidence: 'verified',
     context: run.context,
-    includeTimestamp: true,
   });
 
   let body = `${head}# Generated documentation\n\n`;

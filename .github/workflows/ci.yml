@@ -2,22 +2,28 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
+
+permissions:
+  contents: read
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    name: ${{ matrix.os }} / Node ${{ matrix.node }}
+    runs-on: ${{ matrix.os }}
     strategy:
-      # docgen ships to developers on whatever Node they have, and its output
-      # must be byte-identical across all of them.
+      fail-fast: false
+      # Docgen ships to developers on different operating systems and supported
+      # Node versions. Every combination must pass the same source-level suite.
       matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
         node: ['20.11', '22', '24']
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ matrix.node }}
           cache: npm
@@ -27,32 +33,44 @@ jobs:
       - run: npm test
       - run: npm run build
 
-      # The package must contain a working binary, not just pass its tests.
-      - name: Verify the published artifact runs
-        run: |
-          npm pack --workspace @tatvaops/docgen --pack-destination /tmp
-          mkdir -p /tmp/consumer && cd /tmp/consumer
-          npm init -y >/dev/null
-          npm install /tmp/tatvaops-docgen-*.tgz
-          npx docgen --version
-          npx docgen extract --cwd "$GITHUB_WORKSPACE" --dry-run
-          # The prompt pack is loaded from the installed package, not the repo.
-          # A missing `prompts/` in the tarball only shows up here — every
-          # in-repo test resolves it from the source tree and passes regardless.
-          npx docgen bootstrap --cwd "$GITHUB_WORKSPACE" --dry-run
-
-  determinism:
+  package:
+    name: Packed package smoke test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22'
           cache: npm
       - run: npm ci
       - run: npm run build
 
-      # Output that differs between runs would make every regeneration a diff.
+      # The tarball must contain a working binary and its prompt pack.
+      - name: Verify the published artifact runs
+        shell: bash
+        run: |
+          npm pack --workspace @tatvaops/docgen --pack-destination "$RUNNER_TEMP"
+          mkdir -p "$RUNNER_TEMP/consumer" && cd "$RUNNER_TEMP/consumer"
+          npm init -y >/dev/null
+          npm install "$RUNNER_TEMP"/tatvaops-docgen-*.tgz
+          npx docgen --version
+          npx docgen extract --cwd "$GITHUB_WORKSPACE" --dry-run
+          npx docgen bootstrap --cwd "$GITHUB_WORKSPACE" --dry-run
+
+  determinism:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+      - name: Docgen's own governed baseline is current
+        run: node packages/docgen/dist/cli.js check --quiet
+
       - name: Generated output is byte-identical across runs
         run: |
           node packages/docgen/dist/cli.js extract --cwd packages/docgen/tests/fixtures/express-service --quiet
@@ -61,21 +79,20 @@ jobs:
           diff -r /tmp/first packages/docgen/tests/fixtures/express-service/docs/generated
 
       - name: The CI gate agrees with what extract just wrote
-        run: |
-          node packages/docgen/dist/cli.js check --cwd packages/docgen/tests/fixtures/express-service --quiet
+        run: node packages/docgen/dist/cli.js check --cwd packages/docgen/tests/fixtures/express-service --quiet
 
-      - name: status runs and reports honestly on a repo with no cards
+      - name: Status reports honestly on a repo with no cards
         run: |
           node packages/docgen/dist/cli.js status --cwd packages/docgen/tests/fixtures/express-service --json > /tmp/status.json
           grep -q '"described": 0' /tmp/status.json
 
-      - name: a missing --cwd fails rather than reporting an empty repo
+      - name: A missing working directory fails
         run: |
           if node packages/docgen/dist/cli.js status --cwd /nonexistent-repo --quiet; then
             echo "expected a non-zero exit for a missing root"; exit 1
           fi
 
-      - name: sync is a no-op on already-current output
+      - name: Sync is a no-op on already-current output
         run: |
           node packages/docgen/dist/cli.js sync --cwd packages/docgen/tests/fixtures/express-service --json > /tmp/sync.json
           grep -q '"written": \[\]' /tmp/sync.json

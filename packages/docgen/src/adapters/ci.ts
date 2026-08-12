@@ -27,7 +27,7 @@ export function renderGithubWorkflow(args: CiWorkflowArgs): string {
   // way that looks like docgen is broken rather than misconfigured.
   const steps = args.local
     ? [
-        '      - uses: actions/setup-node@v4',
+        '      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0',
         "        with:",
         "          node-version: '22'",
         '',
@@ -37,7 +37,7 @@ export function renderGithubWorkflow(args: CiWorkflowArgs): string {
         '        run: npx docgen check --base "$DOCGEN_BASE"',
       ]
     : [
-        '      - uses: actions/setup-node@v4',
+        '      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0',
         "        with:",
         "          node-version: '22'",
         '',
@@ -64,13 +64,15 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
       DOCGEN_BASE: \${{ github.event.pull_request.base.sha || (github.event.before != '0000000000000000000000000000000000000000' && github.event.before) || '4b825dc642cb6eb9a060e54bf8d69288fbee4904' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          # docgen dates pages from the source commit, so it needs the commit
-          # itself and the exact comparison base used by governance policies.
+          # Git-derived feature dates and change-scoped governance need the
+          # commit history plus the exact comparison base.
           fetch-depth: 0
 
 ${steps.join('\n')}

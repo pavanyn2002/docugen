@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: ${{ !github.event.release.prerelease }}
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          registry-url: https://registry.npmjs.org
+          cache: npm
+
+      # npm trusted publishing requires npm 11.5.1 or newer. Pin the minimum
+      # supported client instead of relying on the runner's bundled version.
+      - name: Install trusted-publishing npm client
+        run: npm install --global npm@11.5.1
+
+      - name: Verify release tag matches package version
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          PACKAGE_VERSION=$(node -p "require('./packages/docgen/package.json').version")
+          test "$RELEASE_TAG" = "v$PACKAGE_VERSION"
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+      - name: Inspect publish contents
+        run: npm pack --workspace @tatvaops/docgen --dry-run
+
+      - name: Generate release SBOM
+        run: node packages/docgen/dist/cli.js security sbom --out artifacts/docgen-${{ github.event.release.tag_name }}.cdx.json
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: docgen-${{ github.event.release.tag_name }}-sbom
+          path: artifacts/*.cdx.json
+          if-no-files-found: error
+
+      # Configure @tatvaops/docgen as a trusted publisher for this workflow in
+      # npm before the first release. npm then exchanges the GitHub OIDC token
+      # and publishes provenance without a long-lived npm token.
+      - name: Publish package
+        run: npm publish --workspace @tatvaops/docgen --access public --provenance

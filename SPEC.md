@@ -106,7 +106,7 @@ Use real parsers, not regex, wherever possible — AST-based tooling for the lan
 
 ```
 docs/generated/
-  README.md          # index, generation timestamp, engine version, coverage summary
+  README.md          # index, evidence fingerprint, engine version, coverage summary
   routes.md
   api.md
   schema.md
@@ -121,8 +121,8 @@ docs/generated/
 
 Requirements for all generated output:
 
-- Deterministic. Running twice on an unchanged repo produces byte-identical files. Sort everything; never emit timestamps except in `README.md`.
-- Front matter on every file: `generated: true`, `engine_version`, `source_commit`, `confidence: verified`.
+- Deterministic. Running twice on unchanged evidence produces byte-identical files. Sort everything; never emit wall-clock timestamps. Feature dates come separately from the Git history of their evidence files.
+- Front matter on every file: `generated: true`, `engine_version`, `evidence_fingerprint`, `confidence: verified`. A commit hash cannot describe a file contained in that same commit without creating perpetual drift, so provenance uses the SHA-256 of the canonical extracted evidence instead.
 - A `<!-- docgen:generated -->` header comment warning against hand-editing.
 - Mermaid emitted as `.mmd` text so it diffs in PRs and renders in GitHub and Notion.
 - Every entry links back to `path/to/file.ts:42` so a reader can verify any claim in one click.

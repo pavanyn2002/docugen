@@ -44,6 +44,7 @@ The static lane is forbidden by an enforced import boundary from ever reaching a
 | [Configuration](docs/configuration.md) | `docgen.config.ts`, and when you need one |
 | [CI and automation](docs/ci.md) | The drift gate, and keeping documentation current |
 | [Security threat model](docs/security/threat-model.md) | Assets, trust boundaries, controls, and severity |
+| [Self-pilot baseline](docs/pilots/docgen-self.md) | Draft extraction-quality measurements awaiting review |
 | [Rolling out across repos](docs/rollout.md) | Handing this to a team and many repositories |
 | [Troubleshooting](docs/troubleshooting.md) | When something looks wrong |
 
@@ -76,7 +77,7 @@ All are committed so review and history remain available to the team.
 
 ## Guarantees
 
-- **Deterministic.** Same commit in, same bytes out. Sorting is locale-independent, paths are POSIX, line endings are LF, and dates come from the source commit rather than the clock. The multi-OS, supported-Node release matrix remains a required v1 release gate.
+- **Deterministic.** Same evidence in, same bytes out. Sorting is locale-independent, paths are POSIX, line endings are LF, and generated pages carry a canonical evidence fingerprint instead of a self-referential commit hash. Feature dates still come from Git. The multi-OS, supported-Node release matrix remains a required v1 release gate.
 - **Two lanes, never mixed.** `extract`, `report`, `sync`, `check`, `trace`, `status` and `fleet` make no network call and cost nothing. `bootstrap` is the only command that calls a model, and it says so before it runs.
 - **No secrets.** `.env` values are never read or recorded — only variable names and where they are used.
 - **Never fabricates.** Anything static analysis cannot establish is recorded as a gap. Anything the model cannot establish becomes a question. Neither is filled with a plausible value.

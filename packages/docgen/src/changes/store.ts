@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import fg from 'fast-glob';
@@ -8,6 +7,7 @@ import { toPosix } from '../util/paths.js';
 import { compareStrings } from '../util/sort.js';
 import { changeRecordSchema } from './schema.js';
 import type { ChangeRecord, StoredChangeRecord } from './schema.js';
+import { writeFileAtomically } from '../util/atomic.js';
 
 function changeFile(id: string): string {
   return `${CHANGES_DIR}/${id}.json`;
@@ -18,6 +18,10 @@ export function serialiseChangeRecord(record: ChangeRecord): string {
     ...record,
     featureIds: [...record.featureIds].sort(compareStrings),
     planIds: [...record.planIds].sort(compareStrings),
+    surfaceIds: [...record.surfaceIds].sort(compareStrings),
+    requirementIds: [...record.requirementIds].sort(compareStrings),
+    testFiles: [...record.testFiles].sort(compareStrings),
+    generatedPages: [...record.generatedPages].sort(compareStrings),
     files: [...record.files].sort((a, b) => compareStrings(a.file, b.file)),
   };
   return `${JSON.stringify(canonical, null, 2)}\n`;
@@ -76,15 +80,10 @@ export async function writeNewChangeRecord(root: string, record: ChangeRecord): 
   }
   const relative = changeFile(parsed.id);
   const absolute = path.join(root, relative);
-  const temporary = `${absolute}.${process.pid}.${randomUUID()}.tmp`;
-  await fs.mkdir(path.dirname(absolute), { recursive: true });
   try {
-    await fs.writeFile(temporary, serialiseChangeRecord(parsed), { encoding: 'utf8', flag: 'wx' });
-    await fs.link(temporary, absolute);
-    await fs.rm(temporary, { force: true });
+    await writeFileAtomically(absolute, serialiseChangeRecord(parsed), { createOnly: true });
     return relative;
   } catch (cause) {
-    await fs.rm(temporary, { force: true }).catch(() => undefined);
     if ((cause as NodeJS.ErrnoException).code === 'EEXIST') {
       throw new DocgenError({
         code: 'change-already-exists',

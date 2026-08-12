@@ -44,6 +44,10 @@ disable inference completely.
 | `mcp` | Expose graph, impact, plan, question, and handoff tools over stdio. Free. |
 | `policy` | Enforce plans, handoffs, critical verification, tests, and expiring exceptions. Free. |
 | `security` | Scan dependency provenance and generate a CycloneDX SBOM offline. Free. |
+| `doctor` | Diagnose config, schema, cache, Git, and interrupted-write health. Free. |
+| `migrate` | Upgrade governed artifact schemas with backups and rollback. Free. |
+| `pilot` | Measure extraction quality against attributed reviewer expectations. Free. |
+| `impact` / `change` / `handoff` | Trace code changes to QA surfaces, requirements, explicit test citations, and generated pages. Free. |
 | `bootstrap` | Infer behaviour. **The only command that costs money.** |
 | `ask` | The open question queue. Free. |
 | `answer` | Record an answer as ground truth. Free. |
@@ -132,7 +136,7 @@ Unknown keys are rejected rather than ignored, so a typo fails loudly.
 
 ## Guarantees
 
-- **Deterministic.** Same commit in, same bytes out — verified in CI on Node 20, 22, and 24. Sorting is locale-independent, paths are POSIX, line endings are LF, and dates come from the source commit rather than the clock.
+- **Deterministic.** Same evidence in, same bytes out — verified in CI on Node 20, 22, and 24. Sorting is locale-independent, paths are POSIX, line endings are LF, and generated pages carry a canonical evidence fingerprint. Feature dates still come from Git.
 - **Two lanes, never mixed.** Only `bootstrap` calls a model, and it says so before it runs. Nothing a model produced is ever stamped `verified`.
 - **No secrets.** `.env` values are never read or recorded — only variable names and where they are used.
 - **Never fabricates.** Gaps are recorded, unknowns become questions, and neither is filled with a plausible value.

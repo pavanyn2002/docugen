@@ -3,6 +3,8 @@ import type { StoredFeatureRecord } from '../features/schema.js';
 import type { GitFileChange, CommitInfo } from '../util/git.js';
 import type { GraphNode } from '../graph/types.js';
 import type { StoredPlanRecord } from '../plans/schema.js';
+import type { Requirement } from '../requirements/types.js';
+import type { TestReference } from '../trace/scan.js';
 
 export interface TesterHandoffFeature {
   readonly record: StoredFeatureRecord;
@@ -17,6 +19,9 @@ export interface TesterHandoffData {
   readonly features: readonly TesterHandoffFeature[];
   readonly plans: readonly StoredPlanRecord[];
   readonly impactedEntities: readonly GraphNode[];
+  readonly affectedRequirements: readonly Requirement[];
+  readonly affectedTests: readonly TestReference[];
+  readonly generatedPages: readonly string[];
 }
 
 function cell(value: string): string {
@@ -87,6 +92,33 @@ export function renderTesterHandoff(data: TesterHandoffData): string {
     }
     lines.push('');
   }
+
+  lines.push(`## Affected requirements (${data.affectedRequirements.length})`, '');
+  if (data.affectedRequirements.length === 0) {
+    lines.push('No human-owned requirement is linked to an affected surface.', '');
+  } else {
+    lines.push('| Requirement | Kind | Status | Surface | Statement |', '|---|---|---|---|---|');
+    for (const requirement of data.affectedRequirements) {
+      lines.push(`| \`${requirement.id}\` | ${requirement.kind} | ${requirement.status} | \`${requirement.surfaceId}\` | ${cell(requirement.statement)} |`);
+    }
+    lines.push('');
+  }
+
+  lines.push(`## Existing test evidence (${data.affectedTests.length})`, '');
+  if (data.affectedTests.length === 0) {
+    lines.push('No test explicitly cites an affected requirement ID. Test coverage requires review.', '');
+  } else {
+    lines.push('| Requirement | Test evidence |', '|---|---|');
+    for (const reference of data.affectedTests) {
+      lines.push(`| \`${reference.id}\` | \`${cell(reference.file)}:${reference.line}\` |`);
+    }
+    lines.push('');
+  }
+
+  lines.push(`## Documentation surfaces to review (${data.generatedPages.length})`, '');
+  if (data.generatedPages.length === 0) lines.push('No generated page mapping was found.', '');
+  else for (const page of data.generatedPages) lines.push(`- \`${page}\``);
+  lines.push('');
 
   lines.push(`## Approved testing intent (${data.plans.length} plan${data.plans.length === 1 ? '' : 's'})`, '');
   if (data.plans.length === 0) {

@@ -27,7 +27,7 @@ confirm intent, and CI prevents the lifecycle from being skipped.
 
 - [x] Define the v1 trust, determinism, ownership, and deletion rules.
 - [x] Record the roadmap in the repository.
-- [ ] Add schema-version and compatibility policy tests.
+- [x] Add schema-version and compatibility policy tests.
 - [x] Define the legacy-document migration manifest.
 
 Gate: the application can state which artifacts are derived, inferred, or
@@ -76,7 +76,7 @@ Gate: a changed file can be connected to downstream features without an LLM.
 - [x] Implement immutable, attributed `docgen change` records from Git comparisons.
 - [x] Connect changed files to current and previous graph entities.
 - [x] Connect changes to registered features through graph membership.
-- [ ] Connect changes to requirements, tests, and generated pages.
+- [x] Connect changes to requirements, tests, and generated pages.
 
 Gate: a branch diff reports every documentation and testing surface it affects.
 
@@ -124,11 +124,15 @@ Gate: CI evaluates deterministic governance policies without network or model ac
 
 ### 8. Production hardening and v1 release
 
-- [ ] Test Windows, Linux, and macOS across supported Node versions.
-- [ ] Add graph golden tests, interrupted-write recovery, upgrade, and rollback tests.
+- [x] Test Windows, Linux, and macOS across supported Node versions.
+- [x] Add graph golden tests, interrupted-write recovery, upgrade, and rollback tests.
 - [ ] Pilot against representative real repositories and record false positives/negatives.
-- [ ] Add package provenance, automated releases, schema migrations, and `docgen doctor`.
+- [x] Add package provenance, automated releases, schema migrations, and `docgen doctor`.
 - [ ] Publish v1 only after all release criteria below pass.
+
+Current pilot evidence: the Docgen library self-pilot is committed as a draft.
+The release gate remains open until a maintainer approves it and representative
+frontend and backend application repositories have attributed reviews.
 
 ## v1 release criteria
 

@@ -3,6 +3,8 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { loadConfig } from '../src/config/load.js';
 import { runExtraction } from '../src/pipeline.js';
 import type { RunResult } from '../src/pipeline.js';
@@ -12,6 +14,7 @@ import { renderErd, renderIntegrations, renderModules, renderSitemap } from '../
 import { createLogger } from '../src/util/logger.js';
 
 const TEST_DIR = path.dirname(fileURLToPath(import.meta.url));
+const execFileAsync = promisify(execFile);
 const FIXTURES = path.join(TEST_DIR, 'fixtures');
 
 const silent = createLogger({
@@ -103,36 +106,33 @@ describe('front matter', () => {
     }
   });
 
-  // The date comes from the commit, not the clock. A wall-clock stamp would
-  // produce a README diff on every run even when nothing changed.
-  it('never stamps a run time into any page', async () => {
+  it('never stamps a run time or self-referential commit into any page', async () => {
     const files = renderAll(await runOn(path.join(FIXTURES, 'express-service')));
-    for (const file of files) expect(file.contents).not.toContain('generated_at:');
+    for (const file of files) {
+      expect(file.contents).not.toContain('generated_at:');
+      expect(file.contents).not.toContain('source_commit:');
+    }
   });
 
-  it('dates README from the source commit when there is one', () => {
-    const withCommit = renderFrontMatter({
+  it('stamps the canonical evidence fingerprint instead of the enclosing commit', () => {
+    const withFingerprint = renderFrontMatter({
       title: 'x',
       confidence: 'verified',
-      includeTimestamp: true,
       context: {
         engineVersion: '1.0.0',
-        sourceCommit: 'a'.repeat(40),
-        generatedAt: '2026-01-01T00:00:00.000Z',
+        evidenceFingerprint: 'a'.repeat(64),
       },
     });
-    expect(withCommit).toContain('source_commit_date: 2026-01-01T00:00:00.000Z');
+    expect(withFingerprint).toContain(`evidence_fingerprint: sha256:${'a'.repeat(64)}`);
   });
 
-  it('omits the date outside a git checkout rather than using the clock', () => {
-    const withoutCommit = renderFrontMatter({
+  it('states when no evidence fingerprint was supplied', () => {
+    const withoutFingerprint = renderFrontMatter({
       title: 'x',
       confidence: 'verified',
-      includeTimestamp: true,
       context: { engineVersion: '1.0.0' },
     });
-    expect(withoutCommit).not.toContain('source_commit_date');
-    expect(withoutCommit).toContain('source_commit: unknown');
+    expect(withoutFingerprint).toContain('evidence_fingerprint: unknown');
   });
 
   it('warns against hand editing', async () => {
@@ -158,6 +158,23 @@ describe('byte determinism', () => {
   it('contains no Windows line endings', async () => {
     const files = renderAll(await runOn(path.join(FIXTURES, 'express-service')));
     for (const file of files) expect(file.contents).not.toContain('\r\n');
+  });
+
+  it('does not drift after generated pages are committed', async () => {
+    const root = await copyFixture('express-service');
+    await execFileAsync('git', ['init'], { cwd: root });
+    await execFileAsync('git', ['config', 'user.email', 'test@example.com'], { cwd: root });
+    await execFileAsync('git', ['config', 'user.name', 'Test'], { cwd: root });
+    await execFileAsync('git', ['add', '.'], { cwd: root });
+    await execFileAsync('git', ['commit', '-m', 'source'], { cwd: root });
+
+    const before = renderAll(await runOn(root));
+    await writeAll(await runOn(root));
+    await execFileAsync('git', ['add', '.'], { cwd: root });
+    await execFileAsync('git', ['commit', '-m', 'generated docs'], { cwd: root });
+    const after = renderAll(await runOn(root));
+
+    expect(after).toEqual(before);
   });
 
   it('emits POSIX paths in links regardless of host platform', async () => {

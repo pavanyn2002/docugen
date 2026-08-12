@@ -267,6 +267,8 @@ describe('installing adapters', () => {
     expect(workflow).toContain('branches: [develop]');
     expect(workflow).toContain('npx docgen check');
     expect(workflow).toContain('fetch-depth: 0');
+    expect(workflow).toContain('actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683');
+    expect(workflow).toContain('permissions:\n      contents: read');
     expect(workflow).toContain('4b825dc642cb6eb9a060e54bf8d69288fbee4904');
   });
 

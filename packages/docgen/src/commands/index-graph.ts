@@ -111,6 +111,8 @@ export async function runIndexGraphCommand(options: IndexGraphCommandOptions): P
         'docs/.features/**/*.json',
         'docs/.plans/**/*.json',
         'docs/.changes/**/*.json',
+        'docs/.requirements/**/*.{yaml,yml}',
+        ...config.trace.include,
       ],
     }),
     readFileFingerprints(fingerprintFile),

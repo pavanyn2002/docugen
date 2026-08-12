@@ -75,6 +75,7 @@ export async function loadRequirements(root: string): Promise<ReadonlyMap<string
     bySurface.set(surfaceId, {
       surfaceId,
       slug,
+      sourceFile: relative,
       requirements: requirements.sort((a, b) => compareStrings(a.id, b.id)),
     });
   }

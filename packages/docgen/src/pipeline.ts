@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { EXTRACTOR_IDS } from './types/core.js';
 import type { ExtractResult, ExtractorId, GenerationContext } from './types/core.js';
 import type { ResolvedConfig } from './config/schema.js';
@@ -18,6 +19,11 @@ import { loadPlanRecords } from './plans/store.js';
 import { mapPlansIntoGraph } from './plans/graph.js';
 import { loadChangeRecords } from './changes/store.js';
 import { mapChangesIntoGraph } from './changes/graph.js';
+import { serialiseEvidenceGraph } from './graph/serialize.js';
+import { mapSurfacesIntoGraph } from './graph/surfaces.js';
+import { loadRequirements } from './requirements/store.js';
+import { mapRequirementsIntoGraph } from './requirements/graph.js';
+import { scanTestReferences } from './trace/scan.js';
 
 export interface RunResult {
   readonly context: GenerationContext;
@@ -108,22 +114,33 @@ export async function runExtraction(options: RunOptions): Promise<RunResult> {
           ...(options.partitionFiles === undefined ? {} : { partitionFiles: options.partitionFiles }),
         })
       : { graph: baseGraph, adapters: [] };
-  const symbolGraph = symbolRun.graph;
-  const [featureRecords, planRecords, changeRecords] = await Promise.all([
+  const symbolGraph = mapSurfacesIntoGraph(symbolRun.graph, config);
+  const [featureRecords, planRecords, changeRecords, requirements, testReferences] = await Promise.all([
     loadFeatureRecords(config.root),
     loadPlanRecords(config.root),
     loadChangeRecords(config.root),
+    loadRequirements(config.root),
+    scanTestReferences({ root: config.root, globs: config.trace.include, exclude: config.effectiveExclude }),
   ]);
   const featureGraph =
     featureRecords.length === 0
       ? symbolGraph
       : mapFeaturesIntoGraph(symbolGraph, featureRecords).graph;
-  const planGraph = planRecords.length === 0 ? featureGraph : mapPlansIntoGraph(featureGraph, planRecords);
+  const requirementGraph = mapRequirementsIntoGraph({
+    graph: featureGraph,
+    requirements,
+    testReferences,
+  });
+  const planGraph = planRecords.length === 0 ? requirementGraph : mapPlansIntoGraph(requirementGraph, planRecords);
   const graph = changeRecords.length === 0 ? planGraph : mapChangesIntoGraph(planGraph, changeRecords);
+  const evidenceFingerprint = createHash('sha256')
+    .update(serialiseEvidenceGraph(graph))
+    .digest('hex');
 
   return {
     context: {
       engineVersion: ENGINE_VERSION,
+      evidenceFingerprint,
       ...(commit === undefined ? {} : { sourceCommit: commit.sha, generatedAt: commit.committedAt }),
     },
     config,

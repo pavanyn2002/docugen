@@ -1,6 +1,6 @@
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import { colors } from '../util/colors.js';
+import { writeFileAtomically } from '../util/atomic.js';
 import { DocgenError } from '../util/errors.js';
 import type { Logger } from '../util/logger.js';
 import { buildCycloneDxBom, serialiseCycloneDxBom } from '../security/sbom.js';
@@ -65,7 +65,19 @@ export async function runSecuritySbomCommand(options: SecuritySbomCommandOptions
   }
 
   const target = path.resolve(root, options.out ?? DEFAULT_SBOM_FILE);
-  if (options.dryRun !== true) await writeAtomic(target, contents);
+  if (options.dryRun !== true) {
+    try {
+      await writeFileAtomically(target, contents);
+    } catch (cause) {
+      throw new DocgenError({
+        code: 'sbom-write-failed',
+        message: `Could not write the SBOM to ${target}.`,
+        remedy: 'Check that the destination is writable, then rerun `docgen security sbom`.',
+        file: target,
+        cause,
+      });
+    }
+  }
   const display = path.relative(root, target).replace(/\\/g, '/') || target;
   options.logger.heading('docgen security sbom');
   options.logger.info(`  format        CycloneDX ${bom.specVersion}`);
@@ -76,22 +88,4 @@ export async function runSecuritySbomCommand(options: SecuritySbomCommandOptions
   options.logger.info(
     `\n  ${colors().dim('The SBOM inventories dependencies; it is not evidence that dependencies are vulnerability-free.')}`,
   );
-}
-
-async function writeAtomic(file: string, contents: string): Promise<void> {
-  await fs.mkdir(path.dirname(file), { recursive: true });
-  const temporary = `${file}.tmp-${process.pid}`;
-  try {
-    await fs.writeFile(temporary, contents, { encoding: 'utf8', flag: 'wx' });
-    await fs.rename(temporary, file);
-  } catch (cause) {
-    await fs.rm(temporary, { force: true }).catch(() => undefined);
-    throw new DocgenError({
-      code: 'sbom-write-failed',
-      message: `Could not write the SBOM to ${file}.`,
-      remedy: 'Check that the destination is writable, then rerun `docgen security sbom`.',
-      file,
-      cause,
-    });
-  }
 }

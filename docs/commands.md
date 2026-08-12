@@ -91,7 +91,9 @@ literal channel, operation, and job name when one is declared.
 
 Compare the current working tree with a Git revision and trace changed files to
 their downstream callers, endpoints, routes, jobs, schemas, and other graph
-entities. This is local static analysis and does not call a model or network.
+entities. It also reports affected QA surface IDs, human-owned requirements,
+explicitly citing test files, and generated pages. This is local static analysis
+and does not call a model or network.
 
 ```bash
 docgen impact
@@ -104,6 +106,11 @@ previous `.docgen/cache/evidence-graph.json` exists, it is also queried so
 deleted symbols and removed relationships remain visible. File introduction
 and last-change dates come from commits; uncommitted new files have no invented
 timestamp.
+
+Requirement and test impact is evidence-based: a requirement must belong to an
+affected screen, endpoint group, or job, and a test must explicitly cite that
+requirement ID in a name or comment. Docgen does not guess test coverage from
+filenames, nearby code, or semantic similarity.
 
 | Flag | Effect |
 |---|---|
@@ -185,9 +192,11 @@ docgen handoff --out docs/handoffs/release-42.md --json
 
 The default output is `docs/handoffs/tester-handoff.md`. It lists changed
 files, affected product features, statically reached routes/endpoints/jobs/data
-and configuration, Git-derived feature dates, acceptance criteria, risks, and
-tester notes. Extracted and human-owned sections are labeled separately. It
-does not use a model or invent missing acceptance criteria.
+and configuration, Git-derived feature dates, requirements, their explicitly
+citing tests, generated pages to review, acceptance criteria, risks, and tester
+notes. Extracted and human-owned sections are labeled separately. It does not
+use a model, invent missing acceptance criteria, or guess which test covers a
+requirement.
 
 ---
 
@@ -195,7 +204,10 @@ does not use a model or invent missing acceptance criteria.
 
 Snapshot the current Git comparison as an immutable, attributed change record.
 The command validates every linked feature and plan and records the exact
-added, modified, deleted, and renamed files.
+added, modified, deleted, and renamed files. It snapshots the derived affected
+surface IDs, human requirement IDs, explicitly citing test files, and generated
+pages alongside that Git scope so future handoffs retain the evidence available
+when the change was recorded.
 
 ```bash
 docgen change record checkout-retry-enabled \
@@ -588,6 +600,55 @@ update fails, Docgen attempts to move the document back. There is no legacy
 delete command.
 
 ---
+
+## `docgen doctor`
+
+Diagnose whether the repository is safe to operate with the installed Docgen
+version.
+
+```bash
+docgen doctor
+docgen doctor --json
+docgen doctor --fix
+```
+
+Doctor validates Node support, configuration, Git availability, governed schema
+versions, rebuildable caches, and stale temporary files from interrupted atomic
+writes. `--fix` removes only stale files carrying Docgen's private temporary-file
+marker. It never migrates, edits, or deletes governed records.
+
+## `docgen migrate`
+
+Explicitly upgrade older governed JSON artifacts.
+
+```bash
+docgen migrate --dry-run --json
+docgen migrate
+docgen migrate --rollback migration-20260812t010203z-0123abcd
+```
+
+The v1 migration engine upgrades compatible v0 records that predate the
+`schemaVersion` field. It prevalidates the target v1 shape, keeps digest-bound
+backups under `docs/.migrations/`, writes an audit receipt, and rolls the whole
+transaction back if publication fails. Rollback is refused after any migrated
+file is edited, protecting later human decisions. Unknown future schemas are
+never downgraded.
+
+## `docgen pilot`
+
+Compare deterministic extraction with attributed expectations in
+`docgen.pilot.json`.
+
+```bash
+docgen pilot
+docgen pilot --json
+docgen pilot --out docs/pilots/my-repo.md
+```
+
+The report records observed stack technologies, graph nodes and edges, explicit
+gaps, false positives, false negatives, precision, and recall. A manifest must
+name a reviewer, review date, owner, and note for every expectation. Draft
+manifests are useful baselines but are not release evidence.
 
 ## `docgen security scan`
 

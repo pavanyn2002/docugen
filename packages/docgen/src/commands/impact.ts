@@ -13,6 +13,7 @@ import {
 } from '../util/git.js';
 import type { FileCommitHistory } from '../util/git.js';
 import type { Logger } from '../util/logger.js';
+import { summarizeChangeSurfaces } from '../graph/impact-summary.js';
 
 export interface ImpactCommandOptions {
   readonly cwd: string;
@@ -51,7 +52,17 @@ export async function runImpactCommand(options: ImpactCommandOptions): Promise<v
   );
   if (changes.changes.length === 0) {
     if (options.json === true) {
-      options.logger.output(JSON.stringify({ base: changes.base, head: await resolveCommitInfo(config.root), files: [] }, null, 2));
+      options.logger.output(JSON.stringify({
+        base: changes.base,
+        head: await resolveCommitInfo(config.root),
+        surfaceIds: [],
+        featureIds: [],
+        planIds: [],
+        requirementIds: [],
+        testFiles: [],
+        generatedPages: [],
+        files: [],
+      }, null, 2));
       return;
     }
     options.logger.heading('Change impact');
@@ -87,9 +98,10 @@ export async function runImpactCommand(options: ImpactCommandOptions): Promise<v
     impacted: file.impacted.slice(0, limit),
     truncated: file.impacted.length > limit,
   }));
+  const surfaces = summarizeChangeSurfaces({ report, outDir: config.outDir });
   if (options.json === true) {
     options.logger.output(
-      JSON.stringify({ base: report.base, head, maxDepth: report.maxDepth, baselineUsed: baseline !== undefined, files }, null, 2),
+      JSON.stringify({ base: report.base, head, maxDepth: report.maxDepth, baselineUsed: baseline !== undefined, ...surfaces, files }, null, 2),
     );
     return;
   }
@@ -98,6 +110,10 @@ export async function runImpactCommand(options: ImpactCommandOptions): Promise<v
   options.logger.info(`  base       ${report.base}`);
   if (head !== undefined) options.logger.info(`  head       ${head.sha.slice(0, 12)} ${head.committedAt}`);
   options.logger.info(`  baseline   ${baseline === undefined ? 'not indexed' : 'previous index loaded'}`);
+  options.logger.info(`  surfaces   ${surfaces.surfaceIds.join(', ') || 'none'}`);
+  options.logger.info(`  requirements ${surfaces.requirementIds.join(', ') || 'none'}`);
+  options.logger.info(`  tests      ${surfaces.testFiles.join(', ') || 'none'}`);
+  options.logger.info(`  pages      ${surfaces.generatedPages.length}`);
   for (const file of files) {
     const marker = statusMarker[file.change.status];
     const rename = file.change.previousFile === undefined ? '' : ` <- ${file.change.previousFile}`;

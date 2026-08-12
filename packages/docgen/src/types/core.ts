@@ -127,15 +127,16 @@ export interface ExtractResult<TEntry extends EntryBase = EntryBase> {
 /** Provenance stamped into the front matter of every generated file. */
 export interface GenerationContext {
   readonly engineVersion: string;
-  /** Full git SHA of the target repo, or undefined when not a git checkout. */
+  /** SHA-256 of the canonical evidence graph used to render the page. */
+  readonly evidenceFingerprint?: string;
+  /** Full Git SHA for console/API reporting, never embedded in same-commit generated pages. */
   readonly sourceCommit?: string;
   /**
-   * ISO-8601 date of the source commit, rendered only into README.md.
+   * ISO-8601 date of the source commit for Git-aware reports.
    *
-   * Deliberately the commit date rather than the run time: a wall-clock stamp
-   * changes on every invocation and would produce a README diff even when the
-   * repository has not moved. Absent outside a git checkout, where there is no
-   * commit to date the documentation against.
+   * Generated pages do not embed it because a commit cannot contain pages that
+   * already name that same commit. Feature history derives its own exact dates
+   * from the feature's evidence files.
    */
   readonly generatedAt?: string;
 }

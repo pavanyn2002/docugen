@@ -55,6 +55,9 @@ import {
   runPolicyExceptionListCommand,
 } from './commands/policy.js';
 import { runSecuritySbomCommand, runSecurityScanCommand } from './commands/security.js';
+import { runDoctorCommand } from './commands/doctor.js';
+import { runMigrateCommand } from './commands/migrate.js';
+import { runPilotCommand } from './commands/pilot.js';
 
 interface GlobalOptions {
   cwd?: string;
@@ -736,6 +739,56 @@ export function buildCli(): Command {
         ...(commandOptions.base === undefined ? {} : { base: commandOptions.base }),
         ...(commandOptions.asOf === undefined ? {} : { asOf: commandOptions.asOf }),
         strict: commandOptions.strict === true,
+        json: commandOptions.json === true,
+        logger: createLogger({ level: resolveLogLevel(globals) }),
+      });
+    });
+
+  program
+    .command('doctor')
+    .description('diagnose configuration, schema, cache, Git, and interrupted-write health')
+    .option('--fix', 'remove stale Docgen temporary files; never modify governed records', false)
+    .option('--json', 'machine-readable output on stdout', false)
+    .action(async (commandOptions: { fix?: boolean; json?: boolean }) => {
+      const globals = program.opts<GlobalOptions>();
+      await runDoctorCommand({
+        cwd: globals.cwd ?? process.cwd(),
+        ...(globals.config === undefined ? {} : { configFile: globals.config }),
+        fix: commandOptions.fix === true,
+        json: commandOptions.json === true,
+        logger: createLogger({ level: resolveLogLevel(globals) }),
+      });
+    });
+
+  program
+    .command('migrate')
+    .description('explicitly upgrade governed artifact schemas with backups and rollback')
+    .option('--dry-run', 'inspect compatibility without modifying artifacts', false)
+    .option('--rollback <id>', 'restore one migration while migrated bytes are unchanged')
+    .option('--json', 'machine-readable output on stdout', false)
+    .action(async (commandOptions: { dryRun?: boolean; rollback?: string; json?: boolean }) => {
+      const globals = program.opts<GlobalOptions>();
+      await runMigrateCommand({
+        cwd: globals.cwd ?? process.cwd(),
+        ...(commandOptions.rollback === undefined ? {} : { rollback: commandOptions.rollback }),
+        dryRun: commandOptions.dryRun === true,
+        json: commandOptions.json === true,
+        logger: createLogger({ level: resolveLogLevel(globals) }),
+      });
+    });
+
+  program
+    .command('pilot')
+    .description('compare extraction results with attributed human-reviewed expectations')
+    .option('--manifest <path>', 'pilot expectation manifest (default: docgen.pilot.json)')
+    .option('-o, --out <path>', 'write a deterministic Markdown report')
+    .option('--json', 'machine-readable output on stdout', false)
+    .action(async (commandOptions: { manifest?: string; out?: string; json?: boolean }) => {
+      const globals = program.opts<GlobalOptions>();
+      await runPilotCommand({
+        cwd: globals.cwd ?? process.cwd(),
+        ...(commandOptions.manifest === undefined ? {} : { manifest: commandOptions.manifest }),
+        ...(commandOptions.out === undefined ? {} : { out: commandOptions.out }),
         json: commandOptions.json === true,
         logger: createLogger({ level: resolveLogLevel(globals) }),
       });

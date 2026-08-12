@@ -1,5 +1,3 @@
-import { randomUUID } from 'node:crypto';
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import { loadConfig } from '../config/load.js';
 import { deriveFeatureCommitHistory } from '../features/history.js';
@@ -15,6 +13,10 @@ import { DocgenError } from '../util/errors.js';
 import { filterGitChanges, resolveCommitInfo, resolveGitChanges } from '../util/git.js';
 import type { Logger } from '../util/logger.js';
 import { compareStrings } from '../util/sort.js';
+import { summarizeChangeSurfaces } from '../graph/impact-summary.js';
+import { loadRequirements } from '../requirements/store.js';
+import { scanTestReferences } from '../trace/scan.js';
+import { writeFileAtomically } from '../util/atomic.js';
 
 // Kept outside the renderer-owned output directory: `docgen sync` deliberately
 // deletes unknown files there, while a branch handoff has a different lifecycle.
@@ -56,12 +58,14 @@ export async function runHandoffCommand(options: HandoffCommandOptions): Promise
     await resolveGitChanges(config.root, options.base ?? 'HEAD'),
     config.effectiveExclude,
   );
-  const [run, baseline, head, featureRecords, planRecords] = await Promise.all([
+  const [run, baseline, head, featureRecords, planRecords, requirements, testReferences] = await Promise.all([
     runExtraction({ config, logger: options.logger, includeSymbols: true }),
     readEvidenceGraphIfExists(path.join(config.root, DEFAULT_GRAPH_INDEX)),
     resolveCommitInfo(config.root),
     loadFeatureRecords(config.root),
     loadPlanRecords(config.root),
+    loadRequirements(config.root),
+    scanTestReferences({ root: config.root, globs: config.trace.include, exclude: config.effectiveExclude }),
   ]);
   const impact = analyzeChangeImpact({
     current: run.graph,
@@ -70,6 +74,7 @@ export async function runHandoffCommand(options: HandoffCommandOptions): Promise
     ...(options.maxDepth === undefined ? {} : { maxDepth: options.maxDepth }),
   });
   const impacted = impact.files.flatMap((file) => file.impacted.map((item) => item.node));
+  const surfaceSummary = summarizeChangeSurfaces({ report: impact, outDir: config.outDir });
   const featureIds = new Set(
     impacted
       .filter((node) => node.kind === 'feature')
@@ -102,18 +107,23 @@ export async function runHandoffCommand(options: HandoffCommandOptions): Promise
     impactedEntities: [...entitiesById.values()].sort(
       (a, b) => compareStrings(a.kind, b.kind) || compareStrings(a.id, b.id),
     ),
+    affectedRequirements: [...requirements.values()]
+      .flatMap((surface) => surface.requirements)
+      .filter((requirement) => surfaceSummary.requirementIds.includes(requirement.id)),
+    affectedTests: testReferences.filter(
+      (reference) =>
+        surfaceSummary.testFiles.includes(reference.file) &&
+        surfaceSummary.requirementIds.includes(reference.id),
+    ),
+    generatedPages: surfaceSummary.generatedPages,
   };
   const contents = renderTesterHandoff(data);
   const file = resolveOutput(config.root, options.out);
 
   if (options.dryRun !== true) {
-    const temporary = `${file}.${process.pid}.${randomUUID()}.tmp`;
-    await fs.mkdir(path.dirname(file), { recursive: true });
     try {
-      await fs.writeFile(temporary, contents, 'utf8');
-      await fs.rename(temporary, file);
+      await writeFileAtomically(file, contents);
     } catch (cause) {
-      await fs.rm(temporary, { force: true }).catch(() => undefined);
       throw new DocgenError({
         code: 'handoff-write-failed',
         message: `Could not write tester handoff: ${file}.`,
@@ -132,6 +142,12 @@ export async function runHandoffCommand(options: HandoffCommandOptions): Promise
     affectedFeatures: features.length,
     affectedEntities: data.impactedEntities.length,
     plans: data.plans.length,
+    requirements: data.affectedRequirements.length,
+    tests: data.affectedTests.length,
+    surfaceIds: surfaceSummary.surfaceIds,
+    requirementIds: surfaceSummary.requirementIds,
+    testFiles: surfaceSummary.testFiles,
+    generatedPages: data.generatedPages,
   };
   if (options.json === true) {
     options.logger.output(JSON.stringify(result, null, 2));
@@ -142,5 +158,8 @@ export async function runHandoffCommand(options: HandoffCommandOptions): Promise
   options.logger.info(`  features       ${result.affectedFeatures}`);
   options.logger.info(`  surfaces       ${result.affectedEntities}`);
   options.logger.info(`  plans          ${result.plans}`);
+  options.logger.info(`  requirements   ${result.requirements}`);
+  options.logger.info(`  tests          ${result.tests}`);
+  options.logger.info(`  pages          ${result.generatedPages.length}`);
   options.logger.info(`  ${options.dryRun === true ? colors().dim(`would write ${file}`) : `written        ${file}`}`);
 }

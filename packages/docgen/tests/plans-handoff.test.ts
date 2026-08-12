@@ -16,6 +16,7 @@ import { EvidenceGraphBuilder } from '../src/graph/builder.js';
 import { mapPlansIntoGraph } from '../src/plans/graph.js';
 import type { PlanRecord, StoredPlanRecord } from '../src/plans/schema.js';
 import { loadPlanRecords, serialisePlanRecord, writeNewPlanRecord } from '../src/plans/store.js';
+import { loadChangeRecords } from '../src/changes/store.js';
 import type { Logger } from '../src/util/logger.js';
 
 const created: string[] = [];
@@ -163,14 +164,43 @@ describe('governed plans', () => {
       return;
     }
     await fs.mkdir(path.join(root, 'src', 'checkout'), { recursive: true });
-    await fs.writeFile(path.join(root, 'src', 'checkout', 'service.ts'), 'export function retry() { return false; }\n');
+    await fs.mkdir(path.join(root, 'docs', '.requirements'), { recursive: true });
+    await fs.mkdir(path.join(root, 'tests'), { recursive: true });
+    await fs.writeFile(path.join(root, 'package.json'), JSON.stringify({ dependencies: { express: '^4.0.0' } }));
+    await fs.writeFile(
+      path.join(root, 'src', 'checkout', 'service.ts'),
+      "import express from 'express';\nconst app = express();\napp.post('/checkout', (_req, res) => res.send('disabled'));\n",
+    );
+    await fs.writeFile(
+      path.join(root, 'docs', '.requirements', 'api-checkout.yaml'),
+      `surfaceId: api:checkout
+slug: api-checkout
+requirements:
+  - id: REQ-api-checkout-01
+    kind: requirement
+    status: confirmed
+    title: Is checkout retry supported?
+    statement: A failed checkout can be retried safely.
+    questionId: retry-supported
+    surfaceId: api:checkout
+    recordedBy: qa@example.com
+    recordedAt: 2026-08-03T10:00:00.000Z
+`,
+    );
+    await fs.writeFile(
+      path.join(root, 'tests', 'checkout.test.ts'),
+      "// REQ-api-checkout-01\nit('retries checkout safely', () => undefined);\n",
+    );
     await writeNewFeatureRecord(root, feature());
     await writeNewPlanRecord(root, plan());
     git('add', '.');
     git('commit', '-q', '-m', 'baseline checkout');
     await runIndexGraphCommand({ cwd: root, logger: silentLogger() });
 
-    await fs.writeFile(path.join(root, 'src', 'checkout', 'service.ts'), 'export function retry() { return true; }\n');
+    await fs.writeFile(
+      path.join(root, 'src', 'checkout', 'service.ts'),
+      "import express from 'express';\nconst app = express();\napp.post('/checkout', (_req, res) => res.send('enabled'));\n",
+    );
     await runChangeRecordCommand({
       cwd: root,
       id: 'checkout-retry-enabled',
@@ -192,6 +222,23 @@ describe('governed plans', () => {
     expect(handoff).toContain('**AC-01:** A failed payment can be retried once');
     expect(handoff).toContain('Duplicate payment submission.');
     expect(handoff).toContain('human-owned plan records');
+    expect(handoff).toContain('REQ-api-checkout-01');
+    expect(handoff).toContain('tests/checkout.test.ts:1');
+    expect(handoff).toContain('docs/generated/api.md');
+
+    const recordedChange = (await loadChangeRecords(root))[0];
+    expect(recordedChange).toMatchObject({
+      surfaceIds: ['api:checkout'],
+      requirementIds: ['REQ-api-checkout-01'],
+      testFiles: ['tests/checkout.test.ts'],
+    });
+    expect(recordedChange?.generatedPages).toEqual(expect.arrayContaining([
+      'docs/generated/api.md',
+      'docs/generated/changelog.md',
+      'docs/generated/requirements.md',
+      'docs/generated/test-cases.md',
+      'docs/generated/traceability.md',
+    ]));
 
     const featurePage = await fs.readFile(path.join(root, 'docs/generated/features/checkout.md'), 'utf8');
     const planPage = await fs.readFile(path.join(root, 'docs/generated/plans/checkout-retry.md'), 'utf8');
@@ -201,6 +248,21 @@ describe('governed plans', () => {
     expect(planPage).toContain('**AC-01:** A failed payment can be retried once');
     expect(changelog).toContain('Enable safe checkout retries');
     expect(changelog).toContain('src/checkout/service.ts');
+    expect(changelog).toContain('REQ-api-checkout-01');
+    expect(changelog).toContain('tests/checkout.test.ts');
+    const indexed = JSON.parse(
+      await fs.readFile(path.join(root, '.docgen', 'cache', 'evidence-graph.json'), 'utf8'),
+    ) as { edges: Array<{ kind: string; from: string; to: string }> };
+    await runIndexGraphCommand({ cwd: root, logger: silentLogger() });
+    const refreshed = JSON.parse(
+      await fs.readFile(path.join(root, '.docgen', 'cache', 'evidence-graph.json'), 'utf8'),
+    ) as { edges: Array<{ kind: string; from: string; to: string }> };
+    expect(refreshed.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'affected-by-change', from: 'surface:api:checkout', to: 'change:checkout-retry-enabled' }),
+      expect.objectContaining({ kind: 'affected-by-change', from: 'requirement:REQ-api-checkout-01', to: 'change:checkout-retry-enabled' }),
+      expect.objectContaining({ kind: 'affected-by-change', from: 'test:tests/checkout.test.ts', to: 'change:checkout-retry-enabled' }),
+    ]));
+    expect(indexed.edges.length).toBeLessThan(refreshed.edges.length);
     await expect(runCheckCommand({ cwd: root, logger: silentLogger() })).resolves.toBeUndefined();
   });
 });

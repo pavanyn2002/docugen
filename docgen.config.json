@@ -1,0 +1,9 @@
+{
+  "include": [
+    "packages/docgen/src/**/*",
+    "packages/docgen/package.json"
+  ],
+  "exclude": [
+    "packages/docgen/tests/**"
+  ]
+}

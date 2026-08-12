@@ -1,0 +1,22 @@
+# Docgen pilot: pavanyn2002/docugen
+
+- Repository class: library
+- Review status: draft
+- Reviewed by: pending-maintainer-review
+- Reviewed at: 2026-08-12T00:00:00.000+05:30
+- Graph: 1411 nodes, 4246 edges
+- Technologies: none
+- Unsupported technologies: none
+- Explicit graph gaps: config:env-read-never-declared, deps:import-cycle
+
+## Draft quality — maintainer approval required
+
+| Surface | Result |
+| --- | --- |
+| Technologies | TP 0, FP 0, FN 0, precision n/a, recall n/a |
+| Graph gaps | TP 2, FP 0, FN 0, precision 100.0%, recall 100.0% |
+| Overall | TP 2, FP 0, FN 0, precision 100.0%, recall 100.0% |
+
+These rates compare static output with the committed, attributed expectations in
+`docgen.pilot.json`. A draft report is not v1 release evidence. These
+rates do not measure undocumented business intent.

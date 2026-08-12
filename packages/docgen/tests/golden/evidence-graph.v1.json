@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "nodes": [
+    {
+      "id": "file:src/app.ts",
+      "kind": "file",
+      "label": "src/app.ts",
+      "provenance": {
+        "origin": "extracted",
+        "evidence": [
+          {
+            "file": "src/app.ts",
+            "line": 1
+          }
+        ],
+        "extractors": [
+          "deps"
+        ],
+        "extractionMethods": [
+          "ast"
+        ],
+        "certainty": "high"
+      }
+    },
+    {
+      "id": "module:src/app.ts",
+      "kind": "module",
+      "label": "src/app.ts",
+      "provenance": {
+        "origin": "extracted",
+        "evidence": [
+          {
+            "file": "src/app.ts",
+            "line": 1
+          }
+        ],
+        "extractors": [
+          "deps"
+        ],
+        "extractionMethods": [
+          "ast"
+        ],
+        "certainty": "high"
+      },
+      "properties": {
+        "externals": [
+          "zod"
+        ]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge:defined-in:module:src/app.ts->file:src/app.ts",
+      "kind": "defined-in",
+      "from": "module:src/app.ts",
+      "to": "file:src/app.ts",
+      "provenance": {
+        "origin": "extracted",
+        "evidence": [
+          {
+            "file": "src/app.ts",
+            "line": 1
+          }
+        ],
+        "extractors": [
+          "deps"
+        ],
+        "extractionMethods": [
+          "ast"
+        ],
+        "certainty": "high"
+      }
+    }
+  ],
+  "gaps": []
+}

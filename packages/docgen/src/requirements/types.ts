@@ -55,5 +55,7 @@ export interface Requirement {
 export interface SurfaceRequirements {
   readonly surfaceId: string;
   readonly slug: string;
+  /** Repo-relative human-owned YAML record supplying these requirements. */
+  readonly sourceFile?: string;
   readonly requirements: readonly Requirement[];
 }

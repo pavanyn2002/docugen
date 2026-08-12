@@ -11,8 +11,9 @@ function frontmatter(context: GenerationContext, extra: readonly string[] = []):
     '---',
     'generated: true',
     'trust: mixed',
-    ...(context.sourceCommit === undefined ? [] : [`source_commit: ${context.sourceCommit}`]),
-    ...(context.generatedAt === undefined ? [] : [`source_date: ${context.generatedAt}`]),
+    ...(context.evidenceFingerprint === undefined
+      ? []
+      : [`evidence_fingerprint: sha256:${context.evidenceFingerprint}`]),
     ...extra,
     '---',
     '',
@@ -127,7 +128,24 @@ export function renderChangelog(changes: readonly StoredChangeRecord[], context:
   const lines = [frontmatter(context), '# Governed changelog', '', 'Entries are immutable, attributed change records. Commit dates come from Git; recording dates identify the human assertion.', ''];
   if (sorted.length === 0) lines.push('No governed changes have been recorded.', '');
   for (const change of sorted) {
-    lines.push(`## ${change.headDate ?? change.recordedAt} — ${change.summary}`, '', `- ID: \`${change.id}\``, `- Kind: ${change.kind}`, `- Features: ${change.featureIds.map((id) => `\`${id}\``).join(', ')}`, `- Plans: ${change.planIds.map((id) => `\`${id}\``).join(', ') || 'none'}`, `- Base: \`${change.base}\``, `- Head: ${change.headCommit === undefined ? 'uncommitted/unknown' : `\`${change.headCommit}\``}`, `- Recorded by: ${change.recordedBy} at ${change.recordedAt}`, '', 'Changed files:', '');
+    lines.push(
+      `## ${change.headDate ?? change.recordedAt} — ${change.summary}`,
+      '',
+      `- ID: \`${change.id}\``,
+      `- Kind: ${change.kind}`,
+      `- Features: ${change.featureIds.map((id) => `\`${id}\``).join(', ')}`,
+      `- Plans: ${change.planIds.map((id) => `\`${id}\``).join(', ') || 'none'}`,
+      `- Surfaces: ${change.surfaceIds.map((id) => `\`${id}\``).join(', ') || 'none'}`,
+      `- Requirements: ${change.requirementIds.map((id) => `\`${id}\``).join(', ') || 'none'}`,
+      `- Tests: ${change.testFiles.map((file) => `\`${file}\``).join(', ') || 'none'}`,
+      `- Generated pages: ${change.generatedPages.map((file) => `\`${file}\``).join(', ') || 'none'}`,
+      `- Base: \`${change.base}\``,
+      `- Head: ${change.headCommit === undefined ? 'uncommitted/unknown' : `\`${change.headCommit}\``}`,
+      `- Recorded by: ${change.recordedBy} at ${change.recordedAt}`,
+      '',
+      'Changed files:',
+      '',
+    );
     for (const file of change.files) lines.push(`- ${file.status}: \`${file.file}\`${file.previousFile === undefined ? '' : ` (from \`${file.previousFile}\`)`}`);
     lines.push('');
   }

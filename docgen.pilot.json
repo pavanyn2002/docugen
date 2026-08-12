@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "repository": "pavanyn2002/docugen",
+  "repositoryClass": "library",
+  "reviewStatus": "draft",
+  "reviewedBy": "pending-maintainer-review",
+  "reviewedAt": "2026-08-12T00:00:00.000+05:30",
+  "expectations": {
+    "technologies": [],
+    "graphGaps": [
+      {
+        "id": "config:env-read-never-declared",
+        "expected": true,
+        "owner": "docgen-maintainers",
+        "note": "Docgen reads optional process environment variables supplied by the operator or CI rather than a committed .env file."
+      },
+      {
+        "id": "deps:import-cycle",
+        "expected": true,
+        "owner": "docgen-maintainers",
+        "note": "The current source graph contains import cycles that should remain visible until refactored."
+      }
+    ]
+  }
+}

@@ -162,6 +162,20 @@ This does not replace Dependabot, `npm audit`, OSV-Scanner, or another current
 advisory source. The JSON report always states that CVE coverage was not
 evaluated, making that boundary machine-readable.
 
+## Docgen's own release pipeline
+
+The project CI runs the full source suite on Windows, Linux, and macOS using
+Node 20.11, 22, and 24. A separate package job installs the packed tarball into
+a clean consumer project. GitHub Release publication verifies that a `vX.Y.Z`
+tag matches `packages/docgen/package.json`, reruns validation, generates a
+CycloneDX SBOM, and publishes through npm with provenance-capable OIDC
+permissions.
+
+Before the first release, configure `@tatvaops/docgen` trusted publishing in npm
+for `.github/workflows/release.yml` and protect the `npm` GitHub environment.
+The workflow pins npm 11.5.1, the minimum trusted-publishing client, and does
+not create tags or bypass release approval.
+
 ## Machine-readable output
 
 Every reporting command takes `--json` on stdout, with diagnostics on stderr:

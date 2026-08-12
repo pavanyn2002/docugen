@@ -4,6 +4,15 @@
   "description": "Deterministic codebase documentation engine. Extracts what the code proves; never states what it cannot verify.",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pavanyn2002/docugen.git",
+    "directory": "packages/docgen"
+  },
+  "homepage": "https://github.com/pavanyn2002/docugen#readme",
+  "bugs": {
+    "url": "https://github.com/pavanyn2002/docugen/issues"
+  },
   "private": false,
   "engines": {
     "node": ">=20.11.0"
@@ -67,6 +76,7 @@
     "architecture"
   ],
   "publishConfig": {
-    "access": "restricted"
+    "access": "public",
+    "provenance": true
   }
 }

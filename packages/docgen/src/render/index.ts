@@ -22,6 +22,7 @@ import { compareStrings } from '../util/sort.js';
 import { computeFindings } from '../analysis/findings.js';
 import type { FindingsReport } from '../analysis/findings.js';
 import { computeGovernanceFiles } from '../governance/expected.js';
+import { writeFileAtomically } from '../util/atomic.js';
 
 /** A file to write: repo-relative POSIX path and its full contents. */
 export interface RenderedFile {
@@ -153,8 +154,7 @@ export async function writeAll(run: RunResult): Promise<WriteReport> {
 
   for (const file of files) {
     const absolute = path.join(run.config.root, file.path);
-    await fs.mkdir(path.dirname(absolute), { recursive: true });
-    await fs.writeFile(absolute, normaliseLineEndings(file.contents), 'utf8');
+    await writeFileAtomically(absolute, normaliseLineEndings(file.contents));
     written.push(file.path);
   }
 
@@ -203,6 +203,6 @@ export async function ensureGitattributes(root: string, outDir: string): Promise
   if (existing.split(/\r?\n/).some((current) => current.trim() === line)) return false;
 
   const prefix = existing.length === 0 ? '' : existing.endsWith('\n') ? existing : `${existing}\n`;
-  await fs.writeFile(file, `${prefix}${line}\n`, 'utf8');
+  await writeFileAtomically(file, `${prefix}${line}\n`);
   return true;
 }
