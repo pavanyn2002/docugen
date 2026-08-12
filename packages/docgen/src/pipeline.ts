@@ -91,6 +91,7 @@ export async function runExtraction(options: RunOptions): Promise<RunResult> {
     root: config.root,
     config,
     logger,
+    workspaces: stack.workspaces,
     ...(options.partitionFiles === undefined ? {} : { partitionFiles: options.partitionFiles }),
   };
   const results = new Map<ExtractorId, ExtractResult>();

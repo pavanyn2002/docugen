@@ -19,6 +19,16 @@ const rules: readonly Rule[] = [
   { kind: 'jwt', pattern: /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g, replace: '[REDACTED:jwt]' },
 ];
 
+/** Names whose adjacent values must never be retained in generated evidence. */
+export function isSecretLikeName(name: string): boolean {
+  return /(?:SECRET|PASSWORD|PASSWD|TOKEN|API_?KEY|PRIVATE_?KEY|ACCESS_?KEY(?:_?ID)?|CREDENTIAL|AUTH|SALT|CERT(?:IFICATE)?|DSN|CONNECTION_?STRING)/i.test(name);
+}
+
+/** True when a literal itself has a recognizable credential shape. */
+export function isCredentialLikeLiteral(value: string): boolean {
+  return redactSecrets(value).count > 0;
+}
+
 /** Deterministically remove common credential forms before model context is built. */
 export function redactSecrets(input: string): RedactionResult {
   let text = input;

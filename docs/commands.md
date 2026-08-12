@@ -256,9 +256,10 @@ docgen extract --dry-run --json
 | `-o, --out <path>` | Override the output directory. |
 | `--only <ids>` | Restrict to some extractors: `routes`, `schema`, `endpoints`, `jobs`, `config`, `deps`. |
 | `--dry-run` | Report what would be generated, writing nothing. |
-| `--json` | Machine-readable summary on stdout. |
+| `--json` | Machine-readable summary on stdout. Its `written` array includes `.gitattributes` only when that file was created or modified. |
 
 Output is byte-identical across runs, so regenerating produces no diff unless the code changed.
+With `--dry-run`, no files are written and `written` is empty.
 
 ---
 

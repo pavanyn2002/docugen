@@ -1,6 +1,7 @@
 import type { EntryBase, ExtractResult, ExtractorId, Skip } from '../types/core.js';
 import type { ResolvedConfig } from '../config/schema.js';
 import type { Logger } from '../util/logger.js';
+import type { Workspace } from '../detect/workspaces.js';
 
 /**
  * Everything an extractor is allowed to see.
@@ -16,6 +17,7 @@ export interface ExtractorContext {
   readonly root: string;
   readonly config: ResolvedConfig;
   readonly logger: Logger;
+  readonly workspaces?: readonly Workspace[];
   /** Repo-relative POSIX files whose graph partitions are being rebuilt. */
   readonly partitionFiles?: ReadonlySet<string>;
 }

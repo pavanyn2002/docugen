@@ -4,6 +4,8 @@ import path from 'node:path';
 import type { Gap } from '../../types/core.js';
 import type { EndpointEntry } from '../../types/entries.js';
 import { toPosix } from '../../util/paths.js';
+import type { Workspace } from '../../detect/workspaces.js';
+import { owningWorkspace, workspaceLabel } from '../../detect/ownership.js';
 
 /**
  * Cross-check against a declared OpenAPI or swagger spec.
@@ -32,6 +34,12 @@ interface SpecOperation {
   readonly path: string;
 }
 
+interface SpecDocument {
+  readonly file: string;
+  readonly workspace: string;
+  readonly operations: readonly SpecOperation[];
+}
+
 const SPEC_FILES = [
   '**/openapi.{json,yaml,yml}',
   '**/swagger.{json,yaml,yml}',
@@ -45,6 +53,7 @@ export async function crossCheckAgainstSpec(args: {
   root: string;
   exclude: readonly string[];
   entries: readonly EndpointEntry[];
+  workspaces?: readonly Workspace[];
 }): Promise<SpecCrossCheck> {
   const files = (
     await fg(SPEC_FILES, { cwd: args.root, ignore: [...args.exclude], onlyFiles: true })
@@ -52,9 +61,9 @@ export async function crossCheckAgainstSpec(args: {
     .map(toPosix)
     .sort();
 
-  const operations: SpecOperation[] = [];
+  const documents: SpecDocument[] = [];
   const gaps: Gap[] = [];
-  let specFound = false;
+  let specFound = files.length > 0;
 
   for (const relative of files) {
     const contents = await fs.readFile(path.join(args.root, relative), 'utf8');
@@ -62,53 +71,111 @@ export async function crossCheckAgainstSpec(args: {
       ? parseJsonSpec(relative, contents, gaps)
       : parseYamlSpecPaths(contents);
     if (parsed.length > 0) specFound = true;
-    operations.push(...parsed);
+    if (parsed.length > 0) {
+      documents.push({
+        file: relative,
+        workspace: owningWorkspace(relative, args.workspaces ?? [{ dir: '', manifests: [] }]),
+        operations: parsed,
+      });
+    }
   }
 
   // swagger-jsdoc keeps the spec in comments beside the handlers.
-  const annotations = await readJsDocAnnotations(args.root, args.exclude);
+  const annotations = await readJsDocAnnotations(args.root, args.exclude, args.workspaces);
   if (annotations.length > 0) specFound = true;
-  operations.push(...annotations);
+  documents.push(...annotations);
 
   if (!specFound) return { annotated: args.entries, gaps: [], specFound: false };
 
-  const specKeys = new Set(operations.map((operation) => key(operation.method, operation.path)));
-  const codeKeys = new Set(args.entries.map((entry) => key(entry.method, entry.path)));
-
-  const annotated = args.entries.map((entry) => ({
-    ...entry,
-    specStatus: specKeys.has(key(entry.method, entry.path))
-      ? ('match' as const)
-      : ('undeclared' as const),
-  }));
-
-  const undeclared = annotated.filter((entry) => entry.specStatus === 'undeclared');
-  if (undeclared.length > 0) {
-    gaps.push({
-      extractor: 'endpoints',
-      kind: 'endpoint-not-in-spec',
-      message:
-        `${undeclared.length} endpoint(s) exist in code but are absent from the API spec: ` +
-        `${undeclared.slice(0, 8).map((entry) => `${entry.method} ${entry.path}`).join(', ')}` +
-        `${undeclared.length > 8 ? ', …' : ''}. The spec is incomplete.`,
-    });
+  const documentsByApplication = new Map<string, SpecDocument[]>();
+  for (const document of documents) {
+    const workspaceEntries = args.entries
+      .filter((entry) => (entry.workspace ?? '') === document.workspace);
+    const applications = [...new Set(
+      workspaceEntries
+        .map((entry) => entry.application)
+        .filter((value): value is string => value !== undefined),
+    )].sort();
+    const nearby = applications
+      .map((application) => ({ application, root: expressApplicationDirectory(application) }))
+      .filter((candidate): candidate is { application: string; root: string } =>
+        candidate.root !== undefined &&
+        (document.file === candidate.root || document.file.startsWith(`${candidate.root}/`)),
+      )
+      .sort((a, b) => b.root.length - a.root.length || a.application.localeCompare(b.application));
+    const longest = nearby[0]?.root.length ?? -1;
+    const nearest = nearby.filter((candidate) => candidate.root.length === longest);
+    const applicableApplications = nearest.length > 0
+      ? nearest.map((candidate) => candidate.application)
+      : applications;
+    if (applicableApplications.length !== 1) {
+      gaps.push({
+        extractor: 'endpoints',
+        kind: 'openapi-scope-ambiguous',
+        message:
+          `API spec '${document.file}' belongs to ${workspaceLabel(document.workspace)}, but docgen ` +
+          'could not prove which runtime application it governs. It was not compared globally.',
+        source: { file: document.file },
+      });
+      continue;
+    }
+    const application = applicableApplications[0] as string;
+    documentsByApplication.set(application, [...(documentsByApplication.get(application) ?? []), document]);
   }
 
-  // A spec entry with no code behind it means the published API contract
-  // describes something that does not run.
-  const phantom = operations.filter((operation) => !codeKeys.has(key(operation.method, operation.path)));
-  if (phantom.length > 0) {
-    gaps.push({
-      extractor: 'endpoints',
-      kind: 'spec-endpoint-not-in-code',
-      message:
-        `${phantom.length} endpoint(s) are declared in the API spec but no matching handler was found: ` +
-        `${phantom.slice(0, 8).map((operation) => `${operation.method} ${operation.path}`).join(', ')}` +
-        `${phantom.length > 8 ? ', …' : ''}. Either the spec has rotted or docgen could not resolve those routes.`,
-    });
+  const annotated = args.entries.map((entry): EndpointEntry => {
+    if (entry.application === undefined) return entry;
+    const applicable = documentsByApplication.get(entry.application);
+    if (applicable === undefined) return entry;
+    const specKeys = new Set(
+      applicable.flatMap((document) => document.operations).map((operation) => key(operation.method, operation.path)),
+    );
+    return { ...entry, specStatus: specKeys.has(key(entry.method, entry.path)) ? 'match' : 'undeclared' };
+  });
+
+  for (const [application, applicable] of documentsByApplication) {
+    const codeEntries = annotated.filter((entry) => entry.application === application);
+    const operations = applicable.flatMap((document) => document.operations);
+    const specIdentity = applicable.map((document) => document.file).sort().join(', ');
+    const workspace = applicable[0]?.workspace ?? '';
+    const undeclared = codeEntries.filter((entry) => entry.specStatus === 'undeclared');
+    if (undeclared.length > 0) {
+      gaps.push({
+        extractor: 'endpoints',
+        kind: 'endpoint-not-in-spec',
+        message:
+          `${workspaceLabel(workspace)} API spec (${specIdentity}) omits ${undeclared.length} code endpoint(s): ` +
+          `${undeclared.slice(0, 8).map((entry) => `${entry.method} ${entry.path}`).join(', ')}` +
+          `${undeclared.length > 8 ? ', …' : ''}. The spec is incomplete.`,
+        source: { file: applicable[0]?.file as string },
+      });
+    }
+    const codeKeys = new Set(codeEntries.map((entry) => key(entry.method, entry.path)));
+    const phantom = operations.filter((operation) => !codeKeys.has(key(operation.method, operation.path)));
+    if (phantom.length > 0) {
+      gaps.push({
+        extractor: 'endpoints',
+        kind: 'spec-endpoint-not-in-code',
+        message:
+          `${workspaceLabel(workspace)} API spec (${specIdentity}) declares ${phantom.length} endpoint(s) with no matching handler: ` +
+          `${phantom.slice(0, 8).map((operation) => `${operation.method} ${operation.path}`).join(', ')}` +
+          `${phantom.length > 8 ? ', …' : ''}. Either the spec has rotted or docgen could not resolve those routes.`,
+        source: { file: applicable[0]?.file as string },
+      });
+    }
   }
 
   return { annotated, gaps, specFound: true };
+}
+
+function expressApplicationDirectory(application: string): string | undefined {
+  const marker = ':express:';
+  const offset = application.indexOf(marker);
+  if (offset < 0) return undefined;
+  const file = application.slice(offset + marker.length).split('#')[0];
+  if (file === undefined) return undefined;
+  const directory = path.posix.dirname(file);
+  return directory === '.' ? '' : directory;
 }
 
 function key(method: string, routePath: string): string {
@@ -210,14 +277,15 @@ export function parseYamlSpecPaths(contents: string): readonly SpecOperation[] {
 async function readJsDocAnnotations(
   root: string,
   exclude: readonly string[],
-): Promise<readonly SpecOperation[]> {
+  workspaces?: readonly Workspace[],
+): Promise<readonly SpecDocument[]> {
   const files = (
     await fg(['**/*.{ts,js,mjs}'], { cwd: root, ignore: [...exclude], onlyFiles: true })
   )
     .map(toPosix)
     .sort();
 
-  const operations: SpecOperation[] = [];
+  const documents: SpecDocument[] = [];
 
   for (const relative of files) {
     let contents: string;
@@ -237,11 +305,18 @@ async function readJsDocAnnotations(
         .map((line) => line.replace(/^\s*\*ic?\s?/, '').replace(/^\s*\*\s?/, ''))
         .filter((line) => !/@(?:openapi|swagger)\b/.test(line))
         .join('\n');
-      operations.push(...parseYamlSpecPaths(`paths:\n${indentBlock(yaml)}`));
+      const operations = parseYamlSpecPaths(`paths:\n${indentBlock(yaml)}`);
+      if (operations.length > 0) {
+        documents.push({
+          file: relative,
+          workspace: owningWorkspace(relative, workspaces ?? [{ dir: '', manifests: [] }]),
+          operations,
+        });
+      }
     }
   }
 
-  return operations;
+  return documents;
 }
 
 function indentBlock(text: string): string {

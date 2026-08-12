@@ -75,12 +75,39 @@ The answer and requirement directories are human-governed YAML. Cards are
 regenerated model data, while `.security/` contains a generated JSON inventory.
 All are committed so review and history remain available to the team.
 
+## Monorepos and multi-service repositories
+
+Use the scoped npm name—`npx @pavanyn/docugen ...`. The unscoped-looking
+`pavanyn/docugen` form is npm GitHub shorthand, not this package.
+
+Run at the monorepo root for a fleet-wide inventory:
+
+```bash
+cd company-platform
+npx @pavanyn/docugen extract
+npx @pavanyn/docugen check --json
+```
+
+Endpoints, OpenAPI specs, schemas, and environment declarations are assigned to
+the nearest manifest directory. Multi-workspace documentation labels the owning
+workspace/runtime application; equal paths and names in separate services do
+not become false duplicate or drift findings. Root-level specs and configuration
+are not assumed to govern every service when that relationship is ambiguous.
+
+Run separately inside each deployable service when you need service-local docs
+and Git provenance. The root run answers what exists across the monorepo; a
+service run gives the narrowest deployable-service view.
+
+`extract --json` reports every actual write in `written`, including a created or
+modified `.gitattributes`. An already-correct marker is omitted, and `--dry-run`
+reports no actual writes.
+
 ## Guarantees
 
 - **Deterministic.** Same evidence in, same bytes out. Sorting is locale-independent, paths are POSIX, line endings are LF, and generated pages carry a canonical evidence fingerprint instead of a self-referential commit hash. Feature dates still come from Git. The source suite runs across Windows, Linux, and macOS on current toolchain runtimes, and the packed CLI is separately exercised on the minimum supported Node 20.11 runtime.
 - **Two lanes, never mixed.** `extract`, `report`, `sync`, `check`, `trace`, `status` and `fleet` make no network call and cost nothing. `bootstrap` is the only command that calls a model, and it says so before it runs.
 - **Graph-grounded inference.** `bootstrap` gives the model only a bounded, extracted-only neighborhood for one surface plus line-numbered source excerpts. Citations to files or lines the model did not receive are rejected instead of published.
-- **No secrets.** `.env` values are never read or recorded — only variable names and where they are used.
+- **No secrets.** `.env` values are never read or recorded — only variable names and where they are used. Secret-like or recognizable credential-shaped literal source defaults are discarded before evidence or documentation is built.
 - **Never fabricates.** Anything static analysis cannot establish is recorded as a gap. Anything the model cannot establish becomes a question. Neither is filled with a plausible value.
 - **Diagrams parse.** Every generated `.mmd` is run through the real Mermaid parser in CI.
 

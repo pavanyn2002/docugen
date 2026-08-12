@@ -213,6 +213,19 @@ describe('environment configuration', () => {
       expect(isSecretLike(name)).toBe(true);
     },
   );
+
+  it.each(['AWS_ACCESS_KEY_ID', 'ACCESS_KEY', 'ACCESS_KEY_ID', 'CERTIFICATE', 'CONNECTION_STRING'])(
+    'treats %s as a secret-shaped name whose default must be suppressed',
+    (name) => expect(isSecretLike(name)).toBe(true),
+  );
+
+  it('never retains a secret-like or credential-shaped source fallback', async () => {
+    const result = await conf(path.join(FIXTURES, 'multi-service'));
+    const aws = result.entries.find((entry) => entry.name === 'AWS_ACCESS_KEY_ID');
+    expect(aws).toBeDefined();
+    expect(aws).not.toHaveProperty('defaultValue');
+    expect(JSON.stringify(result)).not.toContain('AKIA1234567890123456');
+  });
 });
 
 // ── deps ─────────────────────────────────────────────────────────────────────

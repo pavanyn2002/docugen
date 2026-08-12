@@ -1,0 +1,1 @@
+{"name":"service-a","private":true,"dependencies":{"express":"^4.0.0","mongoose":"^8.0.0"}}

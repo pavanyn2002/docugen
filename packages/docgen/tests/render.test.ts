@@ -12,6 +12,8 @@ import { ensureGitattributes, renderAll, writeAll } from '../src/render/index.js
 import { GENERATED_MARKER, pathToRepoRoot, renderFrontMatter, sourceLink, table } from '../src/render/markdown.js';
 import { renderErd, renderIntegrations, renderModules, renderSitemap } from '../src/render/diagrams.js';
 import { createLogger } from '../src/util/logger.js';
+import { renderConfigPage } from '../src/render/pages/config.js';
+import type { ConfigResult } from '../src/types/entries.js';
 
 const TEST_DIR = path.dirname(fileURLToPath(import.meta.url));
 const execFileAsync = promisify(execFile);
@@ -283,6 +285,26 @@ describe('secret safety', () => {
 
     expect(config).toContain('Read but never declared');
     expect(config).toContain('Declared but never read');
+  });
+
+  it('suppresses a secret default during rendering even when upstream metadata is wrong', () => {
+    const result: ConfigResult = {
+      extractor: 'config', applicable: true, detected: ['code'], gaps: [], skips: [], durationMs: 0,
+      entries: [{
+        id: 'config:env:AWS_ACCESS_KEY_ID', source: { file: 'src/config.ts', line: 1 },
+        extractionMethod: 'ast', certainty: 'high', name: 'AWS_ACCESS_KEY_ID', kind: 'env',
+        reads: [{ file: 'src/config.ts', line: 1 }], declarations: [],
+        defaultValue: "'AKIA1234567890123456'", isSecretLike: false,
+      }],
+    };
+    const rendered = renderConfigPage({
+      result,
+      stack: { workspaces: [{ dir: '', manifests: ['package.json'] }], technologies: [], unsupported: [] },
+      context: { engineVersion: 'test', evidenceFingerprint: 'test' },
+      outDir: 'docs/generated',
+    });
+    expect(rendered).toContain('AWS_ACCESS_KEY_ID');
+    expect(rendered).not.toContain('AKIA1234567890123456');
   });
 });
 

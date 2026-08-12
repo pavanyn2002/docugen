@@ -1,7 +1,7 @@
 ---
 generated: true
-engine_version: 1.0.1
-evidence_fingerprint: sha256:a6a0fadeb6cc6d026701579906eb273c4d014a7773d980e9263b30c65bf3dc13
+engine_version: 1.0.2
+evidence_fingerprint: sha256:0987c82f728a82d22bfc2a6c23120d98b34ad7b46540093e1b02028478c2cf13
 confidence: verified
 ---
 
@@ -19,7 +19,7 @@ Everything here is derived from the code by static analysis. No part of it was w
 | --- | --- | --- |
 | [Routes and screens](routes.md) | _not applicable_ | — |
 | [Database schema](schema.md) | _not applicable_ | — |
-| Module dependency graph | 179 | 1 |
+| Module dependency graph | 180 | 1 |
 | [API endpoints](api.md) | 0 | — |
 | [Background jobs](jobs.md) | _not applicable_ | — |
 | [Environment and configuration](config.md) | 1 | 1 |
@@ -76,7 +76,7 @@ Read by the code but present in no .env file. They may be supplied by the deploy
 
 | Item | Detail | Source |
 | --- | --- | --- |
-| `COMSPEC` | read at 1 site(s) | [packages/docgen/src/agents/cli-backend.ts:141](../../packages/docgen/src/agents/cli-backend.ts#L141) |
+| `packages/docgen:COMSPEC` | read at 1 site(s) | [packages/docgen/src/agents/cli-backend.ts:141](../../packages/docgen/src/agents/cli-backend.ts#L141) |
 
 ## How to read this
 

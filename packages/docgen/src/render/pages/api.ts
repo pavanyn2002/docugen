@@ -4,6 +4,7 @@ import type { StackReport } from '../../detect/stack.js';
 import { renderGaps, renderInapplicable, renderProvenance, renderUnsupportedForPage } from '../common.js';
 import { certaintyBadge, code, note, renderFrontMatter, section, sourceLink, table, warning } from '../markdown.js';
 import type { Surface } from '../../surface/types.js';
+import { workspaceLabel } from '../../detect/ownership.js';
 
 /** api.md — every endpoint the service serves, grouped by resource. */
 export function renderApiPage(args: {
@@ -47,6 +48,12 @@ export function renderApiPage(args: {
   }
 
   const columns = [
+    ...(result.entries.some((entry) => entry.workspace !== undefined)
+      ? [{ header: 'Workspace', render: (entry: EndpointEntry) => code(workspaceLabel(entry.workspace ?? '')) }]
+      : []),
+    ...(new Set(result.entries.map((entry) => entry.application).filter(Boolean)).size > 1
+      ? [{ header: 'Application', render: (entry: EndpointEntry) => code(applicationLabel(entry)) }]
+      : []),
     { header: 'Method', render: (entry: EndpointEntry) => `\`${entry.method}\`` },
     { header: 'Path', render: (entry: EndpointEntry) => code(entry.path) },
     {
@@ -108,4 +115,10 @@ export function renderApiPage(args: {
 
   body += renderGaps(result.gaps, outDir);
   return body;
+}
+
+function applicationLabel(entry: EndpointEntry): string {
+  if (entry.application === undefined) return 'unresolved router';
+  const [, kind = 'application', ...root] = entry.application.split(':');
+  return `${kind} · ${root.join(':')}`;
 }

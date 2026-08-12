@@ -3,6 +3,8 @@ import type { SchemaEntry, SchemaField, SchemaResult } from '../../types/entries
 import type { StackReport } from '../../detect/stack.js';
 import { renderGaps, renderInapplicable, renderProvenance, renderUnsupportedForPage } from '../common.js';
 import { certaintyBadge, cell, code, renderFrontMatter, note, section, sourceLink, table } from '../markdown.js';
+import { createHash } from 'node:crypto';
+import { workspaceLabel } from '../../detect/ownership.js';
 
 /** schema.md — every table and collection, with its columns and relations. */
 export function renderSchemaPage(args: {
@@ -35,7 +37,10 @@ export function renderSchemaPage(args: {
     `Tables and collections (${result.entries.length})`,
     table(
       [
-        { header: 'Name', render: (entry: SchemaEntry) => `[${entry.name}](#${anchorFor(entry.name)})` },
+        { header: 'Name', render: (entry: SchemaEntry) => `[${entry.name}](#${anchorFor(entry)})` },
+        ...(result.entries.some((entry) => entry.workspace !== undefined)
+          ? [{ header: 'Workspace', render: (entry: SchemaEntry) => code(workspaceLabel(entry.workspace ?? '')) }]
+          : []),
         { header: 'Kind', render: (entry: SchemaEntry) => cell(entry.kind) },
         { header: 'Fields', render: (entry: SchemaEntry) => String(entry.fields.length) },
         { header: 'Relations', render: (entry: SchemaEntry) => String(entry.relations.length) },
@@ -107,6 +112,7 @@ export function renderSchemaPage(args: {
       )}`;
     }
 
+    body += `<a id="${anchorFor(entry)}"></a>\n\n`;
     body += section(entry.name, detail, 3);
   }
 
@@ -115,10 +121,15 @@ export function renderSchemaPage(args: {
 }
 
 /** GitHub's heading anchor rules, for the in-page links above. */
-function anchorFor(name: string): string {
-  return name
+export function anchorFor(entry: SchemaEntry): string {
+  const slug = entry.name
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, '')
     .trim()
     .replace(/\s+/g, '-');
+  const discriminator = createHash('sha256')
+    .update(`${entry.workspace ?? ''}\u0000${entry.source.file}\u0000${entry.source.line ?? 0}\u0000${entry.name}`)
+    .digest('hex')
+    .slice(0, 10);
+  return `schema-${slug || 'entry'}-${discriminator}`;
 }

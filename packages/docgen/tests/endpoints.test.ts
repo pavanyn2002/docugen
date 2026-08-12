@@ -335,6 +335,44 @@ describe('OpenAPI spec parsing', () => {
   });
 });
 
+describe('runtime application ownership', () => {
+  it('does not report identical routes from two independent Express application roots', async () => {
+    const root = await makeRepo({
+      'package.json': '{"dependencies":{"express":"^4.0.0"}}',
+      'src/a.ts': "import express from 'express';\nconst app = express();\napp.get('/health', handler);\n",
+      'src/b.ts': "import express from 'express';\nconst app = express();\napp.get('/health', handler);\n",
+    });
+    const result = await runOn(root);
+    expect(result.entries.filter((entry) => entry.path === '/health')).toHaveLength(2);
+    expect(result.gaps.some((gap) => gap.kind === 'duplicate-endpoint')).toBe(false);
+    expect(new Set(result.entries.map((entry) => entry.application)).size).toBe(2);
+  });
+
+  it('reports mounted routers that resolve to the same final path in one application', async () => {
+    const root = await makeRepo({
+      'package.json': '{"dependencies":{"express":"^4.0.0"}}',
+      'src/app.ts': "import express from 'express';\nimport a from './a.js';\nimport b from './b.js';\nconst app = express();\napp.use('/api', a);\napp.use('/api', b);\n",
+      'src/a.ts': "import { Router } from 'express';\nconst r = Router();\nr.get('/health', handler);\nexport default r;\n",
+      'src/b.ts': "import { Router } from 'express';\nconst r = Router();\nr.get('/health', handler);\nexport default r;\n",
+    });
+    const result = await runOn(root);
+    expect(result.entries.filter((entry) => entry.path === '/api/health')).toHaveLength(2);
+    expect(result.gaps.filter((gap) => gap.kind === 'duplicate-endpoint')).toHaveLength(1);
+  });
+
+  it('does not compare identical paths on two unmounted routers', async () => {
+    const root = await makeRepo({
+      'package.json': '{"dependencies":{"express":"^4.0.0"}}',
+      'src/a.ts': "import { Router } from 'express';\nconst r = Router();\nr.get('/health', handler);\nexport default r;\n",
+      'src/b.ts': "import { Router } from 'express';\nconst r = Router();\nr.get('/health', handler);\nexport default r;\n",
+    });
+    const result = await runOn(root);
+    expect(result.entries.filter((entry) => entry.path === '/health')).toHaveLength(2);
+    expect(result.entries.every((entry) => entry.finalPathResolved === false)).toBe(true);
+    expect(result.gaps.some((gap) => gap.kind === 'duplicate-endpoint')).toBe(false);
+  });
+});
+
 describe('spec cross-check', () => {
   // The spec is never authoritative: it is a claim about the code that may
   // have rotted. Trusting it would emit fabricated endpoints as verified.

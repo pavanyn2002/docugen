@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { detectStack, parseManifestDependencies } from '../src/detect/stack.js';
 import { findWorkspaces } from '../src/detect/workspaces.js';
+import { owningWorkspace } from '../src/detect/ownership.js';
 import { TECH_SIGNATURES } from '../src/detect/signatures.js';
 import { detectRouters } from '../src/extract/routes/detect.js';
 import { routesExtractor } from '../src/extract/routes/index.js';
@@ -88,6 +89,16 @@ describe('manifest dependency parsing', () => {
 });
 
 describe('workspace discovery', () => {
+  it('uses the nearest longest matching manifest directory as owner', () => {
+    const workspaces = [
+      { dir: '', manifests: ['package.json'] },
+      { dir: 'services', manifests: ['package.json'] },
+      { dir: 'services/api', manifests: ['package.json'] },
+    ];
+    expect(owningWorkspace('services/api/src/app.ts', workspaces)).toBe('services/api');
+    expect(owningWorkspace('services/web/src/app.ts', workspaces)).toBe('services');
+    expect(owningWorkspace('tools/build.ts', workspaces)).toBe('');
+  });
   it('finds a manifest in each sub-project', async () => {
     const workspaces = await findWorkspaces(path.join(FIXTURES, 'monorepo'), ALWAYS_EXCLUDE);
     expect(workspaces.map((workspace) => workspace.dir)).toEqual(['', 'backend', 'frontend']);
