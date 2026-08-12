@@ -2,7 +2,7 @@
 
 Assessment date: 2026-08-12
 Decision owner: pavanyn2002
-Status: release candidate — local gates passed; npm owner authentication pending
+Status: released — npm package, provenance, GitHub Release, and SBOM verified
 
 ## Release criteria
 
@@ -41,11 +41,12 @@ The immutable `v1.0.0` tag records a failed pre-publication attempt: validation
 passed, but npm rejected the unauthenticated new package and no npm package or
 GitHub Release was created. The tag will not be rewritten.
 
-The immutable `v1.0.1` tag must point at the corrected release commit. Pushing it
-triggers `.github/workflows/release.yml`, which verifies the version, runs all
-tests, builds, inspects package contents, emits a CycloneDX SBOM, publishes
-`@pavanyn/docugen@1.0.1` with provenance, and creates the GitHub Release with
-the SBOM attached. The first publication requires an owner-created granular
-token in the protected GitHub `npm` environment. Afterward, the owner must
-configure the workflow as the package's trusted publisher and remove that
-bootstrap token.
+The immutable `v1.0.1` tag points at release commit `e2983c6`. Its workflow
+verified the version, ran all tests, built and inspected the package, emitted a
+CycloneDX SBOM, published `@pavanyn/docugen@1.0.1` with provenance, and created
+the GitHub Release with the SBOM attached. Independent registry and GitHub API
+checks confirmed both public artifacts on 2026-08-12.
+
+The initial publication used the short-lived bootstrap token. Configure
+`.github/workflows/release.yml` as the package's trusted publisher, then remove
+the GitHub `NPM_TOKEN` secret and revoke the npm token before the next release.

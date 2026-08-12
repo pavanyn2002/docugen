@@ -128,7 +128,7 @@ Gate: CI evaluates deterministic governance policies without network or model ac
 - [x] Add graph golden tests, interrupted-write recovery, upgrade, and rollback tests.
 - [x] Pilot against representative frontend and backend repositories and record attributed false positives/negatives.
 - [x] Add package provenance, automated releases, schema migrations, and `docgen doctor`.
-- [ ] Publish v1 only after all release criteria below pass.
+- [x] Publish v1 only after all release criteria below pass.
 
 Approved pilot evidence covers Docugen itself plus immutable frontend and
 backend upstream commits. Reports and attributed manifests live under
