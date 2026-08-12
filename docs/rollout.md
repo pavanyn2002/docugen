@@ -103,7 +103,7 @@ Do this per repository as it earns it, never fleet-wide at the start.
 Pin deliberately. An engine upgrade can change generated output, and that should be a reviewed commit rather than a surprise.
 
 ```bash
-npm install --save-dev @tatvaops/docgen@1.0.0
+npm install --save-dev @tatvaops/docgen@1.0.1
 ```
 
 `docgen init` picks this up: it writes `npx docgen` into the workflow and the agent instructions, so the repo's own pinned version is what runs everywhere. Where docgen is not a repo dependency, the workflow fetches a pinned version instead, and Dependabot is not added — there is nothing for it to bump.

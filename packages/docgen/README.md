@@ -136,7 +136,7 @@ Unknown keys are rejected rather than ignored, so a typo fails loudly.
 
 ## Guarantees
 
-- **Deterministic.** Same evidence in, same bytes out — verified in CI on Node 20, 22, and 24. Sorting is locale-independent, paths are POSIX, line endings are LF, and generated pages carry a canonical evidence fingerprint. Feature dates still come from Git.
+- **Deterministic.** Same evidence in, same bytes out — the source suite is verified across Windows, Linux, and macOS on current toolchain runtimes, with a separate packed-artifact smoke test on the minimum supported Node 20.11 runtime. Sorting is locale-independent, paths are POSIX, line endings are LF, and generated pages carry a canonical evidence fingerprint. Feature dates still come from Git.
 - **Two lanes, never mixed.** Only `bootstrap` calls a model, and it says so before it runs. Nothing a model produced is ever stamped `verified`.
 - **Graph-grounded inference.** Model context is limited to a deterministic, extracted-only surface neighborhood and numbered source excerpts. Every returned citation is checked against the exact transmitted ranges.
 - **No secrets.** `.env` values are never read or recorded — only variable names and where they are used.

@@ -61,10 +61,30 @@ jobs:
           path: artifacts/*.cdx.json
           if-no-files-found: error
 
-      # Configure @tatvaops/docgen as a trusted publisher for this workflow in
-      # npm before the first release. npm then exchanges the GitHub OIDC token
-      # and publishes provenance without a long-lived npm token.
-      - name: Publish package
+      # A brand-new npm package has no settings page on which to configure a
+      # trusted publisher. Allow one owner-created granular token to bootstrap
+      # the package, then remove NPM_TOKEN after configuring this workflow as
+      # the package's trusted publisher. Both paths produce provenance.
+      - name: Detect initial-publication token
+        id: npm-bootstrap
+        shell: bash
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -n "$NODE_AUTH_TOKEN" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish package with initial-publication token
+        if: steps.npm-bootstrap.outputs.enabled == 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --workspace @tatvaops/docgen --access public --provenance
+
+      - name: Publish package with trusted publishing
+        if: steps.npm-bootstrap.outputs.enabled != 'true'
         run: npm publish --workspace @tatvaops/docgen --access public --provenance
 
       - name: Create GitHub release and attach SBOM

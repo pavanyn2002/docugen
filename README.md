@@ -44,7 +44,7 @@ The static lane is forbidden by an enforced import boundary from ever reaching a
 | [Configuration](docs/configuration.md) | `docgen.config.ts`, and when you need one |
 | [CI and automation](docs/ci.md) | The drift gate, and keeping documentation current |
 | [Security threat model](docs/security/threat-model.md) | Assets, trust boundaries, controls, and severity |
-| [Self-pilot baseline](docs/pilots/docgen-self.md) | Draft extraction-quality measurements awaiting review |
+| [Self-pilot baseline](docs/pilots/docgen-self.md) | Approved extraction-quality measurements for the release candidate |
 | [Rolling out across repos](docs/rollout.md) | Handing this to a team and many repositories |
 | [Troubleshooting](docs/troubleshooting.md) | When something looks wrong |
 
@@ -77,7 +77,7 @@ All are committed so review and history remain available to the team.
 
 ## Guarantees
 
-- **Deterministic.** Same evidence in, same bytes out. Sorting is locale-independent, paths are POSIX, line endings are LF, and generated pages carry a canonical evidence fingerprint instead of a self-referential commit hash. Feature dates still come from Git. The multi-OS, supported-Node release matrix remains a required v1 release gate.
+- **Deterministic.** Same evidence in, same bytes out. Sorting is locale-independent, paths are POSIX, line endings are LF, and generated pages carry a canonical evidence fingerprint instead of a self-referential commit hash. Feature dates still come from Git. The source suite runs across Windows, Linux, and macOS on current toolchain runtimes, and the packed CLI is separately exercised on the minimum supported Node 20.11 runtime.
 - **Two lanes, never mixed.** `extract`, `report`, `sync`, `check`, `trace`, `status` and `fleet` make no network call and cost nothing. `bootstrap` is the only command that calls a model, and it says so before it runs.
 - **Graph-grounded inference.** `bootstrap` gives the model only a bounded, extracted-only neighborhood for one surface plus line-numbered source excerpts. Citations to files or lines the model did not receive are rejected instead of published.
 - **No secrets.** `.env` values are never read or recorded — only variable names and where they are used.

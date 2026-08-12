@@ -51,7 +51,7 @@ When it is not a dependency — a Python or Go repo, say — the workflow fetche
 
 ```yaml
       - name: Check documentation is current
-        run: npx --yes @tatvaops/docgen@1.0.0 check
+        run: npx --yes @tatvaops/docgen@1.0.1 check
 ```
 
 ## Why the version is pinned
@@ -113,7 +113,7 @@ hook or a different configured hooks path.
 documentation:
   image: node:22
   script:
-    - npx --yes @tatvaops/docgen@1.0.0 check
+    - npx --yes @tatvaops/docgen@1.0.1 check
 ```
 
 **A git pre-push hook**
@@ -165,14 +165,18 @@ evaluated, making that boundary machine-readable.
 ## Docgen's own release pipeline
 
 The project CI runs the full source suite on Windows, Linux, and macOS using
-Node 20.11, 22, and 24. A separate package job installs the packed tarball into
-a clean consumer project. GitHub Release publication verifies that a `vX.Y.Z`
-tag matches `packages/docgen/package.json`, reruns validation, generates a
-CycloneDX SBOM, and publishes through npm with provenance-capable OIDC
-permissions.
+Node 22 and 24. Vitest 4's build toolchain requires Node 20.19 or newer, so a
+separate job builds the tarball with Node 22 and installs and executes that
+packed CLI on the declared minimum runtime, Node 20.11. Another package job
+installs the tarball into a clean consumer project. GitHub Release publication
+verifies that a `vX.Y.Z` tag matches `packages/docgen/package.json`, reruns
+validation, generates a CycloneDX SBOM, and publishes through npm with
+provenance-capable OIDC permissions.
 
-Before the first release, configure `@tatvaops/docgen` trusted publishing in npm
-for `.github/workflows/release.yml` and protect the `npm` GitHub environment.
+For the first publication, add a granular npm publishing token with bypass 2FA
+as the `NPM_TOKEN` secret in the protected GitHub `npm` environment. Once the
+package exists, configure `@tatvaops/docgen` trusted publishing for
+`.github/workflows/release.yml`, remove `NPM_TOKEN`, and use OIDC thereafter.
 The workflow pins npm 11.5.1, the minimum trusted-publishing client, and does
 not create tags or bypass release approval.
 

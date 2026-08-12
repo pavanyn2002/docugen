@@ -18,7 +18,10 @@ jobs:
       # Node versions. Every combination must pass the same source-level suite.
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        node: ['20.11', '22', '24']
+        # Vitest 4's Rolldown dependency requires Node 20.19+, so the source
+        # suite runs on supported toolchain lines. The packed artifact has a
+        # separate Node 20.11 runtime smoke test below.
+        node: ['22', '24']
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -56,6 +59,30 @@ jobs:
           npx docgen --version
           npx docgen extract --cwd "$GITHUB_WORKSPACE" --dry-run
           npx docgen bootstrap --cwd "$GITHUB_WORKSPACE" --dry-run
+
+  node-20-runtime:
+    name: Packed runtime / Node 20.11
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm pack --workspace @tatvaops/docgen --pack-destination "$RUNNER_TEMP"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '20.11'
+      - name: Verify the packed CLI on the minimum supported runtime
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/runtime-consumer" && cd "$RUNNER_TEMP/runtime-consumer"
+          npm init -y >/dev/null
+          npm install "$RUNNER_TEMP"/tatvaops-docgen-*.tgz
+          npx docgen --version
+          npx docgen extract --cwd "$GITHUB_WORKSPACE" --dry-run
 
   determinism:
     runs-on: ubuntu-latest

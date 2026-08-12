@@ -1,8 +1,8 @@
-# Docugen 1.0.0 release readiness
+# Docugen 1.0.1 release readiness
 
 Assessment date: 2026-08-12
 Decision owner: pavanyn2002
-Status: release candidate — local gates passed; publication recorded separately
+Status: release candidate — local gates passed; npm owner authentication pending
 
 ## Release criteria
 
@@ -37,10 +37,15 @@ approved result was regenerated before release.
 
 ## Publication boundary
 
-The immutable `v1.0.0` tag must point at the release commit. Pushing the tag
+The immutable `v1.0.0` tag records a failed pre-publication attempt: validation
+passed, but npm rejected the unauthenticated new package and no npm package or
+GitHub Release was created. The tag will not be rewritten.
+
+The immutable `v1.0.1` tag must point at the corrected release commit. Pushing it
 triggers `.github/workflows/release.yml`, which verifies the version, runs all
 tests, builds, inspects package contents, emits a CycloneDX SBOM, publishes
-`@tatvaops/docgen@1.0.0` through npm trusted publishing with OIDC and
-provenance, and creates the GitHub Release with the SBOM attached. The npm
-trusted-publisher relationship and GitHub `npm` environment must already be
-configured by the repository owner.
+`@tatvaops/docgen@1.0.1` with provenance, and creates the GitHub Release with
+the SBOM attached. The first publication requires an owner-created granular
+token in the protected GitHub `npm` environment. Afterward, the owner must
+configure the workflow as the package's trusted publisher and remove that
+bootstrap token.

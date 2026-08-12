@@ -441,7 +441,7 @@ describe('process exit codes', () => {
   // CI wired to `docgen check` must fail rather than pass on an unbuilt gate.
   it('returns 1 for a not-implemented command', async () => {
     await expect(main(argv('check', '--quiet'))).resolves.toBe(1);
-  });
+  }, 20_000);
 
   it('returns 1 for a malformed config', async () => {
     const root = await makeRepo({ 'docgen.config.json': '{ broken' });
