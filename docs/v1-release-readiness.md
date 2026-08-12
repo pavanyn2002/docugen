@@ -37,9 +37,10 @@ approved result was regenerated before release.
 
 ## Publication boundary
 
-The immutable `v1.0.0` tag must point at the release commit. Publishing the
-GitHub release triggers `.github/workflows/release.yml`, which verifies the tag,
-runs all tests, builds, inspects package contents, emits a CycloneDX SBOM, and
-publishes `@tatvaops/docgen@1.0.0` through npm trusted publishing with OIDC and
-provenance. The npm trusted-publisher relationship and GitHub `npm` environment
-must already be configured by the repository owner.
+The immutable `v1.0.0` tag must point at the release commit. Pushing the tag
+triggers `.github/workflows/release.yml`, which verifies the version, runs all
+tests, builds, inspects package contents, emits a CycloneDX SBOM, publishes
+`@tatvaops/docgen@1.0.0` through npm trusted publishing with OIDC and
+provenance, and creates the GitHub Release with the SBOM attached. The npm
+trusted-publisher relationship and GitHub `npm` environment must already be
+configured by the repository owner.
