@@ -196,6 +196,28 @@ app.use('/svc', a);
     expect(result.entries.map((entry) => entry.path)).toEqual(['/svc/ping']);
   });
 
+  it('propagates prefixes through locally composed imported routers', async () => {
+    const root = await makeRepo({
+      'package.json': '{"dependencies":{"express":"^4.19.0"}}',
+      'src/articles.ts':
+        "import { Router } from 'express';\nconst router = Router();\nrouter.get('/articles', h);\nexport default router;\n",
+      'src/routes.ts': `import { Router } from 'express';
+import articles from './articles';
+const api = Router().use(articles);
+export default Router().use('/api', api);
+`,
+      'src/app.ts': `import express from 'express';
+import routes from './routes';
+const app = express();
+app.use(routes);
+`,
+    });
+
+    const result = await runOn(root);
+    expect(result.entries.map((entry) => entry.path)).toEqual(['/api/articles']);
+    expect(result.gaps.some((gap) => gap.kind === 'router-not-mounted')).toBe(false);
+  });
+
   // An HTTP client call is a request, not a route. Reporting it would claim
   // the repo runs a server it does not have.
   it('ignores axios calls in a repo with no express', async () => {

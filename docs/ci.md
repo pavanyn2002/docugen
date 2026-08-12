@@ -51,7 +51,7 @@ When it is not a dependency — a Python or Go repo, say — the workflow fetche
 
 ```yaml
       - name: Check documentation is current
-        run: npx --yes @tatvaops/docgen@0.1.0 check
+        run: npx --yes @tatvaops/docgen@1.0.0 check
 ```
 
 ## Why the version is pinned
@@ -113,7 +113,7 @@ hook or a different configured hooks path.
 documentation:
   image: node:22
   script:
-    - npx --yes @tatvaops/docgen@0.1.0 check
+    - npx --yes @tatvaops/docgen@1.0.0 check
 ```
 
 **A git pre-push hook**

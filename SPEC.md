@@ -182,7 +182,7 @@ These four gap lists are high-value on their own — they surface real rot immed
 
 ---
 
-## Phase 1 and beyond — not started
+## Implemented lifecycle beyond static extraction
 
 **Phase 1 — inference and questions.** Surface-level feature cards via LLM, each with what-it-does, user-visible behavior, states, inputs/outputs, edge cases found in code, and an explicit `unknowns[]` array. Confidence badging. Question queue with `git blame` routing. Multiple-choice question format including a "not mine / don't know" option. Slack delivery. Answers persisted to `docs/.answers/*.yaml` and injected as ground truth into every subsequent generation, flipping the corresponding section from `inferred` to `verified`. Pluggable agent backends so it runs on Claude Code, Codex, or Cursor CLI. Content-hash caching so unchanged surfaces never re-run.
 

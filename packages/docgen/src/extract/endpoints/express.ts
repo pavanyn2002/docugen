@@ -159,8 +159,27 @@ export async function extractExpressEndpoints(args: {
 
   // Resolve every mount to the file that declares the router it points at, so
   // a registration can be given the prefix it actually runs under.
-  const prefixesByFile = new Map<string, string[]>();
+  const prefixesByRouter = new Map<string, Set<string>>();
+  const mountEdges = new Map<string, Array<{ readonly to: string; readonly prefix: string }>>();
   const gaps: Gap[] = [];
+
+  const routerKey = (file: string, variable: string): string => `${file}\u0000${variable}`;
+  const targetVariable = (resolved: { file: string; exportedName: string }): string => {
+    const target = analyses.get(resolved.file);
+    if (target === undefined) return resolved.exportedName;
+    if (resolved.exportedName === '*') {
+      const defaultBinding = target.bindings.exports.get('default');
+      if (defaultBinding?.kind === 'local') return defaultBinding.localName;
+      if (target.mounts.some((mount) => mount.routerVariable === '$default')) return '$default';
+      if (target.routerVariables.size === 1) return [...target.routerVariables][0] as string;
+    }
+    const binding = target.bindings.exports.get(resolved.exportedName);
+    if (binding?.kind === 'local') return binding.localName;
+    if (resolved.exportedName === 'default' && target.mounts.some((mount) => mount.routerVariable === '$default')) {
+      return '$default';
+    }
+    return resolved.exportedName;
+  };
 
   for (const analysis of analyses.values()) {
     for (const mount of analysis.mounts) {
@@ -189,9 +208,11 @@ export async function extractExpressEndpoints(args: {
         continue;
       }
 
-      const bucket = prefixesByFile.get(resolved.file) ?? [];
-      bucket.push(mount.prefix);
-      prefixesByFile.set(resolved.file, bucket);
+      const from = routerKey(analysis.file, mount.routerVariable);
+      const to = routerKey(resolved.file, targetVariable(resolved));
+      const edges = mountEdges.get(from) ?? [];
+      edges.push({ to, prefix: mount.prefix });
+      mountEdges.set(from, edges);
     }
 
     if (analysis.unconfirmedRouters.length > 0) {
@@ -207,15 +228,45 @@ export async function extractExpressEndpoints(args: {
     }
   }
 
+  const queue: Array<{ readonly key: string; readonly prefix: string }> = [];
+  for (const analysis of analyses.values()) {
+    for (const variable of analysis.appVariables) {
+      queue.push({ key: routerKey(analysis.file, variable), prefix: '' });
+    }
+  }
+  const visited = new Set<string>();
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (current === undefined) continue;
+    const visitKey = `${current.key}\u0000${current.prefix}`;
+    if (visited.has(visitKey)) continue;
+    visited.add(visitKey);
+    const bucket = prefixesByRouter.get(current.key) ?? new Set<string>();
+    bucket.add(current.prefix);
+    prefixesByRouter.set(current.key, bucket);
+    for (const edge of mountEdges.get(current.key) ?? []) {
+      queue.push({ key: edge.to, prefix: joinPath(current.prefix, edge.prefix) });
+    }
+  }
+
   const entries: EndpointEntry[] = [];
 
   for (const analysis of analyses.values()) {
     if (analysis.registrations.length === 0) continue;
 
-    const prefixes = prefixesByFile.get(analysis.file);
-    const effectivePrefixes = prefixes === undefined || prefixes.length === 0 ? [''] : prefixes;
+    const registrationPrefixes = new Map<string, readonly string[]>();
+    for (const registration of analysis.registrations) {
+      const prefixes = [...(prefixesByRouter.get(routerKey(analysis.file, registration.routerVariable)) ?? [])]
+        .sort();
+      registrationPrefixes.set(registration.routerVariable, prefixes);
+    }
 
-    if (prefixes === undefined && declaresMountableRouter(analysis)) {
+    if (
+      declaresMountableRouter(analysis) &&
+      [...new Set(analysis.registrations.map((registration) => registration.routerVariable))].some(
+        (variable) => (prefixesByRouter.get(routerKey(analysis.file, variable))?.size ?? 0) === 0,
+      )
+    ) {
       // Routes on a router nobody mounts have no determinable URL.
       gaps.push({
         extractor: 'endpoints',
@@ -228,7 +279,9 @@ export async function extractExpressEndpoints(args: {
     }
 
     for (const registration of analysis.registrations) {
-      for (const prefix of [...new Set(effectivePrefixes)].sort()) {
+      const prefixes = registrationPrefixes.get(registration.routerVariable) ?? [];
+      const effectivePrefixes = prefixes.length === 0 ? [''] : prefixes;
+      for (const prefix of effectivePrefixes) {
         const fullPath = joinPath(prefix, registration.path);
         entries.push({
           id: `endpoint:${registration.method}:${fullPath}`,
@@ -296,6 +349,11 @@ export function analyseFile(file: string, contents: string): FileAnalysis {
     const initializer = node.initializer;
     if (initializer === undefined || !ts.isCallExpression(initializer)) return;
 
+    if (isRouterChain(initializer)) {
+      routerVariables.add(node.name.text);
+      return;
+    }
+
     const callee = initializer.expression;
     const name = ts.isIdentifier(callee)
       ? callee.text
@@ -306,6 +364,15 @@ export function analyseFile(file: string, contents: string): FileAnalysis {
     if (name === undefined) return;
     if (ROUTER_FACTORIES.has(name)) routerVariables.add(node.name.text);
     else if (APP_FACTORIES.has(name)) appVariables.add(node.name.text);
+  });
+
+  walk(source, (node) => {
+    if (
+      ts.isExportAssignment(node) && node.isExportEquals !== true &&
+      isRouterChain(node.expression)
+    ) {
+      routerVariables.add('$default');
+    }
   });
 
   // Anything annotated as an Express app or router, however it arrived.
@@ -329,9 +396,10 @@ export function analyseFile(file: string, contents: string): FileAnalysis {
     if (!ts.isCallExpression(node)) return;
     const callee = node.expression;
     if (!ts.isPropertyAccessExpression(callee) || !ts.isIdentifier(callee.name)) return;
-    if (!ts.isIdentifier(callee.expression)) return;
-
-    const routerVariable = callee.expression.text;
+    const routerVariable = ts.isIdentifier(callee.expression)
+      ? callee.expression.text
+      : ownerOfChain(node);
+    if (routerVariable === undefined) return;
     const methodName = callee.name.text.toLowerCase();
     const position = positionOf(source, node, file);
 
@@ -360,11 +428,11 @@ export function analyseFile(file: string, contents: string): FileAnalysis {
 
     if (methodName === 'use') {
       const first = node.arguments[0];
-      const prefix = literalString(first);
-      // `app.use(cors())` has no prefix and mounts no routes.
-      if (prefix === undefined || !prefix.startsWith('/')) return;
-
-      for (const argument of node.arguments.slice(1)) {
+      const literalPrefix = literalString(first);
+      const hasPrefix = literalPrefix?.startsWith('/') === true;
+      const prefix = hasPrefix ? literalPrefix as string : '';
+      const mounted = hasPrefix ? node.arguments.slice(1) : node.arguments;
+      for (const argument of mounted) {
         // `app.use('/x', routes)` and the ESM/CJS interop form
         // `app.use('/x', routes.default)` both mount the same module.
         const symbol = mountedSymbolName(argument);
@@ -428,6 +496,11 @@ export function analyseFile(file: string, contents: string): FileAnalysis {
     });
   });
 
+  const defaultExport = bindings.exports.get('default');
+  if (defaultExport?.kind === 'local' && routerVariables.has(defaultExport.localName)) {
+    mounts.push({ routerVariable: '$default', prefix: '', symbol: defaultExport.localName, line: 1 });
+  }
+
   for (const name of [...routerVariables, ...appVariables]) unconfirmed.delete(name);
   return {
     file,
@@ -438,4 +511,27 @@ export function analyseFile(file: string, contents: string): FileAnalysis {
     mounts,
     unconfirmedRouters: [...unconfirmed].sort(),
   };
+}
+
+function isRouterChain(expression: ts.Expression): boolean {
+  let current: ts.Expression = expression;
+  while (ts.isCallExpression(current) && ts.isPropertyAccessExpression(current.expression)) {
+    current = current.expression.expression;
+  }
+  return ts.isCallExpression(current) &&
+    ((ts.isIdentifier(current.expression) && ROUTER_FACTORIES.has(current.expression.text)) ||
+      (ts.isPropertyAccessExpression(current.expression) &&
+        ts.isIdentifier(current.expression.name) && ROUTER_FACTORIES.has(current.expression.name.text)));
+}
+
+function ownerOfChain(node: ts.CallExpression): string | undefined {
+  let current: ts.Node = node;
+  while (current.parent !== undefined) {
+    const parent = current.parent;
+    if (ts.isVariableDeclaration(parent) && ts.isIdentifier(parent.name)) return parent.name.text;
+    if (ts.isExportAssignment(parent) && parent.isExportEquals !== true) return '$default';
+    if (ts.isStatement(parent)) return undefined;
+    current = parent;
+  }
+  return undefined;
 }

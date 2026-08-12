@@ -33,6 +33,7 @@ Start with **[Getting started](getting-started.md)** — about five minutes, on 
 | [Rolling out across repos](rollout.md) | A sequence that survives contact with a real team |
 | [Troubleshooting](troubleshooting.md) | Specific failures and what to do about them |
 | [Docgen v1 implementation plan](implementation-plan.md) | Evidence graph, feature lifecycle, tester handoffs, migration, and release gates |
+| [Docgen 1.0.0 release readiness](v1-release-readiness.md) | Criterion-by-criterion evidence, representative pilots, and publication boundary |
 | [Schema compatibility and upgrades](schema-compatibility.md) | Version support, explicit migrations, backups, rollback, and recovery guarantees |
 | [Security threat model](security/threat-model.md) | Assets, trust boundaries, attacker stories, controls, and severity calibration |
 | [Self-pilot baseline](pilots/docgen-self.md) | Draft extraction-quality measurements awaiting maintainer approval |

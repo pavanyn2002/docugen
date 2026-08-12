@@ -126,13 +126,14 @@ Gate: CI evaluates deterministic governance policies without network or model ac
 
 - [x] Test Windows, Linux, and macOS across supported Node versions.
 - [x] Add graph golden tests, interrupted-write recovery, upgrade, and rollback tests.
-- [ ] Pilot against representative real repositories and record false positives/negatives.
+- [x] Pilot against representative frontend and backend repositories and record attributed false positives/negatives.
 - [x] Add package provenance, automated releases, schema migrations, and `docgen doctor`.
 - [ ] Publish v1 only after all release criteria below pass.
 
-Current pilot evidence: the Docgen library self-pilot is committed as a draft.
-The release gate remains open until a maintainer approves it and representative
-frontend and backend application repositories have attributed reviews.
+Approved pilot evidence covers Docugen itself plus immutable frontend and
+backend upstream commits. Reports and attributed manifests live under
+`docs/pilots/`. The backend pilot found an Express router-composition false
+positive; it was fixed and the pilot was rerun before release preparation.
 
 ## v1 release criteria
 

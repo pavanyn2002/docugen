@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "repository": "vercel/nextjs-postgres-auth-starter@fde8ecf1da9337223081f70cf88b420060039d6e",
+  "repositoryClass": "frontend",
+  "reviewStatus": "approved",
+  "reviewedBy": "pavanyn2002 with Codex-assisted source audit",
+  "reviewedAt": "2026-08-12T13:00:00.000+05:30",
+  "expectations": {
+    "technologies": [
+      {
+        "id": "drizzle",
+        "expected": true,
+        "owner": "pavanyn2002",
+        "note": "drizzle-orm is declared in package.json."
+      },
+      {
+        "id": "next",
+        "expected": true,
+        "owner": "pavanyn2002",
+        "note": "Next.js is declared and the app directory is present."
+      },
+      {
+        "id": "node",
+        "expected": true,
+        "owner": "pavanyn2002",
+        "note": "The package scripts and Next.js application require the Node.js runtime; Docugen v1 does not emit a Node runtime signature."
+      },
+      {
+        "id": "postgres",
+        "expected": true,
+        "owner": "pavanyn2002",
+        "note": "The postgres dependency and POSTGRES_URL usage prove PostgreSQL."
+      },
+      {
+        "id": "typescript",
+        "expected": true,
+        "owner": "pavanyn2002",
+        "note": "tsconfig.json and TypeScript source are present."
+      }
+    ],
+    "graphGaps": [
+      {
+        "id": "config:env-declared-never-read",
+        "expected": true,
+        "owner": "pavanyn2002",
+        "note": "Three variables are present in .env.example but have no direct process.env reads in repository source."
+      },
+      {
+        "id": "endpoints:route-handler-no-methods",
+        "expected": true,
+        "owner": "pavanyn2002",
+        "note": "app/api/auth/[...nextauth]/route.ts re-exports GET and POST; the v1 endpoint extractor reports this unsupported re-export honestly instead of inventing handlers."
+      }
+    ]
+  }
+}
