@@ -12,7 +12,14 @@ import type { ExtractorId } from '../types/core.js';
  * adding a row and an extractor provider, not restructuring detection.
  */
 
-export type TechCategory = 'language' | 'web-framework' | 'orm' | 'datastore' | 'runtime';
+export type TechCategory =
+  | 'language'
+  | 'web-framework'
+  | 'api-framework'
+  | 'job-runner'
+  | 'orm'
+  | 'datastore'
+  | 'runtime';
 
 export interface TechSignature {
   readonly id: string;
@@ -97,6 +104,19 @@ export const TECH_SIGNATURES: readonly TechSignature[] = Object.freeze([
     covers: ['schema', 'endpoints'],
   },
   {
+    // Django itself is covered, which makes silence here especially misleading:
+    // a DRF router registers a ViewSet and generates the URLs at runtime, so
+    // none of those endpoints appear in any urlconf docgen can read.
+    id: 'drf',
+    name: 'Django REST Framework',
+    category: 'api-framework',
+    dependencies: ['djangorestframework', 'django-rest-framework'],
+    covers: [],
+    unsupportedNote:
+      'ViewSet routes registered on a DRF router are not extracted; the urlconf that includes ' +
+      'them is reported as unresolved.',
+  },
+  {
     id: 'rails',
     name: 'Ruby on Rails',
     category: 'web-framework',
@@ -119,6 +139,43 @@ export const TECH_SIGNATURES: readonly TechSignature[] = Object.freeze([
     files: ['**/SpringBootApplication.java', '**/application.properties', '**/application.yml'],
     covers: [],
     unsupportedNote: 'Controllers, JPA entities, and scheduled tasks are not extracted.',
+  },
+
+  // ── background job runners ────────────────────────────────────────────────
+  // The jobs extractor reads JavaScript queue libraries only. A Python worker
+  // is invisible to it, and an empty Background jobs page is indistinguishable
+  // from a repo that runs nothing in the background unless this is stated.
+  {
+    id: 'celery',
+    name: 'Celery',
+    category: 'job-runner',
+    dependencies: ['celery'],
+    covers: [],
+    unsupportedNote: 'Celery tasks and beat schedules are not extracted.',
+  },
+  {
+    id: 'apscheduler',
+    name: 'APScheduler',
+    category: 'job-runner',
+    dependencies: ['apscheduler', 'APScheduler'],
+    covers: [],
+    unsupportedNote: 'Scheduled jobs are not extracted.',
+  },
+  {
+    id: 'rq',
+    name: 'RQ',
+    category: 'job-runner',
+    dependencies: ['rq'],
+    covers: [],
+    unsupportedNote: 'Queue workers are not extracted.',
+  },
+  {
+    id: 'dramatiq',
+    name: 'Dramatiq',
+    category: 'job-runner',
+    dependencies: ['dramatiq'],
+    covers: [],
+    unsupportedNote: 'Actors and their brokers are not extracted.',
   },
 
   // ── ORMs and schema sources ───────────────────────────────────────────────

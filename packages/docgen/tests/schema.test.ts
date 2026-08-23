@@ -374,6 +374,295 @@ describe('Python models', () => {
   });
 });
 
+// ── Django table naming ──────────────────────────────────────────────────────
+
+// Falling back to the class name named a table `Tag` when the database holds
+// `blog_tag` — a statement about the datastore the datastore disagrees with.
+describe('Django default table names', () => {
+  const blogApp = {
+    'requirements.txt': 'Django>=5.0\n',
+    'blog/models.py':
+      'from django.db import models\n\n\n' +
+      'class Tag(models.Model):\n' +
+      '    name = models.CharField(max_length=50, unique=True)\n\n\n' +
+      'class Post(models.Model):\n' +
+      '    title = models.CharField(max_length=200)\n\n' +
+      '    class Meta:\n' +
+      '        db_table = "blog_posts"\n',
+  };
+
+  it('derives <app_label>_<modelname> from the app package', async () => {
+    const result = await runOn(await makeRepo(blogApp));
+
+    expect(table(result, 'blog_tag')).toBeDefined();
+    expect(table(result, 'blog_tag')?.modelName).toBe('Tag');
+    expect(table(result, 'Tag')).toBeUndefined();
+  });
+
+  it('lets an explicit db_table win over the derived name', async () => {
+    const result = await runOn(await makeRepo(blogApp));
+
+    expect(table(result, 'blog_posts')).toBeDefined();
+    expect(table(result, 'blog_post')).toBeUndefined();
+  });
+
+  it('says which names were derived rather than declared', async () => {
+    const result = await runOn(await makeRepo(blogApp));
+    const gap = result.gaps.find((entry) => entry.kind === 'django-table-name-derived');
+
+    expect(gap?.message).toContain('blog_tag');
+    expect(gap?.message).not.toContain('blog_posts');
+  });
+
+  it('honours an app_label declared in Meta', async () => {
+    const result = await runOn(
+      await makeRepo({
+        'requirements.txt': 'Django>=5.0\n',
+        'src/models.py':
+          'from django.db import models\n\n\n' +
+          'class Invoice(models.Model):\n' +
+          '    number = models.CharField(max_length=20)\n\n' +
+          '    class Meta:\n' +
+          '        app_label = "billing"\n',
+      }),
+    );
+    expect(table(result, 'billing_invoice')).toBeDefined();
+  });
+
+  it('takes the app label from the parent of a models package', () => {
+    const parsed = parsePythonModels(
+      'shop/models/order.py',
+      'from django.db import models\n\n\nclass Order(models.Model):\n    ref = models.CharField(max_length=20)\n',
+    );
+    expect(parsed.entries[0]?.name).toBe('shop_order');
+  });
+
+  // An abstract base or a proxy is a Python class, not a table. Deriving a name
+  // for one invents a table that does not exist in the database.
+  const abstractBase = {
+    'requirements.txt': 'Django>=5.0\n',
+    'core/models.py':
+      'from django.db import models\n\n\n' +
+      'class TimeStamped(models.Model):\n' +
+      '    created_at = models.DateTimeField(auto_now_add=True)\n\n' +
+      '    class Meta:\n' +
+      '        abstract = True\n',
+  };
+
+  it('does not invent a table for an abstract base model', async () => {
+    const result = await runOn(await makeRepo(abstractBase));
+    expect(result.entries.map((entry) => entry.name)).not.toContain('core_timestamped');
+  });
+
+  // Its fields land on every concrete model that inherits it, and docgen does
+  // not follow Django inheritance — so dropping them without a word would make
+  // the concrete tables look like they are missing columns.
+  it('says the abstract model’s fields are inherited but not resolved', async () => {
+    const result = await runOn(await makeRepo(abstractBase));
+    const gap = result.gaps.find((entry) => entry.kind === 'python-abstract-model-not-expanded');
+
+    expect(gap?.message).toContain('TimeStamped');
+    expect(gap?.source?.file).toBe('core/models.py');
+  });
+});
+
+// ── Django implicit primary key ──────────────────────────────────────────────
+
+describe('Django implicit primary key', () => {
+  const noExplicitKey = {
+    'requirements.txt': 'Django>=5.0\n',
+    'blog/models.py':
+      'from django.db import models\n\n\n' +
+      'class Tag(models.Model):\n' +
+      '    name = models.CharField(max_length=50)\n',
+  };
+
+  // Omitting it showed a table with no key at all, which reads as a defect in
+  // the schema rather than a limit of the reader.
+  it('records the id column Django adds', async () => {
+    const result = await runOn(await makeRepo(noExplicitKey));
+    expect(field(table(result, 'blog_tag'), 'id')).toMatchObject({
+      isPrimaryKey: true,
+      nullable: false,
+    });
+  });
+
+  it('says the concrete type depends on DEFAULT_AUTO_FIELD', async () => {
+    const result = await runOn(await makeRepo(noExplicitKey));
+    const gap = result.gaps.find((entry) => entry.kind === 'django-implicit-primary-key');
+
+    expect(gap?.message).toContain('blog_tag');
+    expect(gap?.message).toContain('DEFAULT_AUTO_FIELD');
+  });
+
+  it('adds nothing when the model declares its own primary key', async () => {
+    const result = await runOn(
+      await makeRepo({
+        'requirements.txt': 'Django>=5.0\n',
+        'blog/models.py':
+          'from django.db import models\n\n\n' +
+          'class Tag(models.Model):\n' +
+          '    code = models.CharField(max_length=10, primary_key=True)\n',
+      }),
+    );
+
+    expect(field(table(result, 'blog_tag'), 'id')).toBeUndefined();
+    expect(result.gaps.some((entry) => entry.kind === 'django-implicit-primary-key')).toBe(false);
+  });
+
+  it('leaves SQLAlchemy models alone', async () => {
+    const result = await runOn(
+      await makeRepo({
+        'requirements.txt': 'sqlalchemy>=2.0\n',
+        'app/tables.py':
+          'from sqlalchemy import Column, String\n' +
+          'from sqlalchemy.orm import DeclarativeBase\n\n\n' +
+          'class Base(DeclarativeBase):\n    pass\n\n\n' +
+          'class Note(Base):\n' +
+          '    __tablename__ = "notes"\n\n' +
+          '    body = Column(String(10))\n',
+      }),
+    );
+    expect(field(table(result, 'notes'), 'id')).toBeUndefined();
+  });
+});
+
+// ── SQLAlchemy relationship cardinality ──────────────────────────────────────
+
+// Every `relationship()` used to be recorded as one-to-many, which labelled the
+// child side of an ordinary parent/child pair backwards. The side holding the
+// foreign key is the many side, and that is provable once both classes are read.
+describe('SQLAlchemy relationship cardinality', () => {
+  const parentChild = {
+    'requirements.txt': 'sqlalchemy>=2.0\n',
+    'app/tables.py':
+      'from sqlalchemy import Column, Integer, String, ForeignKey\n' +
+      'from sqlalchemy.orm import DeclarativeBase, relationship\n\n\n' +
+      'class Base(DeclarativeBase):\n    pass\n\n\n' +
+      'class User(Base):\n' +
+      '    __tablename__ = "users"\n\n' +
+      '    id = Column(Integer, primary_key=True)\n' +
+      '    items = relationship("Item", back_populates="owner")\n\n\n' +
+      'class Item(Base):\n' +
+      '    __tablename__ = "items"\n\n' +
+      '    id = Column(Integer, primary_key=True)\n' +
+      '    owner_id = Column(Integer, ForeignKey("users.id"))\n' +
+      '    owner = relationship("User", back_populates="items")\n',
+  };
+
+  it('reads the foreign-key side as many-to-one', async () => {
+    const result = await runOn(await makeRepo(parentChild));
+    expect(table(result, 'items')?.relations).toContainEqual({
+      field: 'owner',
+      targetModel: 'User',
+      cardinality: 'many-to-one',
+    });
+  });
+
+  it('reads the other side as one-to-many', async () => {
+    const result = await runOn(await makeRepo(parentChild));
+    expect(table(result, 'users')?.relations).toContainEqual({
+      field: 'items',
+      targetModel: 'Item',
+      cardinality: 'one-to-many',
+    });
+  });
+
+  it('resolves across files', async () => {
+    const result = await runOn(
+      await makeRepo({
+        'requirements.txt': 'sqlalchemy>=2.0\n',
+        'app/base.py':
+          'from sqlalchemy.orm import DeclarativeBase\n\n\nclass Base(DeclarativeBase):\n    pass\n',
+        'app/user.py':
+          'from sqlalchemy import Column, Integer\n' +
+          'from sqlalchemy.orm import relationship\n' +
+          'from .base import Base\n\n\n' +
+          'class User(Base):\n' +
+          '    __tablename__ = "users"\n\n' +
+          '    id = Column(Integer, primary_key=True)\n' +
+          '    items = relationship("Item")\n',
+        'app/item.py':
+          'from sqlalchemy import Column, Integer, ForeignKey\n' +
+          'from .base import Base\n\n\n' +
+          'class Item(Base):\n' +
+          '    __tablename__ = "items"\n\n' +
+          '    id = Column(Integer, primary_key=True)\n' +
+          '    owner_id = Column(Integer, ForeignKey("users.id"))\n',
+      }),
+    );
+    expect(table(result, 'users')?.relations).toContainEqual({
+      field: 'items',
+      targetModel: 'Item',
+      cardinality: 'one-to-many',
+    });
+  });
+
+  it('reads an association table as many-to-many', async () => {
+    const result = await runOn(
+      await makeRepo({
+        'requirements.txt': 'sqlalchemy>=2.0\n',
+        'app/tables.py':
+          'from sqlalchemy import Column, Integer\n' +
+          'from sqlalchemy.orm import DeclarativeBase, relationship\n\n\n' +
+          'class Base(DeclarativeBase):\n    pass\n\n\n' +
+          'class Post(Base):\n' +
+          '    __tablename__ = "posts"\n\n' +
+          '    id = Column(Integer, primary_key=True)\n' +
+          '    tags = relationship("Tag", secondary=post_tags)\n',
+      }),
+    );
+    expect(table(result, 'posts')?.relations).toContainEqual({
+      field: 'tags',
+      targetModel: 'Tag',
+      cardinality: 'many-to-many',
+    });
+  });
+
+  it('reads uselist=False as one-to-one', async () => {
+    const result = await runOn(
+      await makeRepo({
+        'requirements.txt': 'sqlalchemy>=2.0\n',
+        'app/tables.py':
+          'from sqlalchemy import Column, Integer\n' +
+          'from sqlalchemy.orm import DeclarativeBase, relationship\n\n\n' +
+          'class Base(DeclarativeBase):\n    pass\n\n\n' +
+          'class User(Base):\n' +
+          '    __tablename__ = "users"\n\n' +
+          '    id = Column(Integer, primary_key=True)\n' +
+          '    profile = relationship("Profile", uselist=False)\n',
+      }),
+    );
+    expect(table(result, 'users')?.relations).toContainEqual({
+      field: 'profile',
+      targetModel: 'Profile',
+      cardinality: 'one-to-one',
+    });
+  });
+
+  // SPEC rule 5: omit rather than guess. Neither side proves the shape here.
+  it('omits the cardinality when the target class was never read', () => {
+    const parsed = parsePythonModels(
+      'app/tables.py',
+      'from sqlalchemy.orm import relationship\n\n\n' +
+        'class Shipment(Base):\n' +
+        '    __tablename__ = "shipments"\n\n' +
+        '    legs = relationship("Leg")\n',
+    );
+    expect(parsed.entries[0]?.relations).toEqual([{ field: 'legs', targetModel: 'Leg' }]);
+  });
+
+  it('does not read a keyword argument as the target class', () => {
+    const parsed = parsePythonModels(
+      'app/tables.py',
+      'class Shipment(Base):\n' +
+        '    __tablename__ = "shipments"\n\n' +
+        '    legs = relationship(back_populates="shipment")\n',
+    );
+    expect(parsed.entries).toEqual([]);
+  });
+});
+
 // ── cross-provider behaviour ─────────────────────────────────────────────────
 
 describe('multiple schema sources', () => {

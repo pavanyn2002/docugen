@@ -209,7 +209,7 @@ export async function extractDjangoEndpoints(args: {
           extractor: 'endpoints',
           kind: 'urlconf-include-unresolved',
           message:
-            `include(${row.target.slice(0, 60)}) could not be followed to a urls.py in this ` +
+            `${row.target.slice(0, 60)} could not be followed to a urls.py in this ` +
             'repository, so the URLs below it are not documented.',
           source: { file, line: row.line },
         });

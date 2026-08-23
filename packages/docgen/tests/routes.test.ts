@@ -508,6 +508,52 @@ describe('guard reporting honesty', () => {
     const result = await runOn(path.join(FIXTURES, 'next-app'));
     expect(result.gaps.some((g) => g.kind === 'no-guard-mechanism-detected')).toBe(false);
   });
+
+  // Middleware lives beside the app it guards. Reading only the repo root meant
+  // a monorepo's `apps/web/src/middleware.ts` was never seen, so every screen in
+  // that app was reported as having no detectable guard mechanism at all.
+  describe('in a monorepo workspace', () => {
+    const guardedWorkspace = {
+      'package.json': JSON.stringify({ private: true, workspaces: ['apps/*'] }),
+      'apps/web/package.json': JSON.stringify({ dependencies: { next: '15.0.0' } }),
+      'apps/web/src/middleware.ts':
+        "export const config = { matcher: ['/dashboard/:path*'] };\n",
+      'apps/web/src/app/page.tsx': 'export default function Home() { return null; }\n',
+      'apps/web/src/app/dashboard/page.tsx': 'export default function Dash() { return null; }\n',
+    };
+
+    it('finds middleware beside the app and marks the routes it matches', async () => {
+      const result = await runOn(await makeRepo(guardedWorkspace));
+      const dashboard = result.entries.find((entry) => entry.path === '/dashboard');
+
+      expect(dashboard?.guards.map((guard) => guard.name)).toEqual(['middleware']);
+      expect(dashboard?.guards[0]?.source.file).toBe('apps/web/src/middleware.ts');
+    });
+
+    it('leaves routes the matcher does not cover unguarded', async () => {
+      const result = await runOn(await makeRepo(guardedWorkspace));
+      expect(result.entries.find((entry) => entry.path === '/')?.guards).toEqual([]);
+    });
+
+    it('does not claim no guard mechanism exists when one does', async () => {
+      const result = await runOn(await makeRepo(guardedWorkspace));
+      expect(result.gaps.some((g) => g.kind === 'no-guard-mechanism-detected')).toBe(false);
+    });
+
+    it('names the workspace that has no middleware', async () => {
+      const result = await runOn(
+        await makeRepo({
+          'package.json': JSON.stringify({ private: true, workspaces: ['apps/*'] }),
+          'apps/web/package.json': JSON.stringify({ dependencies: { next: '15.0.0' } }),
+          'apps/web/src/app/page.tsx': 'export default function Home() { return null; }\n',
+        }),
+      );
+      const gap = result.gaps.find((g) => g.kind === 'no-guard-mechanism-detected');
+
+      expect(gap?.message).toContain('apps/web');
+      expect(gap?.message).toContain('undetermined, not public');
+    });
+  });
 });
 
 // ── graceful degradation and determinism ─────────────────────────────────────

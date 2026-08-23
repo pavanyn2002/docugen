@@ -171,6 +171,32 @@ describe('stack detection', () => {
     expect(report.unsupported).toEqual([]);
   });
 
+  // The jobs extractor reads JavaScript queue libraries only, so a Celery repo
+  // produced an empty Background jobs page that read as "nothing runs in the
+  // background here" — with nothing anywhere saying otherwise.
+  it('reports a Python job runner it cannot document', async () => {
+    const root = await makeRepo({
+      'requirements.txt': 'celery>=5.3\nfastapi>=0.115\n',
+    });
+    const report = await detect(root);
+    const celery = report.unsupported.find((tech) => tech.id === 'celery');
+
+    expect(celery).toBeDefined();
+    expect(celery?.unsupportedNote).toContain('not extracted');
+  });
+
+  // Django is covered, which makes silence about DRF worse rather than better:
+  // the reader has every reason to trust the endpoint list is complete.
+  it('reports Django REST Framework as a gap even though Django is covered', async () => {
+    const root = await makeRepo({
+      'requirements.txt': 'Django>=5.0\ndjangorestframework>=3.15\n',
+    });
+    const report = await detect(root);
+
+    expect(report.unsupported.map((tech) => tech.id)).toContain('drf');
+    expect(report.technologies.find((tech) => tech.id === 'django')?.covers).toContain('endpoints');
+  });
+
   it('marks a supported technology with the extractors that cover it', async () => {
     const report = await detect(path.join(FIXTURES, 'mongoose-service'));
     const mongoose = report.technologies.find((tech) => tech.id === 'mongoose');
@@ -190,11 +216,12 @@ describe('signature table integrity', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it('gives every unsupported framework or ORM a note explaining what is missing', () => {
+  it('gives every unsupported surface-declaring technology a note explaining what is missing', () => {
+    const declaresSurfaces = new Set(['web-framework', 'api-framework', 'job-runner', 'orm']);
     const missing = TECH_SIGNATURES.filter(
       (signature) =>
         signature.covers.length === 0 &&
-        (signature.category === 'web-framework' || signature.category === 'orm') &&
+        declaresSurfaces.has(signature.category) &&
         signature.unsupportedNote === undefined,
     );
     expect(missing.map((signature) => signature.id)).toEqual([]);

@@ -313,6 +313,55 @@ describe('Next.js API endpoints', () => {
     expect(route(result, 'ALL', '/api/users')).toBeDefined();
     expect(result.gaps.some((gap) => gap.kind === 'pages-api-method-undetermined')).toBe(true);
   });
+
+  // Scanning only `app/` and `pages/api/` at the repo root found nothing in the
+  // ordinary Next monorepo layout, and the skip then stated outright that no
+  // Next.js API handler existed. Routes detection has always been workspace
+  // aware; endpoints disagreeing with it about the same app is the worst case.
+  describe('in a monorepo workspace', () => {
+    const workspaceRepo = {
+      'package.json': JSON.stringify({ private: true, workspaces: ['apps/*'] }),
+      'apps/web/package.json': JSON.stringify({ dependencies: { next: '15.0.0' } }),
+      'apps/web/src/app/api/health/route.ts': 'export async function GET() { return Response.json({}); }\n',
+      'apps/web/src/app/api/orders/[id]/route.ts':
+        'export async function GET() { return Response.json({}); }\n' +
+        'export const DELETE = async () => new Response(null);\n',
+      'apps/web/pages/api/legacy.ts': 'export default function handler(req, res) { res.end(); }\n',
+    };
+
+    it('finds app-router handlers under the workspace that declares Next', async () => {
+      const result = await runOn(await makeRepo(workspaceRepo));
+
+      expect(result.entries.map((entry) => `${entry.method} ${entry.path}`).sort()).toEqual([
+        'ALL /api/legacy',
+        'DELETE /api/orders/[id]',
+        'GET /api/health',
+        'GET /api/orders/[id]',
+      ]);
+    });
+
+    it('reports next-api as detected rather than skipping the repo', async () => {
+      const result = await runOn(await makeRepo(workspaceRepo));
+
+      expect(result.detected).toContain('next-api');
+      expect(result.skips.map((entry) => entry.kind)).not.toContain('no-endpoint-source-detected');
+    });
+
+    it('attributes each endpoint to the workspace that owns it', async () => {
+      const result = await runOn(await makeRepo(workspaceRepo));
+      expect(new Set(result.entries.map((entry) => entry.workspace))).toEqual(new Set(['apps/web']));
+    });
+
+    it('still finds a root-level app directory', async () => {
+      const result = await runOn(
+        await makeRepo({
+          'package.json': JSON.stringify({ dependencies: { next: '15.0.0' } }),
+          'app/api/health/route.ts': 'export async function GET() { return Response.json({}); }\n',
+        }),
+      );
+      expect(result.entries.map((entry) => entry.path)).toEqual(['/api/health']);
+    });
+  });
 });
 
 // ── OpenAPI cross-check ──────────────────────────────────────────────────────

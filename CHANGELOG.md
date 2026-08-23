@@ -2,6 +2,62 @@
 
 All notable changes to Docugen are documented here.
 
+## 1.0.4 — 2026-08-24
+
+Next.js monorepo and Python correctness patch.
+
+### Fixed
+
+- Next.js API handlers are now found in every workspace, not only at the repo
+  root. `apps/web/app/api/**` and `apps/web/pages/api/**` previously yielded no
+  endpoints at all from a root run, and the skip then stated outright that no
+  Next.js API handler existed — while route detection, which has always been
+  workspace aware, documented the screens of the very same application.
+- Next.js middleware is read per workspace. A monorepo's
+  `apps/web/src/middleware.ts` was invisible from the repo root, so every screen
+  in that app was reported as having no detectable guard mechanism. The
+  `no-guard-mechanism-detected` gap now names the workspaces that actually lack
+  middleware.
+- The endpoints extractor discovers workspaces itself when its caller does not
+  supply them, instead of silently falling back to the repo root alone.
+- Django models with no explicit `db_table` are named by Django's documented
+  default, `<app_label>_<modelname>`, rather than by the class name. A model
+  named `Tag` in `blog/` is `blog_tag`, which is what the database holds; the
+  derivation is reported as a `django-table-name-derived` gap. An `app_label`
+  declared in `Meta` is honoured, and abstract and proxy models no longer
+  produce a table at all — their fields are reported as inherited but
+  unresolved rather than dropped without a word.
+- Django models that declare no primary key now record the implicit `id` column
+  Django adds, with a gap noting that its concrete type follows the project's
+  `DEFAULT_AUTO_FIELD`. Tables previously rendered with no key whatsoever.
+- SQLAlchemy `relationship()` cardinality is resolved from whichever side holds
+  the foreign key, across files, instead of being recorded as `one-to-many` in
+  every case — which labelled the child side of an ordinary parent/child pair
+  backwards. `secondary=` and `uselist=False` are read directly, and a
+  relationship neither side proves omits the cardinality rather than guessing.
+- The `urlconf-include-unresolved` gap quotes the source verbatim instead of
+  wrapping it a second time and reporting `include(include("blog.urls"))`.
+- Celery, RQ, APScheduler, Dramatiq, and Django REST Framework are recognised
+  and reported as coverage gaps. The jobs extractor reads JavaScript queue
+  libraries only, so a Celery repo produced an empty Background jobs page with
+  nothing anywhere saying why; DRF ViewSet routes are likewise absent from a
+  Django endpoint list that otherwise looks complete.
+
+### Compatibility
+
+- Single-workspace repositories are unaffected: Next.js directory resolution
+  falls back to the repository root exactly as before, and the endpoints
+  extractor discovers the same single workspace the pipeline supplied.
+- Django and SQLAlchemy repositories will see a one-time drift in
+  `docs/generated/schema.md`, because the corrected table names, implicit
+  primary keys, and relation cardinalities change the entries themselves.
+  `docgen check` reports it; run `docgen sync` and commit the result.
+- Next.js monorepositories will see API endpoints appear that were previously
+  missing entirely, and guarded screens where the guard was never detected.
+- New gap kinds (`django-table-name-derived`, `django-implicit-primary-key`,
+  `python-abstract-model-not-expanded`) and the new `api-framework` and
+  `job-runner` categories are additive.
+
 ## 1.0.3 — 2026-08-13
 
 Targeted Express, OpenAPI, and secret-classification patch.
