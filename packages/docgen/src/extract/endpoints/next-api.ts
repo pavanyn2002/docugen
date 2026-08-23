@@ -35,15 +35,47 @@ export interface NextApiResult {
   readonly found: boolean;
 }
 
+/**
+ * The conventional directories a Next.js app serves handlers from, relative to
+ * the workspace that declares Next as a dependency.
+ */
+const APP_ROUTE_DIRS = ['app', 'src/app'] as const;
+const PAGES_API_DIRS = ['pages/api', 'src/pages/api'] as const;
+
+/**
+ * Resolve the conventional directories against every workspace.
+ *
+ * Looking only at the repo root is wrong in exactly the repos that need this
+ * most: `apps/web/app/api/**` is the ordinary Next monorepo layout, and scanning
+ * only `app/` there found nothing while the skip message went on to state that
+ * no Next.js API handler existed. Routes detection has always been workspace
+ * aware; endpoints must be too, or the two disagree about the same app.
+ */
+function candidateDirs(
+  workspaces: readonly string[],
+  conventional: readonly string[],
+): readonly string[] {
+  const dirs = new Set<string>();
+  for (const workspace of workspaces.length === 0 ? [''] : workspaces) {
+    for (const dir of conventional) {
+      dirs.add(workspace === '' ? dir : `${workspace}/${dir}`);
+    }
+  }
+  return [...dirs].sort();
+}
+
 export async function extractNextApiEndpoints(args: {
   root: string;
   exclude: readonly string[];
+  /** Repo-relative workspace directories; '' is the repo root. */
+  workspaces?: readonly string[];
 }): Promise<NextApiResult> {
   const entries: EndpointEntry[] = [];
   const gaps: Gap[] = [];
   let found = false;
+  const workspaces = args.workspaces ?? [''];
 
-  for (const appDir of ['app', 'src/app']) {
+  for (const appDir of candidateDirs(workspaces, APP_ROUTE_DIRS)) {
     const files = await fg(['**/route.{ts,tsx,js,mjs}'], {
       cwd: path.join(args.root, appDir),
       ignore: [...args.exclude],
@@ -90,7 +122,7 @@ export async function extractNextApiEndpoints(args: {
     }
   }
 
-  for (const pagesDir of ['pages/api', 'src/pages/api']) {
+  for (const pagesDir of candidateDirs(workspaces, PAGES_API_DIRS)) {
     const files = await fg(['**/*.{ts,tsx,js,mjs}'], {
       cwd: path.join(args.root, pagesDir),
       ignore: [...args.exclude],

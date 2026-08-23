@@ -94,6 +94,10 @@ workspace/runtime application; equal paths and names in separate services do
 not become false duplicate or drift findings. Root-level specs and configuration
 are not assumed to govern every service when that relationship is ambiguous.
 
+Next.js is resolved against the workspace that declares it, not the repo root.
+A root run finds `apps/web/app/api/**` and `apps/web/pages/api/**` handlers, and
+reads `apps/web/src/middleware.ts` for the guards on that app's screens.
+
 Run separately inside each deployable service when you need service-local docs
 and Git provenance. The root run answers what exists across the monorepo; a
 service run gives the narrowest deployable-service view.

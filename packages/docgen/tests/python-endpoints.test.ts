@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadConfig } from '../src/config/load.js';
@@ -33,6 +35,27 @@ async function runOn(fixture: string): Promise<EndpointsResult> {
 
 const routes = (result: EndpointsResult): string[] =>
   result.entries.map((entry: EndpointEntry) => `${entry.method} ${entry.path}`).sort();
+
+const created: string[] = [];
+afterEach(async () => {
+  await Promise.all(created.splice(0).map((dir) => fs.rm(dir, { recursive: true, force: true })));
+});
+
+async function runOnRepo(files: Record<string, string>): Promise<EndpointsResult> {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'docgen-python-'));
+  created.push(dir);
+  for (const [name, contents] of Object.entries(files)) {
+    const target = path.join(dir, name);
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    await fs.writeFile(target, contents, 'utf8');
+  }
+  const config = await loadConfig({ root: dir });
+  return (await endpointsExtractor.run({
+    root: config.root,
+    config,
+    logger: silent,
+  })) as EndpointsResult;
+}
 
 // ── shared python helpers ────────────────────────────────────────────────────
 
@@ -171,5 +194,30 @@ describe('django urlconf', () => {
 
   it('reports django as a detected source', async () => {
     expect((await runOn('django-app')).detected).toContain('django');
+  });
+
+  // `row.target` already reads `include("blog.urls")`. Wrapping it again
+  // produced `include(include("blog.urls"))`, which matches nothing a reader
+  // could search their own source for.
+  it('quotes the unresolved include exactly as the source wrote it', async () => {
+    const result = await runOnRepo({
+      'requirements.txt': ['Django>=5.0', 'djangorestframework>=3.15', ''].join('\n'),
+      'config/__init__.py': '',
+      'config/urls.py': [
+        'from django.urls import path, include',
+        'from rest_framework.routers import DefaultRouter',
+        '',
+        'router = DefaultRouter()',
+        '',
+        'urlpatterns = [',
+        '    path("api/", include(router.urls)),',
+        ']',
+        '',
+      ].join('\n'),
+    });
+    const gap = result.gaps.find((entry) => entry.kind === 'urlconf-include-unresolved');
+
+    expect(gap?.message).toContain('include(router.urls)');
+    expect(gap?.message).not.toContain('include(include(');
   });
 });

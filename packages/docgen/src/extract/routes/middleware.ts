@@ -27,6 +27,7 @@ export interface CompiledMatcher {
   readonly test: (routePath: string) => boolean;
 }
 
+/** Conventional middleware locations, relative to the workspace that owns the app. */
 const MIDDLEWARE_FILES = ['middleware.ts', 'middleware.js', 'src/middleware.ts', 'src/middleware.js'];
 
 /** Regex metacharacters that mean the pattern is beyond conservative interpretation. */
@@ -170,9 +171,20 @@ export function compileMatcher(pattern: string): CompiledMatcher | undefined {
   };
 }
 
-/** Locate and parse the repo's middleware, if it has one. */
-export async function readMiddleware(root: string): Promise<MiddlewareInfo | undefined> {
-  for (const relative of MIDDLEWARE_FILES) {
+/**
+ * Locate and parse a workspace's middleware, if it has one.
+ *
+ * `workspace` is a repo-relative POSIX directory ('' for the repo root). A
+ * monorepo keeps its middleware beside the app it guards — `apps/web/src/middleware.ts`
+ * — so looking only at the repo root reported every screen in that app as having
+ * no detectable guard mechanism while the file sat one directory away.
+ */
+export async function readMiddleware(
+  root: string,
+  workspace = '',
+): Promise<MiddlewareInfo | undefined> {
+  for (const name of MIDDLEWARE_FILES) {
+    const relative = workspace === '' ? name : `${workspace}/${name}`;
     const absolute = path.join(root, relative);
     let contents: string;
     try {

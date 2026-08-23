@@ -7,8 +7,10 @@ import { findWorkspaces } from '../../detect/workspaces.js';
 import { detectRouters } from './detect.js';
 import { extractAppRoutes, extractPagesRoutes } from './next-fs.js';
 import { readMiddleware } from './middleware.js';
+import type { MiddlewareInfo } from './middleware.js';
 import { extractReactRouterRoutes } from './react-router.js';
 import { compareStrings } from '../../util/sort.js';
+import { owningWorkspace, workspaceLabel } from '../../detect/ownership.js';
 
 /**
  * Every user-facing route in the repo.
@@ -43,9 +45,25 @@ export const routesExtractor: Extractor<RouteEntry> = {
       );
     }
 
-    const middleware = await readMiddleware(context.root);
+    // Middleware lives beside the app it guards, so it is read per workspace.
+    // A monorepo's `apps/web/src/middleware.ts` is invisible from the repo root,
+    // and reading only the root reported every screen in that app as unguarded.
+    const nextWorkspaces = [
+      ...new Set(
+        detections
+          .filter((detection) => detection.kind !== 'react-router')
+          .map((detection) => owningWorkspace(detection.dir ?? '', workspaces)),
+      ),
+    ].sort(compareStrings);
+
+    const middlewareByWorkspace = new Map<string, MiddlewareInfo>();
+    for (const workspace of nextWorkspaces) {
+      const found = await readMiddleware(context.root, workspace);
+      if (found !== undefined) middlewareByWorkspace.set(workspace, found);
+    }
+
     const entries: RouteEntry[] = [];
-    const gaps: Gap[] = [...(middleware?.gaps ?? [])];
+    const gaps: Gap[] = [...middlewareByWorkspace.values()].flatMap((info) => [...info.gaps]);
     const skips: Skip[] = [];
     const detected: string[] = [];
 
@@ -54,12 +72,17 @@ export const routesExtractor: Extractor<RouteEntry> = {
     // loader is invisible to static analysis. Without this gap a reader would
     // reasonably conclude every route is unauthenticated, which is exactly the
     // kind of confident-and-wrong statement the trust model exists to prevent.
-    if (middleware === undefined && detections.some((d) => d.kind !== 'react-router')) {
+    const unguarded = nextWorkspaces.filter((workspace) => !middlewareByWorkspace.has(workspace));
+    if (unguarded.length > 0) {
+      const where =
+        unguarded.length === 1 && unguarded[0] === ''
+          ? ''
+          : ` in ${unguarded.map((workspace) => workspaceLabel(workspace)).join(', ')}`;
       gaps.push({
         extractor: 'routes',
         kind: 'no-guard-mechanism-detected',
         message:
-          'No Next.js middleware was found, so no route guards could be detected. ' +
+          `No Next.js middleware was found${where}, so no route guards could be detected. ` +
           'Auth enforced inside components, HOCs, or data loaders is not visible to static analysis — ' +
           'an empty guard list means undetermined, not public.',
       });
@@ -67,6 +90,7 @@ export const routesExtractor: Extractor<RouteEntry> = {
 
     for (const detection of detections) {
       detected.push(detection.dir === undefined ? detection.kind : `${detection.kind} (${detection.dir})`);
+      const middleware = middlewareByWorkspace.get(owningWorkspace(detection.dir ?? '', workspaces));
 
       if (detection.kind === 'next-app' && detection.dir !== undefined) {
         const result = await extractAppRoutes({

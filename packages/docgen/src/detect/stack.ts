@@ -212,16 +212,25 @@ export async function detectStack(args: {
   return {
     workspaces,
     technologies,
-    // Only frameworks and ORMs represent a coverage gap. A language or a
-    // datastore is context: knowing a repo talks to Redis is useful, but
-    // "docgen cannot document PostgreSQL" is a meaningless warning that would
-    // train users to ignore the ones that matter.
+    // Only things that declare documentable surfaces represent a coverage gap.
+    // A language or a datastore is context: knowing a repo talks to Redis is
+    // useful, but "docgen cannot document PostgreSQL" is a meaningless warning
+    // that would train users to ignore the ones that matter. A job runner does
+    // declare surfaces — Celery tasks are exactly what the Background jobs page
+    // claims to list — so an unsupported one has to be named.
     unsupported: technologies.filter(
-      (tech) =>
-        tech.covers.length === 0 && (tech.category === 'web-framework' || tech.category === 'orm'),
+      (tech) => tech.covers.length === 0 && UNSUPPORTED_IS_A_GAP.has(tech.category),
     ),
   };
 }
+
+/** Categories whose absence from the output is a coverage gap worth reporting. */
+const UNSUPPORTED_IS_A_GAP: ReadonlySet<TechCategory> = new Set([
+  'web-framework',
+  'api-framework',
+  'job-runner',
+  'orm',
+]);
 
 /** First detection of a technology wins, so evidence points at the outermost workspace. */
 function record(into: Map<string, DetectedTechnology>, tech: DetectedTechnology): void {

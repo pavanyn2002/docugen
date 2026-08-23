@@ -12,10 +12,10 @@ API endpoints: not applicable
 **Check the detected stack first.** `docs/generated/README.md` lists what docgen recognised and what it cannot parse:
 
 ```
-  gap FastAPI in backend/ — Python routes are not extracted.
+  gap Celery in backend/ — Celery tasks and beat schedules are not extracted.
 ```
 
-A recognised-but-unparsed stack is a coverage gap, not an empty repo. docgen documents routes for Next.js (App and Pages Router) and React Router; endpoints for Express, NestJS, and Next.js handlers; schema for Prisma, Mongoose, SQL DDL, TypeORM, Sequelize, Django, and SQLAlchemy. Fastify, MedusaJS, FastAPI, Flask, Rails, Laravel, Spring Boot, Drizzle, Knex, and GORM are recognised but not yet parsed.
+A recognised-but-unparsed stack is a coverage gap, not an empty repo. docgen documents routes for Next.js (App and Pages Router) and React Router; endpoints for Express, NestJS, Next.js handlers, FastAPI, and Django urlconfs; schema for Prisma, Mongoose, SQL DDL, TypeORM, Sequelize, Django, and SQLAlchemy; jobs for BullMQ, Bull, Agenda, node-cron, node-schedule, and AMQP consumers. Fastify, MedusaJS, Flask, Rails, Laravel, Spring Boot, Drizzle, Knex, GORM, Django REST Framework routers, Celery, RQ, APScheduler, and Dramatiq are recognised but not yet parsed.
 
 **Otherwise check your globs.** `docgen extract --verbose` shows which files were scanned. A stray `exclude` pattern or a source root the `include` globs do not reach is the usual cause.
 

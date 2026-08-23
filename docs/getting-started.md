@@ -24,7 +24,8 @@ Open `docs/generated/README.md`. It lists what was found, and — just as import
 Detected stack
   3 workspaces
    ok SQL migrations in supabase/migrations/
-  gap FastAPI in backend/
+   ok FastAPI in backend/
+  gap Celery in backend/
    ok Next.js in frontend/
 warn  docgen cannot document 1 detected technology. The output below is
 warn  incomplete — an empty section does not mean the repo has nothing there.

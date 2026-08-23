@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import type { Gap, Skip } from '../../types/core.js';
 import type { EndpointEntry, EndpointsResult } from '../../types/entries.js';
 import type { Extractor, ExtractorContext } from '../types.js';
+import type { Workspace } from '../../detect/workspaces.js';
 import { inapplicable, skip } from '../types.js';
 import { extractExpressEndpoints } from './express.js';
 import { extractNextApiEndpoints } from './next-api.js';
@@ -11,6 +12,7 @@ import { extractDjangoEndpoints } from './django.js';
 import { crossCheckAgainstSpec } from './openapi.js';
 import { compareStrings } from '../../util/sort.js';
 import { applicationScope, owningWorkspace, workspaceLabel } from '../../detect/ownership.js';
+import { findWorkspaces } from '../../detect/workspaces.js';
 
 /**
  * Every API endpoint the repo serves.
@@ -25,24 +27,31 @@ export const endpointsExtractor: Extractor<EndpointEntry> = {
   async run(context: ExtractorContext): Promise<EndpointsResult> {
     const startedAt = Date.now();
     const exclude = context.config.effectiveExclude;
-    const workspaces = context.workspaces ?? [{ dir: '', manifests: [] }];
+    // Discovered here when the caller did not supply them. Defaulting to the
+    // repo root alone made every sub-project invisible to the Next.js provider,
+    // which resolves its directories relative to the workspace that owns them.
+    const workspaces = context.workspaces ?? (await findWorkspaces(context.root, exclude));
 
     const entries: EndpointEntry[] = [];
     const gaps: Gap[] = [];
     const skips: Skip[] = [];
     const detected: string[] = [];
 
-    const nextApi = await extractNextApiEndpoints({ root: context.root, exclude });
+    const nextApi = await extractNextApiEndpoints({
+      root: context.root,
+      exclude,
+      workspaces: workspaces.map((workspace) => workspace.dir),
+    });
     if (nextApi.found) {
       detected.push('next-api');
-      entries.push(...withOwnership(nextApi.entries, 'next-api', context));
+      entries.push(...withOwnership(nextApi.entries, 'next-api', workspaces));
       gaps.push(...nextApi.gaps);
     }
 
     const nest = await extractNestEndpoints({ root: context.root, exclude });
     if (nest.found) {
       detected.push('nestjs');
-      entries.push(...withOwnership(nest.entries, 'nestjs', context));
+      entries.push(...withOwnership(nest.entries, 'nestjs', workspaces));
       gaps.push(...nest.gaps);
     }
 
@@ -65,14 +74,14 @@ export const endpointsExtractor: Extractor<EndpointEntry> = {
     const fastapi = await extractFastApiEndpoints({ root: context.root, exclude });
     if (fastapi.found) {
       detected.push('fastapi');
-      entries.push(...withOwnership(fastapi.entries, 'fastapi', context));
+      entries.push(...withOwnership(fastapi.entries, 'fastapi', workspaces));
       gaps.push(...fastapi.gaps);
     }
 
     const django = await extractDjangoEndpoints({ root: context.root, exclude });
     if (django.found) {
       detected.push('django');
-      entries.push(...withOwnership(django.entries, 'django', context));
+      entries.push(...withOwnership(django.entries, 'django', workspaces));
       gaps.push(...django.gaps);
     }
 
@@ -188,10 +197,9 @@ export function resolveDuplicates(entries: readonly EndpointEntry[]): {
 function withOwnership(
   entries: readonly EndpointEntry[],
   kind: string,
-  context: ExtractorContext,
+  workspaces: readonly Workspace[],
 ): readonly EndpointEntry[] {
   return entries.map((entry) => {
-    const workspaces = context.workspaces ?? [{ dir: '', manifests: [] }];
     const workspace = owningWorkspace(entry.source.file, workspaces);
     return {
       ...entry,
