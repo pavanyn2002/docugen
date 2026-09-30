@@ -88,7 +88,7 @@ describe('filesystem safety and source aliases', () => {
     expect(await findStaleAtomicFiles(root)).toEqual([]);
     await expect(removeAtomicFiles(root, ['ordinary.tmp'])).rejects.toThrow('Refusing');
     await expect(removeAtomicFiles(root, [`../outside${ATOMIC_TEMP_MARKER}test`])).rejects.toThrow('Refusing');
-    await expect(removeAtomicFiles(root, [`D:/outside${ATOMIC_TEMP_MARKER}test`])).rejects.toThrow('Refusing');
+    await expect(removeAtomicFiles(root, [path.resolve(root, '..', `outside${ATOMIC_TEMP_MARKER}test`)])).rejects.toThrow('Refusing');
     await removeAtomicFiles(root, [relative]);
     await expect(fs.stat(path.join(root, relative))).rejects.toMatchObject({ code: 'ENOENT' });
   });
