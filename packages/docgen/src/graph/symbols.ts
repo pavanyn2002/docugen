@@ -228,19 +228,23 @@ function nearestCaller(node: ts.Node, symbols: ReadonlyMap<ts.Node, SymbolRecord
   return undefined;
 }
 
-function scopeIsVisible(candidate: SymbolRecord, caller: SymbolRecord): boolean {
-  const bodyScope = [...caller.scope, caller.name];
-  if (candidate.scope.length > bodyScope.length) return false;
-  return candidate.scope.every((part, index) => bodyScope[index] === part);
+function scopeIsVisible(candidate: SymbolRecord, caller: SymbolRecord, at: ts.Node): boolean {
+  const body = functionLikeNode(caller)?.body;
+  const scope = body !== undefined && at.pos >= body.pos && at.end <= body.end
+    ? [...caller.scope, caller.name]
+    : caller.scope;
+  if (candidate.scope.length > scope.length) return false;
+  return candidate.scope.every((part, index) => scope[index] === part);
 }
 
 function resolveLocalSymbol(
   module: ParsedModule,
   caller: SymbolRecord,
   name: string,
+  at: ts.Node,
 ): SymbolRecord | undefined {
   const candidates = module.symbols
-    .filter((symbol) => symbol.name === name && scopeIsVisible(symbol, caller))
+    .filter((symbol) => symbol.name === name && scopeIsVisible(symbol, caller, at))
     .sort((a, b) => b.scope.length - a.scope.length || compareStrings(a.id, b.id));
   const best = candidates[0];
   if (best === undefined) return undefined;
@@ -288,7 +292,7 @@ function resolveValueExpression(
 ): SymbolRecord | undefined {
   if (ts.isIdentifier(expression)) {
     if (hasLocalValueBinding(module, caller, expression.text)) return undefined;
-    const local = resolveLocalSymbol(module, caller, expression.text);
+    const local = resolveLocalSymbol(module, caller, expression.text, expression);
     if (local !== undefined && (kinds === undefined || kinds.has(local.kind))) return local;
     return resolveTopLevelSymbol(module, expression.text, context, kinds);
   }
@@ -620,14 +624,14 @@ function methodOnType(
   beforePosition: number,
   context: SymbolResolutionContext,
 ): SymbolRecord | undefined {
-  const typeName = receiverTypeName(module, caller, receiver, beforePosition);
-  if (typeName === undefined) return undefined;
-  const owner = resolveTopLevelSymbol(
-    module,
-    typeName,
-    context,
-    new Set<SymbolKind>(['class', 'interface']),
-  );
+  let owner: SymbolRecord | undefined;
+  if (receiver.kind === ts.SyntaxKind.ThisKeyword) {
+    owner = enclosingClass(module, caller);
+  } else {
+    const typeName = receiverTypeName(module, caller, receiver, beforePosition);
+    if (typeName === undefined) return undefined;
+    owner = resolveTopLevelSymbol(module, typeName, context, new Set<SymbolKind>(['class', 'interface']));
+  }
   if (owner === undefined) return undefined;
   const targetModule = context.moduleByFile.get(owner.file);
   if (targetModule === undefined) return undefined;
@@ -648,9 +652,6 @@ function addCallEdges(builder: EvidenceGraphBuilder, context: SymbolResolutionCo
           if (ts.isIdentifier(node.expression)) {
             target = resolveValueExpression(module, caller, node.expression, context);
           } else if (ts.isPropertyAccessExpression(node.expression)) {
-            if (node.expression.expression.kind === ts.SyntaxKind.ThisKeyword) {
-              target = resolveLocalSymbol(module, caller, node.expression.name.text);
-            }
             if (ts.isIdentifier(node.expression.expression)) {
               target ??= resolveNamespaceMember(
                 module,
