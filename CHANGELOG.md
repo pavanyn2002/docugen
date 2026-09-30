@@ -6,6 +6,10 @@ All notable changes to Docugen are documented here.
 
 ### Fixed
 
+- Governance pages now carry the generated ownership marker, allowing later
+  synchronization and answer triage to update them safely.
+- Added end-to-end CLI workflows, MCP tool execution and validation cases, and
+  developer-question tests. Branch coverage now passes the configured gate.
 - Generated output now validates its directory and rejects symlink traversal,
   preserves unmarked documents, and refuses human-file collisions before writing.
 - Sessions retain a graph baseline for their Git comparison revision so repeated

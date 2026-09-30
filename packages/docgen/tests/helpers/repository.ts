@@ -40,20 +40,27 @@ export async function seedGovernance(root: string): Promise<void> {
 
 export async function createRepository(files: Record<string, string> = {}): Promise<string> {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'docgen-command-'));
-  for (const [file, contents] of Object.entries({
-    'package.json': JSON.stringify({ name: 'checkout-app', dependencies: { next: '^15.0.0' } }),
-    'app/page.tsx': 'export default function Home() { return null; }\n',
-    'docgen.config.json': JSON.stringify({ include: ['app/**', 'package.json'] }),
-    ...files,
-  })) {
-    await fs.mkdir(path.dirname(path.join(root, file)), { recursive: true });
-    await fs.writeFile(path.join(root, file), contents);
+  try {
+    for (const [file, contents] of Object.entries({
+      'package.json': JSON.stringify({ name: 'checkout-app', dependencies: { next: '^15.0.0' } }),
+      'app/page.tsx': 'export default function Home() { return null; }\n',
+      'docgen.config.json': JSON.stringify({ include: ['app/**', 'package.json'] }),
+      ...files,
+    })) {
+      await fs.mkdir(path.dirname(path.join(root, file)), { recursive: true });
+      await fs.writeFile(path.join(root, file), contents);
+    }
+    for (const args of [
+      ['init'], ['config', 'user.email', 'dev@example.com'],
+      ['config', 'user.name', 'Developer'], ['add', '.'], ['commit', '-m', 'initial'],
+    ]) {
+      execFileSync('git', [
+        '-c', 'commit.gpgsign=false', '-c', `core.hooksPath=${path.join(root, '.git', 'disabled-hooks')}`, ...args,
+      ], { cwd: root, windowsHide: true, stdio: 'pipe', timeout: 15_000 });
+    }
+    return root;
+  } catch (error) {
+    await fs.rm(root, { recursive: true, force: true });
+    throw error;
   }
-  for (const args of [
-    ['init'], ['config', 'user.email', 'dev@example.com'],
-    ['config', 'user.name', 'Developer'], ['add', '.'], ['commit', '-m', 'initial'],
-  ]) {
-    execFileSync('git', args, { cwd: root, windowsHide: true, stdio: 'pipe' });
-  }
-  return root;
 }
