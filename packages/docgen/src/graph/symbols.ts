@@ -229,8 +229,9 @@ function nearestCaller(node: ts.Node, symbols: ReadonlyMap<ts.Node, SymbolRecord
 }
 
 function scopeIsVisible(candidate: SymbolRecord, caller: SymbolRecord): boolean {
-  if (candidate.scope.length > caller.scope.length) return false;
-  return candidate.scope.every((part, index) => caller.scope[index] === part);
+  const bodyScope = [...caller.scope, caller.name];
+  if (candidate.scope.length > bodyScope.length) return false;
+  return candidate.scope.every((part, index) => bodyScope[index] === part);
 }
 
 function resolveLocalSymbol(

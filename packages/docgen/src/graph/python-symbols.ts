@@ -228,9 +228,10 @@ function nearestCaller(node: Parser.SyntaxNode, module: PythonModule): PythonSym
 }
 
 function scopeVisible(candidate: PythonSymbol, caller: PythonSymbol): boolean {
+  const bodyScope = [...caller.scope, caller.name];
   return (
-    candidate.scope.length <= caller.scope.length &&
-    candidate.scope.every((part, index) => caller.scope[index] === part)
+    candidate.scope.length <= bodyScope.length &&
+    candidate.scope.every((part, index) => bodyScope[index] === part)
   );
 }
 
