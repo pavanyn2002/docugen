@@ -1,6 +1,8 @@
 import fg from 'fast-glob';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import Parser from 'tree-sitter';
+import Python from 'tree-sitter-python';
 import type { Gap } from '../../types/core.js';
 import type { EndpointEntry, HttpMethod } from '../../types/entries.js';
 import { toPosix } from '../../util/paths.js';
@@ -120,9 +122,7 @@ export function methodsOfView(source: string, viewName: string): readonly HttpMe
   const name = escapeForRegExp(viewName);
 
   // @api_view(["GET", "POST"]) above a function view.
-  const decorated = new RegExp(
-    `@api_view\\s*\\(\\s*\\[([^\\]]*)\\]\\s*\\)(?:(?!\\b(?:def|class)\\b)[\\s\\S]){0,200}?(?:async\\s+)?def\\s+${name}\\b`,
-  ).exec(stripped);
+  const decorated = apiViewDecorator(source, viewName);
   if (decorated?.[1] !== undefined) {
     const verbs = [...decorated[1].matchAll(/["'](\w+)["']/g)]
       .map((entry) => (entry[1] as string).toUpperCase())
@@ -143,6 +143,24 @@ export function methodsOfView(source: string, viewName: string): readonly HttpMe
   }
 
   return [];
+}
+
+/** Bind decorators through syntax so multiline arguments and quoted keywords cannot change ownership. */
+function apiViewDecorator(source: string, viewName: string): RegExpExecArray | null {
+  const parser = new Parser();
+  parser.setLanguage(Python);
+  const root = parser.parse(source).rootNode;
+  if (root.hasError) return null;
+  for (const definition of root.descendantsOfType('function_definition')) {
+    const owner = definition.parent as Parser.SyntaxNode;
+    const name = definition.childForFieldName('name') as Parser.SyntaxNode;
+    if (name.text !== viewName || owner.type !== 'decorated_definition') continue;
+    for (const decorator of owner.namedChildren.filter((child) => child.type === 'decorator')) {
+      const match = /^@api_view\s*\(\s*\[([^\]]*)\]/.exec(decorator.text);
+      if (match !== null) return match;
+    }
+  }
+  return null;
 }
 
 export async function extractDjangoEndpoints(args: {
