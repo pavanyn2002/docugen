@@ -63,24 +63,24 @@ function definitionNode(node: Parser.SyntaxNode): Parser.SyntaxNode {
   return node.parent?.type === 'decorated_definition' ? node.parent : node;
 }
 
+/** These fields are mandatory in the official grammar; syntax-error trees are rejected before analysis. */
+function requiredField(node: Parser.SyntaxNode, name: string): Parser.SyntaxNode {
+  return node.childForFieldName(name) as Parser.SyntaxNode;
+}
+
 function importPart(node: Parser.SyntaxNode): { readonly name: string; readonly alias?: string } {
   if (node.type !== 'aliased_import') return { name: node.text };
-  const name = node.childForFieldName('name')?.text ?? '';
-  const alias = node.childForFieldName('alias')?.text;
-  return { name, ...(alias === undefined ? {} : { alias }) };
+  return { name: requiredField(node, 'name').text, alias: requiredField(node, 'alias').text };
 }
 
 function readImports(root: Parser.SyntaxNode): ReadonlyMap<string, PythonImportBinding> {
   const bindings = new Map<string, PythonImportBinding>();
   for (const statement of root.namedChildren) {
     if (statement.type === 'import_from_statement') {
-      const moduleSpecifier = statement.childForFieldName('module_name')?.text;
-      if (moduleSpecifier === undefined) continue;
+      const moduleSpecifier = requiredField(statement, 'module_name').text;
       for (const node of statement.childrenForFieldName('name')) {
         const part = importPart(node);
-        if (part.name === '' || part.name === '*') continue;
-        const importedName = part.name.split('.').at(-1);
-        if (importedName === undefined) continue;
+        const importedName = part.name.split('.').at(-1) as string;
         const localName = part.alias ?? importedName;
         bindings.set(localName, { localName, moduleSpecifier, importedName });
       }
@@ -89,9 +89,7 @@ function readImports(root: Parser.SyntaxNode): ReadonlyMap<string, PythonImportB
     if (statement.type !== 'import_statement') continue;
     for (const node of statement.childrenForFieldName('name')) {
       const part = importPart(node);
-      if (part.name === '') continue;
-      const localName = part.alias ?? part.name.split('.')[0];
-      if (localName === undefined) continue;
+      const localName = part.alias ?? (part.name.split('.')[0] as string);
       bindings.set(localName, { localName, moduleSpecifier: part.name });
     }
   }
@@ -107,55 +105,31 @@ function analysePythonModule(file: string, root: Parser.SyntaxNode): PythonModul
     scope: readonly string[],
     directClass?: string,
   ): void => {
-    if (node.type === 'class_definition') {
-      const name = node.childForFieldName('name')?.text;
-      if (name !== undefined) {
-        const qualifiedName = [...scope, name].join('.');
-        const start = definitionNode(node).startPosition;
-        const symbol: PythonSymbol = {
-          id: graphNodeId('symbol', `${file}#class:${qualifiedName}`),
-          file,
-          name,
-          qualifiedName,
-          scope,
-          kind: 'class',
-          node,
-          line: node.startPosition.row + 1,
-          column: node.startPosition.column + 1,
-          fullStartLine: start.row + 1,
-        };
-        symbols.push(symbol);
-        symbolByNodeId.set(node.id, symbol);
-        const body = node.childForFieldName('body');
-        for (const child of body?.namedChildren ?? []) visit(child, [...scope, name], qualifiedName);
-        return;
+    if (node.type === 'class_definition' || node.type === 'function_definition') {
+      const name = requiredField(node, 'name').text;
+      const qualifiedName = [...scope, name].join('.');
+      const kind: PythonSymbolKind = node.type === 'class_definition'
+        ? 'class'
+        : directClass === undefined ? 'function' : name === '__init__' ? 'constructor' : 'method';
+      const start = definitionNode(node).startPosition;
+      const symbol: PythonSymbol = {
+        id: graphNodeId('symbol', `${file}#${kind}:${qualifiedName}`),
+        file,
+        name,
+        qualifiedName,
+        scope,
+        kind,
+        node,
+        line: node.startPosition.row + 1,
+        column: node.startPosition.column + 1,
+        fullStartLine: start.row + 1,
+      };
+      symbols.push(symbol);
+      symbolByNodeId.set(node.id, symbol);
+      for (const child of requiredField(node, 'body').namedChildren) {
+        visit(child, [...scope, name], kind === 'class' ? qualifiedName : undefined);
       }
-    }
-    if (node.type === 'function_definition') {
-      const name = node.childForFieldName('name')?.text;
-      if (name !== undefined) {
-        const qualifiedName = [...scope, name].join('.');
-        const kind: PythonSymbolKind =
-          directClass === undefined ? 'function' : name === '__init__' ? 'constructor' : 'method';
-        const start = definitionNode(node).startPosition;
-        const symbol: PythonSymbol = {
-          id: graphNodeId('symbol', `${file}#${kind}:${qualifiedName}`),
-          file,
-          name,
-          qualifiedName,
-          scope,
-          kind,
-          node,
-          line: node.startPosition.row + 1,
-          column: node.startPosition.column + 1,
-          fullStartLine: start.row + 1,
-        };
-        symbols.push(symbol);
-        symbolByNodeId.set(node.id, symbol);
-        const body = node.childForFieldName('body');
-        for (const child of body?.namedChildren ?? []) visit(child, [...scope, name]);
-        return;
-      }
+      return;
     }
     for (const child of node.namedChildren) visit(child, scope, directClass);
   };
@@ -221,7 +195,10 @@ function nearestCaller(node: Parser.SyntaxNode, module: PythonModule): PythonSym
   let current: Parser.SyntaxNode | null = node.parent;
   while (current !== null) {
     const symbol = module.symbolByNodeId.get(current.id);
-    if (symbol !== undefined && symbol.kind !== 'class') return symbol;
+    if (symbol !== undefined && symbol.kind !== 'class') {
+      const body = requiredField(symbol.node, 'body');
+      if (node.startIndex >= body.startIndex && node.endIndex <= body.endIndex) return symbol;
+    }
     current = current.parent;
   }
   return undefined;
@@ -250,7 +227,6 @@ function hasLocalBinding(caller: PythonSymbol, name: string): boolean {
   for (const assignment of caller.node.descendantsOfType(['assignment', 'named_expression'])) {
     const left = assignment.childForFieldName('left') ?? assignment.childForFieldName('name');
     if (left?.descendantsOfType('identifier').some((node) => node.text === name) === true) return true;
-    if (left?.type === 'identifier' && left.text === name) return true;
   }
   return false;
 }
@@ -320,9 +296,8 @@ function resolveAttribute(
   node: Parser.SyntaxNode,
   context: PythonResolutionContext,
 ): PythonSymbol | undefined {
-  const object = node.childForFieldName('object');
-  const attribute = node.childForFieldName('attribute')?.text;
-  if (object === null || attribute === undefined) return undefined;
+  const object = requiredField(node, 'object');
+  const attribute = requiredField(node, 'attribute').text;
   if (object.type === 'identifier' && (object.text === 'self' || object.text === 'cls')) {
     const owner = enclosingClass(module, caller);
     if (owner === undefined) return undefined;
@@ -413,8 +388,8 @@ function addPythonCalls(builder: EvidenceGraphBuilder, context: PythonResolution
     if (!emitsModule(context, module.file)) continue;
     for (const call of module.root.descendantsOfType('call')) {
       const caller = nearestCaller(call, module);
-      const expression = call.childForFieldName('function');
-      if (caller === undefined || expression === null) continue;
+      const expression = requiredField(call, 'function');
+      if (caller === undefined) continue;
       let target: PythonSymbol | undefined;
       if (expression.type === 'identifier') {
         target = resolveIdentifier(module, caller, expression.text, context);
