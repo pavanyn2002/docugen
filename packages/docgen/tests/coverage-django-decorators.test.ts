@@ -11,4 +11,9 @@ describe('Django view decorator ownership', () => {
   it('does not transfer an unrelated decorator to an undecorated view', () => {
     expect(methodsOfView("@api_view(['GET'])\ndef list_items(): pass\ndef plain(): pass\n", 'plain')).toEqual([]);
   });
+
+  it('keeps multiline permission decorators attached to the same function', () => {
+    const source = "@api_view(['POST'])\n@permission_classes([\n    IsAuthenticated,\n])\ndef create(request): pass\n";
+    expect(methodsOfView(source, 'create')).toEqual(['POST']);
+  });
 });
