@@ -22,4 +22,26 @@ describe('nested lexical call visibility', () => {
       expect.objectContaining({ from: `symbol:${file}#function:outer`, to: `symbol:${file}#function:outer.inner` }),
     ]);
   });
+
+  it('keeps TypeScript parameter initializers outside the function body scope', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'docgen-default-scope-'));
+    roots.push(root);
+    await fs.writeFile(path.join(root, 'main.ts'), 'function inner() { return 1; }\nexport function outer(value = inner()) {\n  function inner() { return 2; }\n  inner();\n  return value;\n}\n');
+    const graph = await enrichGraphWithTypeScriptSymbols({ root, exclude: [], graph: new EvidenceGraphBuilder().build() });
+    expect(graph.edges.filter((edge) => edge.kind === 'calls').map((edge) => ({ to: edge.to, evidence: edge.provenance.evidence })))
+      .toEqual([
+        { to: 'symbol:main.ts#function:inner', evidence: [expect.objectContaining({ line: 2 })] },
+        { to: 'symbol:main.ts#function:outer.inner', evidence: [expect.objectContaining({ line: 4 })] },
+      ]);
+  });
+
+  it('resolves this dispatch to the class method even when a nested function has the same name', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'docgen-method-scope-'));
+    roots.push(root);
+    await fs.writeFile(path.join(root, 'main.ts'), 'export class Service { execute() {} run() { function execute() {} execute(); this.execute(); } }\n');
+    const graph = await enrichGraphWithTypeScriptSymbols({ root, exclude: [], graph: new EvidenceGraphBuilder().build() });
+    expect(graph.edges.filter((edge) => edge.kind === 'calls').map((edge) => edge.to)).toEqual([
+      'symbol:main.ts#function:Service.run.execute', 'symbol:main.ts#method:Service.execute',
+    ]);
+  });
 });
