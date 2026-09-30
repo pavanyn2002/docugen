@@ -44,4 +44,12 @@ describe('nested lexical call visibility', () => {
       'symbol:main.ts#function:Service.run.execute', 'symbol:main.ts#method:Service.execute',
     ]);
   });
+
+  it('does not attribute Python signature evaluation to a function body', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'docgen-python-signature-'));
+    roots.push(root);
+    await fs.writeFile(path.join(root, 'main.py'), 'def helper():\n    return int\n\ndef outer() -> helper():\n    def helper():\n        pass\n    return 1\n');
+    const graph = await enrichGraphWithPythonSymbols({ root, exclude: [], graph: new EvidenceGraphBuilder().build() });
+    expect(graph.edges.filter((edge) => edge.kind === 'calls')).toEqual([]);
+  });
 });
