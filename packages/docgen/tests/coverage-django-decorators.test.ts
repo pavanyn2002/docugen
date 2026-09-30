@@ -16,4 +16,9 @@ describe('Django view decorator ownership', () => {
     const source = "@api_view(['POST'])\n@permission_classes([\n    IsAuthenticated,\n])\ndef create(request): pass\n";
     expect(methodsOfView(source, 'create')).toEqual(['POST']);
   });
+
+  it.each(['class', 'def', '\nclass Pretend:\n', '\ndef pretend():\n'])('ignores declaration keywords inside decorator strings: %j', (label) => {
+    const source = `@api_view(['POST'])\n@label(${JSON.stringify(label)})\ndef create(request): pass\n`;
+    expect(methodsOfView(source, 'create')).toEqual(['POST']);
+  });
 });
