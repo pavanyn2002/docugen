@@ -25,7 +25,7 @@ const claimSchema = z
      * Required. A claim with no evidence is exactly the kind of confident
      * invention this tool exists to prevent, so the schema refuses it.
      */
-    evidence: z.array(evidenceSchema).min(1),
+    evidence: z.array(evidenceSchema).nonempty(),
   })
   .strict();
 

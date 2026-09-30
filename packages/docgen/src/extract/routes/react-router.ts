@@ -264,8 +264,8 @@ function walkRouteArray(
         const position = positionOf(source, element, file);
         out.push({
           path: resolved === '' ? '/' : resolved,
-          line: position.line ?? 1,
-          column: position.column ?? 1,
+          line: position.line,
+          column: position.column,
           isIndex,
         });
       }
@@ -363,8 +363,8 @@ function collectJsxRoutes(
         const position = positionOf(source, node, file);
         out.push({
           path: currentPath === '' ? '/' : currentPath,
-          line: position.line ?? 1,
-          column: position.column ?? 1,
+          line: position.line,
+          column: position.column,
           isIndex,
         });
       }

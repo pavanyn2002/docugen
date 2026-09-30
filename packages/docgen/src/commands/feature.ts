@@ -6,7 +6,7 @@ import type { FeatureCriticality, FeatureStatus } from '../features/schema.js';
 import { loadFeatureRecords, writeNewFeatureRecord } from '../features/store.js';
 import { runExtraction } from '../pipeline.js';
 import { colors } from '../util/colors.js';
-import { DocgenError } from '../util/errors.js';
+import { DocgenError, validationMessages } from '../util/errors.js';
 import { resolveGitUserEmail } from '../util/git.js';
 import type { Logger } from '../util/logger.js';
 
@@ -75,10 +75,9 @@ export async function runFeatureAddCommand(options: FeatureAddCommandOptions): P
     recordedAt: options.recordedAt ?? new Date().toISOString(),
   });
   if (!parsed.success) {
-    const issue = parsed.error.issues[0];
     throw new DocgenError({
       code: 'feature-input-invalid',
-      message: `Cannot create feature '${options.id}': ${issue?.message ?? 'invalid input'}.`,
+      message: `Cannot create feature '${options.id}': ${validationMessages(parsed.error.issues)}.`,
       remedy: 'Use a lowercase kebab-case id, repo-relative selectors, and non-empty metadata.',
     });
   }

@@ -53,8 +53,7 @@ export async function runAskCommand(options: AskCommandOptions): Promise<void> {
   for (const card of cardList) {
     const answered = new Set((answers.get(card.surfaceId)?.answers ?? []).map((a) => a.questionId));
     if (card.body.unknowns.every((unknown) => answered.has(unknown.id))) continue;
-    const file = card.body.summary.evidence[0]?.file;
-    if (file === undefined) continue;
+    const file = card.body.summary.evidence[0].file;
     const email = await lastAuthorOf(config.root, file);
     if (email !== undefined) owners.set(card.surfaceId, { email, file });
   }

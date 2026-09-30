@@ -1,0 +1,113 @@
+import { describe, expect, it } from 'vitest';
+import { renderApiPage } from '../src/render/pages/api.js';
+import { renderSchemaPage, anchorFor } from '../src/render/pages/schema.js';
+import { renderConfigPage } from '../src/render/pages/config.js';
+import { renderRoutesPage } from '../src/render/pages/routes.js';
+import { renderErd, renderSitemap, renderModules } from '../src/render/diagrams.js';
+import { projectResult } from '../src/render/projection.js';
+import { renderInapplicable, renderProvenance, renderUnsupportedForPage } from '../src/render/common.js';
+import { cell, code, note, warning, joinOut } from '../src/render/markdown.js';
+import type { EntryBase, ExtractResult, ExtractorId } from '../src/types/core.js';
+import type { ConfigEntry, EndpointEntry, RouteEntry, SchemaEntry } from '../src/types/entries.js';
+import type { StackReport } from '../src/detect/stack.js';
+import { renderTesterHandoff } from '../src/handoff/render.js';
+import { planRecordSchema } from '../src/plans/schema.js';
+import { renderFleetPage } from '../src/status/render.js';
+import type { RepoStatus } from '../src/status/collect.js';
+import { buildMatrix } from '../src/trace/matrix.js';
+import { renderTraceabilityPage, renderTestCasesPage, summariseMatrix } from '../src/trace/render.js';
+import { featureRecordSchema } from '../src/features/schema.js';
+import { featureCardSchema } from '../src/infer/types.js';
+
+const entry = { source: { file: 'a.ts' }, extractionMethod: 'ast' as const, certainty: 'high' as const };
+const result = <T extends EntryBase>(extractor: ExtractorId, entries: readonly T[]): ExtractResult<T> => ({ extractor, entries, gaps: [], skips: [], detected: [], applicable: true, durationMs: 0 });
+const context = { engineVersion: 'test' };
+const stack: StackReport = { technologies: [], workspaces: [], unsupported: [ { id: 'fastify', name: 'Fastify', category: 'api-framework', workspace: '', covers: [], evidence: { file: 'package.json' } }, { id: 'drizzle', name: 'Drizzle', category: 'orm', workspace: '', covers: [], evidence: { file: 'package.json' } } ] };
+const endpoint: EndpointEntry = { ...entry, id: 'e', method: 'GET', path: '/a', params: [], middleware: [] };
+const schema: SchemaEntry = { ...entry, id: 's', name: 'A', kind: 'table', fields: [{ name: 'a', type: '' }], relations: [], indexes: [] };
+
+describe('page rendering with incomplete extraction evidence', () => {
+  it('renders partial OpenAPI comparisons and groups only known endpoint identities', () => {
+    const entries = [endpoint, { ...endpoint, id: 'e2', application: 'express:first', workspace: '', specStatus: 'match' as const }, { ...endpoint, id: 'e3', application: 'express:second', specStatus: 'mismatch' as const }];
+    const summary = { operationsCompared: 1, codeEndpointsAbsent: 0, specOperationsWithoutHandlers: 0, operationsSkippedAmbiguous: 1, ambiguousDocuments: 1, documentsParsed: 1 };
+    const options = { result: { ...result('endpoints', entries), detected: ['openapi-spec'], openapi: summary }, stack, context, outDir: 'docs/generated', surfaces: [ { id: 'api:a', slug: 'a', title: 'A', kind: 'endpoint-group' as const, origin: 'derived' as const, sourceFiles: [], routes: [], supportingRoutes: [], jobs: [], endpoints: ['missing'] } ], surfaceNotes: ['Scope is partial'] };
+    const text = renderApiPage(options);
+    for (const expected of ['partially cross-checked', 'unresolved router', 'Scope is partial', '**no**', 'Fastify']) expect(text).toContain(expected);
+    expect(text).toContain('| `GET`');
+    expect(renderApiPage({ ...options, result: { ...options.result, openapi: { ...summary, operationsSkippedAmbiguous: 0, specOperationsWithoutHandlers: 1 } } })).toContain('not treated as authoritative');
+  });
+  it('shows unknown schema types, nullability, unnamed constraints and low-certainty extraction', () => {
+    const entries = [ { ...schema, workspace: '', certainty: 'low' as const, fields: [{ name: 'a', type: '', isUnique: true }], relations: [{ field: 'related', targetModel: 'B' }], indexes: [{ fields: ['a'] }] }, { ...schema, id: 's2', name: '!!!', source: { file: 'b.ts' } } ];
+    const text = renderSchemaPage({ result: result('schema', entries), stack, context, outDir: 'docs/generated' });
+    expect(text).toContain('_unknown_');
+    expect(text).toContain('~heuristic');
+    expect(text).toContain('Drizzle');
+    expect(anchorFor(entries[1]!)).toMatch(/^schema-entry-/);
+  });
+  it('renders module-free empty results and truncated route/schema diagrams', () => {
+    const routes: RouteEntry[] = ['one', 'two'].map(path => ({ ...entry, id: path, path: `/${path}`, kind: 'page', params: [], isCatchAll: false, layoutChain: [], guards: [] }));
+    expect(renderSitemap(result('routes', routes), 1)).toContain('1 more screens');
+    expect(renderRoutesPage({ result: result('routes', routes), stack, context, outDir: 'docs/generated' })).toContain('a.ts');
+    expect(renderSitemap(undefined, 1)).toContain('No routes');
+    expect(renderErd(undefined, 1)).toContain('NO_SCHEMA');
+    const tables: SchemaEntry[] = [{ ...schema, fields: Array.from({ length: 21 }, (_, i) => ({ name: `f${i}`, type: '', isUnique: true })), relations: [{ field: 'many', targetModel: 'B', cardinality: 'many-to-many' }, { field: 'one', targetModel: 'B', cardinality: 'one-to-many' }] }, { ...schema, id: 'b', name: 'B' }];
+    const erd = renderErd(result('schema', tables), 2);
+    for (const expected of ['unknown f0 UK', 'fields_not_shown_1', '}o--o{', '||--o{']) expect(erd).toContain(expected);
+    expect(renderErd(result('schema', tables), 1)).toContain('further tables omitted');
+    const modules = { ...result('deps', [{ ...entry, id: 'a', module: 'a.ts', imports: ['a.ts'], externals: [] }]), cycles: [['a.ts']] };
+    expect(renderModules(modules, 10)).not.toContain('m_a_ts --> m_a_ts');
+    const graph = { schemaVersion: 1 as const, nodes: [{ id: 'endpoint:e', kind: 'endpoint' as const, label: 'GET /a', provenance: { origin: 'extracted' as const, extractors: ['endpoints' as const], evidence: [] }, properties: { renderEntryV1: JSON.stringify(endpoint) } }], edges: [], gaps: [] };
+    expect(projectResult(graph, 'endpoints', result('endpoints', [endpoint])).entries).toEqual([endpoint]);
+  });
+  it('handles mixed workspace configuration, undeclared values and no-framework route pages', () => {
+    const config: ConfigEntry[] = [ { ...entry, id: 'a', workspace: '', name: 'ENV', kind: 'env', reads: [], declarations: [{ file: '.env' }], isSecretLike: false }, { ...entry, id: 'b', name: 'SECOND', kind: 'env', reads: Array.from({ length: 4 }, (_, i) => ({ file: `${i}.ts` })), declarations: [], isSecretLike: false } ];
+    const text = renderConfigPage({ result: result('config', config), stack, context, outDir: 'docs/generated' });
+    expect(text).toContain('**never**');
+    expect(text).toContain('+1');
+    const empty = { ...result<RouteEntry>('routes', []), applicable: false };
+    expect(renderRoutesPage({ result: empty, stack, context, outDir: 'docs/generated' })).toContain('Fastify');
+    expect(renderInapplicable(empty, stack)).toContain('Drizzle');
+    expect(renderUnsupportedForPage(stack, 'schema', id => id === 'drizzle')).toContain('Drizzle');
+    expect(renderProvenance(empty)).toContain('static analysis');
+    expect(cell('')).toBe('—');
+    expect(code('`quoted`')).toBe('```quoted```');
+    expect(note([])).toBe('');
+    expect(warning([])).toBe('');
+    expect(joinOut('docs', 'page.md')).toBe('docs/page.md');
+  });
+  it('renders empty handoff scope, evidence-less nodes and populated tester intent', () => {
+    const plan = { ...planRecordSchema.parse({ schemaVersion: 1, id: 'a', featureId: 'a', title: 'Plan', summary: 'Intent', acceptanceCriteria: [{ id: 'AC-01', text: 'Acceptance' }], risks: ['Risk'], testNotes: ['Note'], recordedBy: 'owner', recordedAt: '2026-01-01T00:00:00.000Z' }), sourceFile: 'docs/.plans/a.json' };
+    const data = { base: 'HEAD', baselineUsed: true, changes: [], features: [], plans: [plan], impactedEntities: [{ id: 'a', kind: 'file' as const, label: 'A', provenance: { origin: 'extracted' as const, evidence: [] } }], affectedRequirements: [], affectedTests: [], generatedPages: [] };
+    const text = renderTesterHandoff(data);
+    for (const expected of ['No Git changes', 'unavailable', 'Acceptance', 'Risk', 'Note']) expect(text).toContain(expected);
+    const transitioned = { ...plan, transitions: [{ from: 'draft' as const, to: 'approved' as const, changedBy: 'owner', changedAt: '2026-01-02T00:00:00.000Z' }] };
+    expect(renderTesterHandoff({ ...data, plans: [transitioned], head: { sha: 'a'.repeat(40), committedAt: '2026-01-01' } })).toContain('Latest transition');
+    const owned = { ...featureRecordSchema.parse({ schemaVersion: 1, id: 'a', title: 'A', recordedBy: 'owner', recordedAt: '2026-01-01T00:00:00.000Z' }), sourceFile: 'feature.json' };
+    const emptyPlan = { ...plan, acceptanceCriteria: [], risks: [], testNotes: [] };
+    const noEvidence = renderTesterHandoff({ ...data, plans: [emptyPlan], features: [{ record: owned }], impactedEntities: [{ id: 'a', kind: 'file', label: 'A', provenance: { origin: 'extracted', evidence: [{ file: 'a.ts' }] } }] });
+    expect(noEvidence).toContain('unassigned');
+    expect(noEvidence.match(/None recorded/g)).toHaveLength(3);
+    const history = { introduced: { sha: 'a'.repeat(40), committedAt: '2026-01-01' }, lastChanged: { sha: 'b'.repeat(40), committedAt: '2026-01-02' }, evidenceFiles: ['a.ts'] };
+    expect(renderTesterHandoff({ ...data, features: [{ record: owned, history }] })).toContain('2026-01-02');
+    expect(renderTesterHandoff({ ...data, changes: [{ status: 'renamed', file: 'new.ts', previousFile: 'old.ts' }] })).toContain('`old.ts`');
+  });
+  it('renders fleet untested requirement actions and sorted failures', () => {
+    const base: RepoStatus = { name: 'a', root: '.', engineVersion: 'test', surfaces: 1, described: 1, openQuestions: 0, answered: 0, untriaged: 0, requirements: { requirement: 1, bug: 0, decision: 0, context: 0 }, testable: 1, tested: 0, untestedRequirements: 1, danglingReferences: 0, untracedSurfaces: 0, driftingFiles: 0, unsupportedTechnologies: ['Drizzle'], graph: { nodes: 0, edges: 0, gaps: 0, features: 0, criticalFeatures: 0, plans: 0, changes: 0 } };
+    const text = renderFleetPage({ repos: [base], failures: [{ path: 'b', reason: 'failed' }, { path: 'a', reason: 'failed' }], generatedAt: '2026-01-01' });
+    expect(text).toContain('requirement(s) no test covers');
+    expect(text).toContain('Could not be read');
+  });
+  it('renders untested rows, dangling citations and untraced behavior separately', () => {
+    const requirement = { id: 'REQ-a-01', questionId: 'q', title: 'Requirement', statement: 'Required behavior', kind: 'requirement' as const, status: 'confirmed' as const, surfaceId: 'a', recordedBy: 'owner', recordedAt: '2026-01-01' };
+    const body = featureCardSchema.parse({ summary: { text: 'A', evidence: [{ file: 'a.ts', line: 1 }] }, unknowns: [{ id: 'q', question: 'Intent?', why: 'Unknown' }] });
+    const cards = ['one', 'two'].map(id => ({ surfaceId: id, slug: id, title: id, kind: 'screen', body, producedBy: 'test', promptVersion: '', inputHash: '', answered: [] }));
+    const matrix = buildMatrix({ requirements: new Map([['a', { surfaceId: 'a', slug: 'a', requirements: [requirement] }]]), cards, answers: new Map([['one', { surfaceId: 'one', slug: 'one', answers: [{ questionId: 'q', question: 'Intent?', answer: 'Yes', answeredBy: 'owner', answeredAt: '2026-01-01' }] }]]), references: [{ id: 'REQ-missing-01', file: 'b.ts', line: 2 }, { id: 'REQ-missing-01', file: 'a.ts', line: 3 }, { id: 'REQ-missing-01', file: 'a.ts', line: 2 }] });
+    expect(matrix.danglingReferences.map(ref => `${ref.file}:${ref.line}`)).toEqual(['a.ts:2', 'a.ts:3', 'b.ts:2']);
+    expect(matrix.untracedSurfaces[0]?.openQuestions).toBe(0);
+    expect(renderTraceabilityPage({ matrix, context, outDir: 'docs/generated' })).toContain('Required behavior');
+    expect(summariseMatrix(matrix)).toMatchObject({ untested: 1, dangling: 3, untracedSurfaces: 2 });
+    const undated = buildMatrix({ requirements: new Map([['a', { surfaceId: 'a', slug: 'a', requirements: [{ ...requirement, recordedAt: '' }] }]]), cards: [], answers: new Map(), references: [] });
+    expect(renderTestCasesPage({ matrix: undated, context, outDir: 'docs/generated' })).toContain('| Confirmed by | owner |');
+    expect(renderTraceabilityPage({ matrix: { rows: [], untested: [], danglingReferences: [], untracedSurfaces: [], testedCount: 0, testableCount: 0 }, context, outDir: 'docs/generated' })).toContain('Every confirmed requirement');
+  });
+});

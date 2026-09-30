@@ -107,7 +107,7 @@ export async function resolveGitHeadDiagnostic(root: string): Promise<GitHeadDia
     return { ok: true, commit: { sha, committedAt } };
   } catch (error) {
     const diagnostic = classifyGitHeadError(error);
-    if (!diagnostic.ok && diagnostic.kind === 'dubious-ownership') {
+    if (diagnostic.kind === 'dubious-ownership') {
       return {
         ...diagnostic,
         remedy:
@@ -120,7 +120,7 @@ export async function resolveGitHeadDiagnostic(root: string): Promise<GitHeadDia
 }
 
 /** Exported for deterministic mocked diagnostics. */
-export function classifyGitHeadError(error: unknown): GitHeadDiagnostic {
+export function classifyGitHeadError(error: unknown): Extract<GitHeadDiagnostic, { readonly ok: false }> {
   const record = typeof error === 'object' && error !== null ? error as Record<string, unknown> : {};
   const code = typeof record.code === 'string' ? record.code : '';
   const stderr = typeof record.stderr === 'string' ? record.stderr : '';
@@ -135,7 +135,7 @@ export function classifyGitHeadError(error: unknown): GitHeadDiagnostic {
   return gitHeadFailure('unknown');
 }
 
-function gitHeadFailure(kind: GitHeadFailureKind): GitHeadDiagnostic {
+function gitHeadFailure(kind: GitHeadFailureKind): Extract<GitHeadDiagnostic, { readonly ok: false }> {
   const details: Record<GitHeadFailureKind, readonly [string, string]> = {
     'not-repository': ['The target directory is not a Git repository.', 'Run Docugen inside a Git checkout, or initialize and commit the repository if Git provenance is required.'],
     'no-commits': ['The Git repository has no readable HEAD commit.', 'Create the first commit, then rerun Docugen. Extraction can continue without commit provenance.'],
@@ -185,8 +185,7 @@ function parseNameStatus(contents: string): GitFileChange[] {
   if (fields.at(-1) === '') fields.pop();
   const changes: GitFileChange[] = [];
   for (let index = 0; index < fields.length; ) {
-    const rawStatus = fields[index++];
-    if (rawStatus === undefined) break;
+    const rawStatus = fields[index++] as string;
     const code = rawStatus[0];
     if (code === 'R' || code === 'C') {
       const previousFile = fields[index++];
@@ -235,7 +234,7 @@ export async function resolveGitChanges(root: string, base = 'HEAD'): Promise<Gi
   return {
     base,
     changes: [...byFile.values()].sort(
-      (a, b) => compareStrings(a.file, b.file) || compareStrings(a.status, b.status),
+      (a, b) => compareStrings(a.file, b.file),
     ),
   };
 }

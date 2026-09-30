@@ -234,12 +234,10 @@ export function parseCardBody(text: string): ParseOutcome {
 
   const result = featureCardSchema.safeParse(raw);
   if (!result.success) {
-    const issue = result.error.issues[0];
     return {
       ok: false,
-      reason: `The model's JSON did not match the required shape: ${
-        issue === undefined ? 'unknown issue' : `${issue.path.join('.') || '(root)'} — ${issue.message}`
-      }`,
+      reason: `The model's JSON did not match the required shape: ${result.error.issues
+        .map((issue) => `${issue.path.join('.') || '(root)'} — ${issue.message}`).join('; ')}`,
     };
   }
 

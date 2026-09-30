@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { loadConfig } from '../config/load.js';
 import { runExtraction } from '../pipeline.js';
+import type { RunResult } from '../pipeline.js';
 import {
   DEFAULT_GRAPH_INDEX,
   ensureDefaultGraphCacheIgnored,
@@ -37,6 +38,7 @@ import {
 import { serialiseEvidenceGraph } from '../graph/serialize.js';
 import { ENGINE_VERSION } from '../util/version.js';
 import { getSymbolLanguageAdapterReports } from '../graph/language-adapters.js';
+import { compareStrings } from '../util/sort.js';
 
 export interface IndexGraphCommandOptions {
   readonly cwd: string;
@@ -65,7 +67,7 @@ export function resolveGraphIndexPath(root: string, requested?: string): string 
 function countKinds<T extends string>(values: readonly T[]): Readonly<Record<string, number>> {
   const counts: Record<string, number> = {};
   for (const value of values) counts[value] = (counts[value] ?? 0) + 1;
-  return Object.fromEntries(Object.entries(counts).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
+  return Object.fromEntries(Object.entries(counts).sort(([a], [b]) => compareStrings(a, b)));
 }
 
 function summary(graph: EvidenceGraph): {
@@ -232,7 +234,7 @@ export async function runIndexGraphCommand(options: IndexGraphCommandOptions): P
     changes,
     profile,
   });
-  let run;
+  let run: RunResult;
   let partitions: IncrementalPartitionResult;
   let extractionScope: { readonly mode: 'full' | 'scoped' | 'fallback'; readonly files: number };
 
@@ -243,31 +245,32 @@ export async function runIndexGraphCommand(options: IndexGraphCommandOptions): P
         (key) => key !== GLOBAL_GRAPH_PARTITION && currentFiles.has(key),
       ),
     );
-    let accepted: IncrementalPartitionResult | undefined;
+    let scoped: { readonly run: RunResult; readonly partitions: IncrementalPartitionResult } | undefined;
     try {
       const seedGraph = mergeReusableGraphPartitions(previousPartitions, rebuild.invalidated);
-      run = await runExtraction({
+      const scopedRun = await runExtraction({
         config,
         logger: options.logger,
         includeSymbols,
         partitionFiles,
         seedGraph,
       });
-      accepted = acceptScopedGraphPartitions({
+      const accepted = acceptScopedGraphPartitions({
         previous: previousPartitions,
-        graph: run.graph,
+        graph: scopedRun.graph,
         fingerprints,
         invalidated: rebuild.invalidated,
         profile,
       });
+      if (accepted !== undefined) scoped = { run: scopedRun, partitions: accepted };
     } catch (error) {
       // A scoped merge can expose a missed dependency or semantic id conflict.
       // Those are cache limitations, not repository errors, so rebuild cleanly.
       if (!(error instanceof DocgenError) || !error.code.startsWith('graph-')) throw error;
-      accepted = undefined;
     }
-    if (accepted !== undefined) {
-      partitions = accepted;
+    if (scoped !== undefined) {
+      run = scoped.run;
+      partitions = scoped.partitions;
       extractionScope = { mode: 'scoped', files: partitionFiles.size };
     } else {
       run = await runExtraction({ config, logger: options.logger, includeSymbols });
@@ -291,13 +294,6 @@ export async function runIndexGraphCommand(options: IndexGraphCommandOptions): P
       profile,
     });
     extractionScope = { mode: 'full', files: fingerprints.files.length };
-  }
-  if (run === undefined) {
-    throw new DocgenError({
-      code: 'graph-index-run-missing',
-      message: 'Graph indexing completed without an extraction result.',
-      remedy: 'Retry the index; if this persists, report it as an internal docgen defect.',
-    });
   }
   const counts = summary(run.graph);
   const partitionSummary = {

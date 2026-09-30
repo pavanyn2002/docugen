@@ -3,12 +3,10 @@ import path from 'node:path';
 /**
  * Shared helpers for the Python endpoint extractors.
  *
- * docgen is a Node tool and bundling a Python parser is not justified for the
- * coverage it buys, so FastAPI and Django are read with regular expressions —
- * which SPEC 6.1 permits only as a last resort and only when the result is
- * marked low certainty. Route declarations in both frameworks are among the
- * most regular Python there is: a decorator with a string literal, or a list of
- * `path()` calls. Anything less regular is skipped and recorded, never guessed.
+ * FastAPI decorators and Django URL declarations are read heuristically and
+ * marked low certainty. Django additionally uses the official Python grammar
+ * to attach view decorators to their definitions. Computed declarations that
+ * cannot be resolved are skipped and recorded, never guessed.
  */
 
 /** Extraction method and certainty every Python endpoint carries. */

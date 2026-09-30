@@ -2,10 +2,20 @@
 
 All notable changes to Docugen are documented here.
 
-## Unreleased
+## 1.0.5 — 2026-09-30
 
 ### Fixed
 
+- SQL statements now cite their first source token after comments and whitespace.
+- TypeScript and Python nested calls respect lexical body scope, parameter and
+  annotation evaluation, and method receiver dispatch. Ambiguous exports and
+  missing declaration names no longer create unsupported call targets.
+- Django view decorators are attached through Python syntax, preserving multiline
+  arguments and quoted keywords without crossing other function definitions.
+- Queue workers declared on the same source line receive unique deterministic IDs.
+- Status and synchronization now use matching evidence for governed features.
+- Record validation reports every invalid field, and AST evidence coordinates
+  retain concrete line and column information through extraction.
 - Governance pages now carry the generated ownership marker, allowing later
   synchronization and answer triage to update them safely.
 - Added end-to-end CLI workflows, MCP tool execution and validation cases, and

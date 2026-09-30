@@ -51,7 +51,7 @@ When it is not a dependency — a Python or Go repo, say — the workflow fetche
 
 ```yaml
       - name: Check documentation is current
-        run: npx --yes @pavanyn/docugen@1.0.4 check --base "$DOCGEN_BASE"
+        run: npx --yes @pavanyn/docugen@1.0.5 check --base "$DOCGEN_BASE"
 ```
 
 ## Why the version is pinned
@@ -120,7 +120,7 @@ be fetched before retrying. Running the hook manually without a ref list uses
 documentation:
   image: node:22
   script:
-    - npx --yes @pavanyn/docugen@1.0.4 check --base "$CI_MERGE_REQUEST_DIFF_BASE_SHA"
+    - npx --yes @pavanyn/docugen@1.0.5 check --base "$CI_MERGE_REQUEST_DIFF_BASE_SHA"
 ```
 
 **A git pre-push hook**

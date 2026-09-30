@@ -130,7 +130,6 @@ export function mapSurfacesIntoGraph(
   const slugs = assignSlugs(ordered.map((draft) => draft.id));
   for (const draft of ordered) {
     const members = [...draft.members].sort(compareStrings);
-    if (members.length === 0) continue;
     const evidence = uniqueEvidence(
       members.flatMap((id) => [...(filesByNode.get(id) ?? [])]).map((file) => ({ file })),
     );
@@ -153,8 +152,7 @@ export function mapSurfacesIntoGraph(
       },
     });
     for (const member of members) {
-      const memberNode = nodeById.get(member);
-      if (memberNode === undefined) continue;
+      const memberNode = nodeById.get(member) as GraphNode;
       builder.addEdge({
         id: graphEdgeId('contains', id, member),
         kind: 'contains',

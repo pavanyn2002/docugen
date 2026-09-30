@@ -3,7 +3,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import fg from 'fast-glob';
 import { FEATURES_DIR } from '../config/paths.js';
-import { DocgenError, describeUnknownError } from '../util/errors.js';
+import { DocgenError, describeUnknownError, validationMessages } from '../util/errors.js';
 import { toPosix } from '../util/paths.js';
 import { compareStrings } from '../util/sort.js';
 import { featureRecordSchema } from './schema.js';
@@ -47,10 +47,9 @@ export async function loadFeatureRecords(root: string): Promise<readonly StoredF
     }
     const parsed = featureRecordSchema.safeParse(json);
     if (!parsed.success) {
-      const issue = parsed.error.issues[0];
       throw new DocgenError({
         code: 'feature-record-invalid',
-        message: `${relative} is not a valid feature record: ${issue?.message ?? 'invalid shape'}.`,
+        message: `${relative} is not a valid feature record: ${validationMessages(parsed.error.issues)}.`,
         remedy: 'Fix the reported field or recreate the record with `docgen feature add`.',
         file: relative,
       });

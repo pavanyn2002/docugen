@@ -79,22 +79,19 @@ export async function runExtractCommand(options: ExtractCommandOptions): Promise
   }
 
   reportRun(result, options.logger);
-  reportWrites(report, options.dryRun === true, options.logger);
+  reportWrites(report, options.logger);
   return result;
 }
 
 function reportWrites(
   report: { written: readonly string[]; outDir: string; gitattributesUpdated: boolean } | undefined,
-  dryRun: boolean,
   logger: Logger,
 ): void {
-  if (dryRun) {
+  if (report === undefined) {
     logger.heading('Output');
     logger.info(`  ${colors().dim('--dry-run: no files were written')}`);
     return;
   }
-  if (report === undefined) return;
-
   logger.heading(`Written (${report.written.length})`);
   for (const file of report.written) logger.info(`  ${file}`);
   if (report.gitattributesUpdated) logger.info(`  ${colors().dim('.gitattributes includes linguist-generated marker')}`);

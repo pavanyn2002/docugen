@@ -40,8 +40,8 @@ export function selectGraphNeighborhood(args: {
   let truncated = false;
 
   while (queue.length > 0) {
-    const current = queue.shift();
-    if (current === undefined || current.depth >= maxDepth) continue;
+    const current = queue.shift() as { readonly id: string; readonly depth: number };
+    if (current.depth >= maxDepth) continue;
     for (const neighbor of index.neighbors(current.id)) {
       if (
         neighbor.node.provenance.origin !== 'extracted' ||

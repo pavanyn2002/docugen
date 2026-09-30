@@ -60,7 +60,7 @@ import { runMigrateCommand } from './commands/migrate.js';
 import { runPilotCommand } from './commands/pilot.js';
 
 interface GlobalOptions {
-  cwd?: string;
+  cwd: string;
   config?: string;
   verbose?: boolean;
   quiet?: boolean;
@@ -71,6 +71,14 @@ function resolveLogLevel(options: GlobalOptions): LogLevel {
   if (options.quiet === true) return 'error';
   if (options.verbose === true) return 'debug';
   return 'info';
+}
+
+/** Commander supplies cwd before invoking an action. */
+function repositoryContext(options: GlobalOptions) {
+  return {
+    cwd: options.cwd,
+    ...(options.config === undefined ? {} : { configFile: options.config }),
+  };
 }
 
 function collectOption(value: string, previous: string[]): string[] {
@@ -103,8 +111,7 @@ export function buildCli(): Command {
     .action(async () => {
       const globals = program.opts<GlobalOptions>();
       await runMcpServer({
-        cwd: globals.cwd ?? process.cwd(),
-        ...(globals.config === undefined ? {} : { configFile: globals.config }),
+        ...repositoryContext(globals),
       });
     });
 
@@ -117,16 +124,16 @@ export function buildCli(): Command {
     .option('--json', 'machine-readable output on stdout', false)
     .action(async (commandOptions: { json?: boolean }) => {
       const globals = program.opts<GlobalOptions>();
-      await runSessionStartCommand({ cwd: globals.cwd ?? process.cwd(), ...(globals.config === undefined ? {} : { configFile: globals.config }), json: commandOptions.json === true, logger: createLogger({ level: resolveLogLevel(globals) }) });
+      await runSessionStartCommand({ ...repositoryContext(globals), json: commandOptions.json === true, logger: createLogger({ level: resolveLogLevel(globals) }) });
     });
 
   session.command('after-edit')
     .description('refresh the incremental graph and report Git change impact')
     .option('--base <ref>', 'Git revision to compare against', 'HEAD')
     .option('--json', 'machine-readable output on stdout', false)
-    .action(async (commandOptions: { base?: string; json?: boolean }) => {
+    .action(async (commandOptions: { base: string; json?: boolean }) => {
       const globals = program.opts<GlobalOptions>();
-      await runSessionAfterEditCommand({ cwd: globals.cwd ?? process.cwd(), ...(globals.config === undefined ? {} : { configFile: globals.config }), ...(commandOptions.base === undefined ? {} : { base: commandOptions.base }), json: commandOptions.json === true, logger: createLogger({ level: resolveLogLevel(globals) }) });
+      await runSessionAfterEditCommand({ ...repositoryContext(globals), base: commandOptions.base, json: commandOptions.json === true, logger: createLogger({ level: resolveLogLevel(globals) }) });
     });
 
   session.command('end')
@@ -134,9 +141,9 @@ export function buildCli(): Command {
     .option('--base <ref>', 'Git revision to compare against', 'HEAD')
     .option('--strict', 'also fail on unanswered questions or untriaged answers', false)
     .option('--json', 'machine-readable output on stdout', false)
-    .action(async (commandOptions: { base?: string; strict?: boolean; json?: boolean }) => {
+    .action(async (commandOptions: { base: string; strict?: boolean; json?: boolean }) => {
       const globals = program.opts<GlobalOptions>();
-      await runSessionEndCommand({ cwd: globals.cwd ?? process.cwd(), ...(globals.config === undefined ? {} : { configFile: globals.config }), ...(commandOptions.base === undefined ? {} : { base: commandOptions.base }), strict: commandOptions.strict === true, json: commandOptions.json === true, logger: createLogger({ level: resolveLogLevel(globals) }) });
+      await runSessionEndCommand({ ...repositoryContext(globals), base: commandOptions.base, strict: commandOptions.strict === true, json: commandOptions.json === true, logger: createLogger({ level: resolveLogLevel(globals) }) });
     });
 
   program
@@ -155,8 +162,7 @@ export function buildCli(): Command {
       }) => {
         const globals = program.opts<GlobalOptions>();
         await runIndexGraphCommand({
-          cwd: globals.cwd ?? process.cwd(),
-          ...(globals.config === undefined ? {} : { configFile: globals.config }),
+          ...repositoryContext(globals),
           ...(commandOptions.out === undefined ? {} : { out: commandOptions.out }),
           symbols: commandOptions.symbols !== false,
           dryRun: commandOptions.dryRun === true,
@@ -173,14 +179,13 @@ export function buildCli(): Command {
     .option('--kinds <kinds>', 'comma-separated node kinds')
     .option('--limit <n>', 'maximum results', (value: string) => Number(value), 50)
     .option('--json', 'machine-readable output on stdout', false)
-    .action(async (query: string, commandOptions: { kinds?: string; limit?: number; json?: boolean }) => {
+    .action(async (query: string, commandOptions: { kinds?: string; limit: number; json?: boolean }) => {
       const globals = program.opts<GlobalOptions>();
       await runGraphSearchCommand({
-        cwd: globals.cwd ?? process.cwd(),
-        ...(globals.config === undefined ? {} : { configFile: globals.config }),
+        ...repositoryContext(globals),
         text: query,
         ...(commandOptions.kinds === undefined ? {} : { kinds: commandOptions.kinds }),
-        ...(commandOptions.limit === undefined ? {} : { limit: commandOptions.limit }),
+        limit: commandOptions.limit,
         json: commandOptions.json === true,
         logger: createLogger({ level: resolveLogLevel(globals) }),
       });
@@ -194,8 +199,7 @@ export function buildCli(): Command {
     .action(async (id: string, commandOptions: { json?: boolean }) => {
       const globals = program.opts<GlobalOptions>();
       await runGraphExplainCommand({
-        cwd: globals.cwd ?? process.cwd(),
-        ...(globals.config === undefined ? {} : { configFile: globals.config }),
+        ...repositoryContext(globals),
         id,
         json: commandOptions.json === true,
         logger: createLogger({ level: resolveLogLevel(globals) }),
@@ -215,17 +219,16 @@ export function buildCli(): Command {
       async (
         from: string,
         to: string,
-        commandOptions: { direction?: string; edgeKinds?: string; maxDepth?: number; json?: boolean },
+        commandOptions: { direction: string; edgeKinds?: string; maxDepth: number; json?: boolean },
       ) => {
         const globals = program.opts<GlobalOptions>();
         await runGraphPathCommand({
-          cwd: globals.cwd ?? process.cwd(),
-          ...(globals.config === undefined ? {} : { configFile: globals.config }),
+          ...repositoryContext(globals),
           from,
           to,
-          ...(commandOptions.direction === undefined ? {} : { direction: commandOptions.direction }),
+          direction: commandOptions.direction,
           ...(commandOptions.edgeKinds === undefined ? {} : { edgeKinds: commandOptions.edgeKinds }),
-          ...(commandOptions.maxDepth === undefined ? {} : { maxDepth: commandOptions.maxDepth }),
+          maxDepth: commandOptions.maxDepth,
           json: commandOptions.json === true,
           logger: createLogger({ level: resolveLogLevel(globals) }),
         });
@@ -240,14 +243,13 @@ export function buildCli(): Command {
     .option('--limit <n>', 'maximum impacted entities shown per file', (value: string) => Number(value), 50)
     .option('--json', 'machine-readable output on stdout', false)
     .action(
-      async (commandOptions: { base?: string; maxDepth?: number; limit?: number; json?: boolean }) => {
+      async (commandOptions: { base: string; maxDepth: number; limit: number; json?: boolean }) => {
         const globals = program.opts<GlobalOptions>();
         await runImpactCommand({
-          cwd: globals.cwd ?? process.cwd(),
-          ...(globals.config === undefined ? {} : { configFile: globals.config }),
-          ...(commandOptions.base === undefined ? {} : { base: commandOptions.base }),
-          ...(commandOptions.maxDepth === undefined ? {} : { maxDepth: commandOptions.maxDepth }),
-          ...(commandOptions.limit === undefined ? {} : { limit: commandOptions.limit }),
+          ...repositoryContext(globals),
+          base: commandOptions.base,
+          maxDepth: commandOptions.maxDepth,
+          limit: commandOptions.limit,
           json: commandOptions.json === true,
           logger: createLogger({ level: resolveLogLevel(globals) }),
         });
@@ -281,15 +283,14 @@ export function buildCli(): Command {
           files?: string;
           nodes?: string;
           owners?: string;
-          status?: string;
-          criticality?: string;
+          status: string;
+          criticality: string;
           json?: boolean;
         },
       ) => {
         const globals = program.opts<GlobalOptions>();
         await runFeatureAddCommand({
-          cwd: globals.cwd ?? process.cwd(),
-          ...(globals.config === undefined ? {} : { configFile: globals.config }),
+          ...repositoryContext(globals),
           id,
           title: commandOptions.title,
           ...(commandOptions.description === undefined ? {} : { description: commandOptions.description }),
@@ -297,8 +298,8 @@ export function buildCli(): Command {
           ...(commandOptions.files === undefined ? {} : { files: commandOptions.files }),
           ...(commandOptions.nodes === undefined ? {} : { nodes: commandOptions.nodes }),
           ...(commandOptions.owners === undefined ? {} : { owners: commandOptions.owners }),
-          ...(commandOptions.status === undefined ? {} : { status: commandOptions.status }),
-          ...(commandOptions.criticality === undefined ? {} : { criticality: commandOptions.criticality }),
+          status: commandOptions.status,
+          criticality: commandOptions.criticality,
           json: commandOptions.json === true,
           logger: createLogger({ level: resolveLogLevel(globals) }),
         });
@@ -312,8 +313,7 @@ export function buildCli(): Command {
     .action(async (commandOptions: { json?: boolean }) => {
       const globals = program.opts<GlobalOptions>();
       await runFeatureListCommand({
-        cwd: globals.cwd ?? process.cwd(),
-        ...(globals.config === undefined ? {} : { configFile: globals.config }),
+        ...repositoryContext(globals),
         json: commandOptions.json === true,
         logger: createLogger({ level: resolveLogLevel(globals) }),
       });
@@ -327,8 +327,7 @@ export function buildCli(): Command {
     .action(async (id: string, commandOptions: { json?: boolean }) => {
       const globals = program.opts<GlobalOptions>();
       await runFeatureShowCommand({
-        cwd: globals.cwd ?? process.cwd(),
-        ...(globals.config === undefined ? {} : { configFile: globals.config }),
+        ...repositoryContext(globals),
         id,
         json: commandOptions.json === true,
         logger: createLogger({ level: resolveLogLevel(globals) }),
@@ -358,25 +357,24 @@ export function buildCli(): Command {
           feature: string;
           title: string;
           summary: string;
-          status?: string;
-          acceptance?: string[];
-          risk?: string[];
-          testNote?: string[];
+          status: string;
+          acceptance: string[];
+          risk: string[];
+          testNote: string[];
           json?: boolean;
         },
       ) => {
         const globals = program.opts<GlobalOptions>();
         await runPlanCreateCommand({
-          cwd: globals.cwd ?? process.cwd(),
-          ...(globals.config === undefined ? {} : { configFile: globals.config }),
+          ...repositoryContext(globals),
           id,
           feature: commandOptions.feature,
           title: commandOptions.title,
           summary: commandOptions.summary,
-          ...(commandOptions.status === undefined ? {} : { status: commandOptions.status }),
-          ...(commandOptions.acceptance === undefined ? {} : { acceptance: commandOptions.acceptance }),
-          ...(commandOptions.risk === undefined ? {} : { risks: commandOptions.risk }),
-          ...(commandOptions.testNote === undefined ? {} : { testNotes: commandOptions.testNote }),
+          status: commandOptions.status,
+          acceptance: commandOptions.acceptance,
+          risks: commandOptions.risk,
+          testNotes: commandOptions.testNote,
           json: commandOptions.json === true,
           logger: createLogger({ level: resolveLogLevel(globals) }),
         });
@@ -390,8 +388,7 @@ export function buildCli(): Command {
     .action(async (commandOptions: { json?: boolean }) => {
       const globals = program.opts<GlobalOptions>();
       await runPlanListCommand({
-        cwd: globals.cwd ?? process.cwd(),
-        ...(globals.config === undefined ? {} : { configFile: globals.config }),
+        ...repositoryContext(globals),
         json: commandOptions.json === true,
         logger: createLogger({ level: resolveLogLevel(globals) }),
       });
@@ -405,8 +402,7 @@ export function buildCli(): Command {
     .action(async (id: string, commandOptions: { json?: boolean }) => {
       const globals = program.opts<GlobalOptions>();
       await runPlanShowCommand({
-        cwd: globals.cwd ?? process.cwd(),
-        ...(globals.config === undefined ? {} : { configFile: globals.config }),
+        ...repositoryContext(globals),
         id,
         json: commandOptions.json === true,
         logger: createLogger({ level: resolveLogLevel(globals) }),
@@ -423,8 +419,7 @@ export function buildCli(): Command {
     .action(async (id: string, status: string, commandOptions: { note?: string; json?: boolean }) => {
       const globals = program.opts<GlobalOptions>();
       await runPlanStatusCommand({
-        cwd: globals.cwd ?? process.cwd(),
-        ...(globals.config === undefined ? {} : { configFile: globals.config }),
+        ...repositoryContext(globals),
         id,
         status,
         ...(commandOptions.note === undefined ? {} : { note: commandOptions.note }),
@@ -443,19 +438,18 @@ export function buildCli(): Command {
     .option('--json', 'machine-readable summary on stdout', false)
     .action(
       async (commandOptions: {
-        base?: string;
+        base: string;
         out?: string;
-        maxDepth?: number;
+        maxDepth: number;
         dryRun?: boolean;
         json?: boolean;
       }) => {
         const globals = program.opts<GlobalOptions>();
         await runHandoffCommand({
-          cwd: globals.cwd ?? process.cwd(),
-          ...(globals.config === undefined ? {} : { configFile: globals.config }),
-          ...(commandOptions.base === undefined ? {} : { base: commandOptions.base }),
+          ...repositoryContext(globals),
+          base: commandOptions.base,
           ...(commandOptions.out === undefined ? {} : { out: commandOptions.out }),
-          ...(commandOptions.maxDepth === undefined ? {} : { maxDepth: commandOptions.maxDepth }),
+          maxDepth: commandOptions.maxDepth,
           dryRun: commandOptions.dryRun === true,
           json: commandOptions.json === true,
           logger: createLogger({ level: resolveLogLevel(globals) }),
@@ -484,21 +478,20 @@ export function buildCli(): Command {
           summary: string;
           features: string;
           plans?: string;
-          kind?: string;
-          base?: string;
+          kind: string;
+          base: string;
           json?: boolean;
         },
       ) => {
         const globals = program.opts<GlobalOptions>();
         await runChangeRecordCommand({
-          cwd: globals.cwd ?? process.cwd(),
-          ...(globals.config === undefined ? {} : { configFile: globals.config }),
+          ...repositoryContext(globals),
           id,
           summary: commandOptions.summary,
           features: commandOptions.features,
           ...(commandOptions.plans === undefined ? {} : { plans: commandOptions.plans }),
-          ...(commandOptions.kind === undefined ? {} : { kind: commandOptions.kind }),
-          ...(commandOptions.base === undefined ? {} : { base: commandOptions.base }),
+          kind: commandOptions.kind,
+          base: commandOptions.base,
           json: commandOptions.json === true,
           logger: createLogger({ level: resolveLogLevel(globals) }),
         });
@@ -517,8 +510,7 @@ export function buildCli(): Command {
     .action(async (commandOptions: { write?: boolean; json?: boolean }) => {
       const globals = program.opts<GlobalOptions>();
       await runLegacyInventoryCommand({
-        cwd: globals.cwd ?? process.cwd(),
-        ...(globals.config === undefined ? {} : { configFile: globals.config }),
+        ...repositoryContext(globals),
         write: commandOptions.write === true,
         json: commandOptions.json === true,
         logger: createLogger({ level: resolveLogLevel(globals) }),
@@ -542,8 +534,7 @@ export function buildCli(): Command {
       ) => {
         const globals = program.opts<GlobalOptions>();
         await runLegacyClassifyCommand({
-          cwd: globals.cwd ?? process.cwd(),
-          ...(globals.config === undefined ? {} : { configFile: globals.config }),
+          ...repositoryContext(globals),
           document,
           classification,
           reason: commandOptions.reason,
@@ -564,8 +555,7 @@ export function buildCli(): Command {
     .action(async (commandOptions: { json?: boolean }) => {
       const globals = program.opts<GlobalOptions>();
       await runLegacyPlanCommand({
-        cwd: globals.cwd ?? process.cwd(),
-        ...(globals.config === undefined ? {} : { configFile: globals.config }),
+        ...repositoryContext(globals),
         json: commandOptions.json === true,
         logger: createLogger({ level: resolveLogLevel(globals) }),
       });
@@ -580,8 +570,7 @@ export function buildCli(): Command {
     .action(async (document: string, commandOptions: { reason: string; json?: boolean }) => {
       const globals = program.opts<GlobalOptions>();
       await runLegacyApproveCommand({
-        cwd: globals.cwd ?? process.cwd(),
-        ...(globals.config === undefined ? {} : { configFile: globals.config }),
+        ...repositoryContext(globals),
         document,
         reason: commandOptions.reason,
         json: commandOptions.json === true,
@@ -597,8 +586,7 @@ export function buildCli(): Command {
     .action(async (document: string, commandOptions: { json?: boolean }) => {
       const globals = program.opts<GlobalOptions>();
       await runLegacyArchiveCommand({
-        cwd: globals.cwd ?? process.cwd(),
-        ...(globals.config === undefined ? {} : { configFile: globals.config }),
+        ...repositoryContext(globals),
         document,
         json: commandOptions.json === true,
         logger: createLogger({ level: resolveLogLevel(globals) }),
@@ -615,8 +603,7 @@ export function buildCli(): Command {
     .action(async (commandOptions: { out?: string; only?: string; json?: boolean; dryRun?: boolean }) => {
       const globals = program.opts<GlobalOptions>();
       await runExtractCommand({
-        cwd: globals.cwd ?? process.cwd(),
-        ...(globals.config === undefined ? {} : { configFile: globals.config }),
+        ...repositoryContext(globals),
         ...(commandOptions.out === undefined ? {} : { outDir: commandOptions.out }),
         ...(commandOptions.only === undefined ? {} : { only: commandOptions.only }),
         dryRun: commandOptions.dryRun === true,
@@ -633,8 +620,7 @@ export function buildCli(): Command {
     .action(async (commandOptions: { json?: boolean; full?: boolean }) => {
       const globals = program.opts<GlobalOptions>();
       await runReportCommand({
-        cwd: globals.cwd ?? process.cwd(),
-        ...(globals.config === undefined ? {} : { configFile: globals.config }),
+        ...repositoryContext(globals),
         full: commandOptions.full === true,
         json: commandOptions.json === true,
         logger: createLogger({ level: resolveLogLevel(globals) }),
@@ -650,8 +636,7 @@ export function buildCli(): Command {
     .action(async (commandOptions: { force?: boolean; limit?: number; dryRun?: boolean }) => {
       const globals = program.opts<GlobalOptions>();
       await runBootstrapCommand({
-        cwd: globals.cwd ?? process.cwd(),
-        ...(globals.config === undefined ? {} : { configFile: globals.config }),
+        ...repositoryContext(globals),
         ...(commandOptions.limit === undefined ? {} : { limit: commandOptions.limit }),
         force: commandOptions.force === true,
         dryRun: commandOptions.dryRun === true,
@@ -670,8 +655,7 @@ export function buildCli(): Command {
       async (commandOptions: { mine?: boolean; surface?: string; limit?: number; json?: boolean }) => {
         const globals = program.opts<GlobalOptions>();
         await runAskCommand({
-          cwd: globals.cwd ?? process.cwd(),
-          ...(globals.config === undefined ? {} : { configFile: globals.config }),
+          ...repositoryContext(globals),
           ...(commandOptions.surface === undefined ? {} : { surface: commandOptions.surface }),
           ...(commandOptions.limit === undefined ? {} : { limit: commandOptions.limit }),
           mine: commandOptions.mine === true,
@@ -697,8 +681,7 @@ export function buildCli(): Command {
       ) => {
         const globals = program.opts<GlobalOptions>();
         await runAnswerCommand({
-          cwd: globals.cwd ?? process.cwd(),
-          ...(globals.config === undefined ? {} : { configFile: globals.config }),
+          ...repositoryContext(globals),
           ...(commandOptions.note === undefined ? {} : { note: commandOptions.note }),
           surface,
           questionId,
@@ -716,8 +699,7 @@ export function buildCli(): Command {
     .action(async (commandOptions: { dryRun?: boolean; json?: boolean }) => {
       const globals = program.opts<GlobalOptions>();
       await runSyncCommand({
-        cwd: globals.cwd ?? process.cwd(),
-        ...(globals.config === undefined ? {} : { configFile: globals.config }),
+        ...repositoryContext(globals),
         dryRun: commandOptions.dryRun === true,
         json: commandOptions.json === true,
         logger: createLogger({ level: resolveLogLevel(globals) }),
@@ -734,8 +716,7 @@ export function buildCli(): Command {
     .action(async (commandOptions: { base?: string; asOf?: string; strict?: boolean; json?: boolean }) => {
       const globals = program.opts<GlobalOptions>();
       await runCheckCommand({
-        cwd: globals.cwd ?? process.cwd(),
-        ...(globals.config === undefined ? {} : { configFile: globals.config }),
+        ...repositoryContext(globals),
         ...(commandOptions.base === undefined ? {} : { base: commandOptions.base }),
         ...(commandOptions.asOf === undefined ? {} : { asOf: commandOptions.asOf }),
         strict: commandOptions.strict === true,
@@ -752,8 +733,7 @@ export function buildCli(): Command {
     .action(async (commandOptions: { fix?: boolean; json?: boolean }) => {
       const globals = program.opts<GlobalOptions>();
       await runDoctorCommand({
-        cwd: globals.cwd ?? process.cwd(),
-        ...(globals.config === undefined ? {} : { configFile: globals.config }),
+        ...repositoryContext(globals),
         fix: commandOptions.fix === true,
         json: commandOptions.json === true,
         logger: createLogger({ level: resolveLogLevel(globals) }),
@@ -769,7 +749,7 @@ export function buildCli(): Command {
     .action(async (commandOptions: { dryRun?: boolean; rollback?: string; json?: boolean }) => {
       const globals = program.opts<GlobalOptions>();
       await runMigrateCommand({
-        cwd: globals.cwd ?? process.cwd(),
+        cwd: globals.cwd,
         ...(commandOptions.rollback === undefined ? {} : { rollback: commandOptions.rollback }),
         dryRun: commandOptions.dryRun === true,
         json: commandOptions.json === true,
@@ -786,7 +766,7 @@ export function buildCli(): Command {
     .action(async (commandOptions: { manifest?: string; out?: string; json?: boolean }) => {
       const globals = program.opts<GlobalOptions>();
       await runPilotCommand({
-        cwd: globals.cwd ?? process.cwd(),
+        cwd: globals.cwd,
         ...(commandOptions.manifest === undefined ? {} : { manifest: commandOptions.manifest }),
         ...(commandOptions.out === undefined ? {} : { out: commandOptions.out }),
         json: commandOptions.json === true,
@@ -804,7 +784,7 @@ export function buildCli(): Command {
     .action(async (commandOptions: { strict?: boolean; json?: boolean }) => {
       const globals = program.opts<GlobalOptions>();
       await runSecurityScanCommand({
-        cwd: globals.cwd ?? process.cwd(),
+        cwd: globals.cwd,
         strict: commandOptions.strict === true,
         json: commandOptions.json === true,
         logger: createLogger({ level: resolveLogLevel(globals) }),
@@ -818,7 +798,7 @@ export function buildCli(): Command {
     .action(async (commandOptions: { out?: string; dryRun?: boolean; json?: boolean }) => {
       const globals = program.opts<GlobalOptions>();
       await runSecuritySbomCommand({
-        cwd: globals.cwd ?? process.cwd(),
+        cwd: globals.cwd,
         ...(commandOptions.out === undefined ? {} : { out: commandOptions.out }),
         dryRun: commandOptions.dryRun === true,
         json: commandOptions.json === true,
@@ -834,7 +814,7 @@ export function buildCli(): Command {
     .option('--json', 'machine-readable output on stdout', false)
     .action(async (commandOptions: { base?: string; asOf?: string; json?: boolean }) => {
       const globals = program.opts<GlobalOptions>();
-      await runPolicyCheckCommand({ cwd: globals.cwd ?? process.cwd(), ...(globals.config === undefined ? {} : { configFile: globals.config }), ...(commandOptions.base === undefined ? {} : { base: commandOptions.base }), ...(commandOptions.asOf === undefined ? {} : { asOf: commandOptions.asOf }), json: commandOptions.json === true, logger: createLogger({ level: resolveLogLevel(globals) }) });
+      await runPolicyCheckCommand({ ...repositoryContext(globals), ...(commandOptions.base === undefined ? {} : { base: commandOptions.base }), ...(commandOptions.asOf === undefined ? {} : { asOf: commandOptions.asOf }), json: commandOptions.json === true, logger: createLogger({ level: resolveLogLevel(globals) }) });
     });
   const exception = policy.command('exception').description('manage explicit time-bounded policy exceptions');
   exception.command('list')
@@ -843,7 +823,7 @@ export function buildCli(): Command {
     .option('--json', 'machine-readable output on stdout', false)
     .action(async (commandOptions: { asOf?: string; json?: boolean }) => {
       const globals = program.opts<GlobalOptions>();
-      await runPolicyExceptionListCommand({ cwd: globals.cwd ?? process.cwd(), ...(globals.config === undefined ? {} : { configFile: globals.config }), ...(commandOptions.asOf === undefined ? {} : { asOf: commandOptions.asOf }), json: commandOptions.json === true, logger: createLogger({ level: resolveLogLevel(globals) }) });
+      await runPolicyExceptionListCommand({ ...repositoryContext(globals), ...(commandOptions.asOf === undefined ? {} : { asOf: commandOptions.asOf }), json: commandOptions.json === true, logger: createLogger({ level: resolveLogLevel(globals) }) });
     });
   exception.command('add')
     .argument('<id>', 'immutable lowercase kebab-case exception id')
@@ -856,7 +836,7 @@ export function buildCli(): Command {
     .option('--json', 'machine-readable output on stdout', false)
     .action(async (id: string, commandOptions: { policy: string; subject?: string; owner: string; reason: string; expires: string; json?: boolean }) => {
       const globals = program.opts<GlobalOptions>();
-      await runPolicyExceptionAddCommand({ cwd: globals.cwd ?? process.cwd(), ...(globals.config === undefined ? {} : { configFile: globals.config }), id, policy: commandOptions.policy, ...(commandOptions.subject === undefined ? {} : { subject: commandOptions.subject }), owner: commandOptions.owner, reason: commandOptions.reason, expiresAt: commandOptions.expires, json: commandOptions.json === true, logger: createLogger({ level: resolveLogLevel(globals) }) });
+      await runPolicyExceptionAddCommand({ ...repositoryContext(globals), id, policy: commandOptions.policy, ...(commandOptions.subject === undefined ? {} : { subject: commandOptions.subject }), owner: commandOptions.owner, reason: commandOptions.reason, expiresAt: commandOptions.expires, json: commandOptions.json === true, logger: createLogger({ level: resolveLogLevel(globals) }) });
     });
 
   program
@@ -877,8 +857,7 @@ export function buildCli(): Command {
       ) => {
         const globals = program.opts<GlobalOptions>();
         await runTriageCommand({
-          cwd: globals.cwd ?? process.cwd(),
-          ...(globals.config === undefined ? {} : { configFile: globals.config }),
+          ...repositoryContext(globals),
           ...(surface === undefined ? {} : { surface }),
           ...(questionId === undefined ? {} : { questionId }),
           ...(kind === undefined ? {} : { kind }),
@@ -898,8 +877,7 @@ export function buildCli(): Command {
     .action(async (commandOptions: { strict?: boolean; json?: boolean }) => {
       const globals = program.opts<GlobalOptions>();
       await runTraceCommand({
-        cwd: globals.cwd ?? process.cwd(),
-        ...(globals.config === undefined ? {} : { configFile: globals.config }),
+        ...repositoryContext(globals),
         strict: commandOptions.strict === true,
         json: commandOptions.json === true,
         logger: createLogger({ level: resolveLogLevel(globals) }),
@@ -913,8 +891,7 @@ export function buildCli(): Command {
     .action(async (commandOptions: { json?: boolean }) => {
       const globals = program.opts<GlobalOptions>();
       await runStatusCommand({
-        cwd: globals.cwd ?? process.cwd(),
-        ...(globals.config === undefined ? {} : { configFile: globals.config }),
+        ...repositoryContext(globals),
         json: commandOptions.json === true,
         logger: createLogger({ level: resolveLogLevel(globals) }),
       });
@@ -944,8 +921,7 @@ export function buildCli(): Command {
     .action(async (commandOptions: { all?: boolean; hooks?: boolean }) => {
       const globals = program.opts<GlobalOptions>();
       await runInitCommand({
-        cwd: globals.cwd ?? process.cwd(),
-        ...(globals.config === undefined ? {} : { configFile: globals.config }),
+        ...repositoryContext(globals),
         all: commandOptions.all === true,
         hooks: commandOptions.hooks === true,
         logger: createLogger({ level: resolveLogLevel(globals) }),
@@ -1020,11 +996,7 @@ export async function main(argv: readonly string[]): Promise<number> {
 function isEntrypoint(): boolean {
   const invoked = process.argv[1];
   if (invoked === undefined) return false;
-  try {
-    return path.resolve(invoked) === path.resolve(fileURLToPath(import.meta.url));
-  } catch {
-    return false;
-  }
+  return path.resolve(invoked) === path.resolve(fileURLToPath(import.meta.url));
 }
 
 // Only self-execute when invoked as the binary, so tests can import buildCli().

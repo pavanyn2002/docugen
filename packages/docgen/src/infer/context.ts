@@ -191,7 +191,7 @@ function renderSourceExcerpt(
     let actualStart: number | undefined;
     let actualEnd: number | undefined;
     for (let line = window.startLine; line <= window.endLine; line += 1) {
-      const value = `${line.toString().padStart(6, ' ')} | ${lines[line - 1] ?? ''}`;
+      const value = `${line.toString().padStart(6, ' ')} | ${lines[line - 1] as string}`;
       const addition = Buffer.byteLength(`${rendered.length === 0 ? '' : '\n'}${value}`);
       if (bytes + addition > maxBytes) break;
       rendered.push(value);
@@ -206,7 +206,7 @@ function renderSourceExcerpt(
   }
 
   if (ranges.length === 0 && lines.length > 0) {
-    const fallback = `     1 | ${lines[0] ?? ''}`;
+    const fallback = `     1 | ${lines[0] as string}`;
     if (Buffer.byteLength(fallback) <= maxBytes) {
       return { text: fallback, ranges: [{ startLine: 1, endLine: 1 }] };
     }

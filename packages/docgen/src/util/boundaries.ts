@@ -56,7 +56,7 @@ export async function findBoundaryViolations(srcRoot: string): Promise<readonly 
 
   for (const file of files.sort()) {
     const relative = toPosix(path.relative(srcRoot, file));
-    const topDir = relative.split('/')[0] ?? '';
+    const topDir = relative.split('/')[0] as string;
     if (!STATIC_LANE_DIRS.includes(topDir)) continue;
 
     const contents = await fs.readFile(file, 'utf8');
@@ -64,13 +64,12 @@ export async function findBoundaryViolations(srcRoot: string): Promise<readonly 
 
     lines.forEach((text, index) => {
       for (const match of text.matchAll(IMPORT_PATTERN)) {
-        const specifier = match[1] ?? match[2] ?? match[3] ?? match[4];
-        if (specifier === undefined) continue;
+        const specifier = (match[1] ?? match[2] ?? match[3] ?? match[4]) as string;
 
         const target = resolveSpecifier(file, srcRoot, specifier);
         if (target === undefined) continue;
 
-        const targetTop = target.split('/')[0] ?? '';
+        const targetTop = target.split('/')[0] as string;
         if (LLM_LANE_DIRS.includes(targetTop)) {
           violations.push({
             file: relative,

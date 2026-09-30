@@ -3,6 +3,7 @@ import type { JobEntry, JobsResult } from '../../types/entries.js';
 import type { StackReport } from '../../detect/stack.js';
 import { renderGaps, renderInapplicable, renderProvenance } from '../common.js';
 import { certaintyBadge, cell, code, renderFrontMatter, note, section, sourceLink, table } from '../markdown.js';
+import { compareStrings } from '../../util/sort.js';
 
 /**
  * jobs.md — what runs without anyone clicking anything.
@@ -54,14 +55,14 @@ export function renderJobsPage(args: {
     },
   ];
 
-  const byKind = new Map<string, JobEntry[]>();
+  const byKind = new Map<JobEntry['kind'], JobEntry[]>();
   for (const entry of result.entries) {
     const bucket = byKind.get(entry.kind) ?? [];
     bucket.push(entry);
     byKind.set(entry.kind, bucket);
   }
 
-  const KIND_TITLES: Readonly<Record<string, string>> = {
+  const KIND_TITLES: Readonly<Record<JobEntry['kind'], string>> = {
     'queue-consumer': 'Queue consumers',
     cron: 'Scheduled (cron)',
     'scheduled-task': 'Scheduled tasks',
@@ -69,8 +70,8 @@ export function renderJobsPage(args: {
   };
 
   body += section(`Jobs (${result.entries.length})`, '');
-  for (const kind of [...byKind.keys()].sort()) {
-    body += section(KIND_TITLES[kind] ?? kind, table(columns, byKind.get(kind) ?? []), 3);
+  for (const [kind, entries] of [...byKind.entries()].sort(([a], [b]) => compareStrings(a, b))) {
+    body += section(KIND_TITLES[kind], table(columns, entries), 3);
   }
 
   body += renderGaps(result.gaps, outDir);

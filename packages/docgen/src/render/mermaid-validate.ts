@@ -94,11 +94,11 @@ export function validateMermaid(source: string): readonly MermaidProblem[] {
 
     // A label containing an unescaped quote terminates it early.
     for (const match of text.matchAll(/\[\s*"((?:[^"\\]|\\.)*)"\s*\]/g)) {
-      if ((match[1] ?? '').includes('"')) {
+      if ((match[1] as string).includes('"')) {
         problems.push({
           line,
           kind: 'unescaped-quote-in-label',
-          message: `Label contains a raw quote: ${match[1] ?? ''}`,
+          message: `Label contains a raw quote: ${match[1]}`,
         });
       }
     }
@@ -107,8 +107,8 @@ export function validateMermaid(source: string): readonly MermaidProblem[] {
       // Bracketed label text must be quoted; otherwise brackets and parentheses
       // inside it are read as shape syntax.
       for (const match of text.matchAll(/(?:^|\s)([A-Za-z0-9_]+)\[([^\]]*)\]/g)) {
-        const id = match[1] ?? '';
-        const label = match[2] ?? '';
+        const id = match[1] as string;
+        const label = match[2] as string;
 
         if (RESERVED_NODE_IDS.has(id.toLowerCase())) {
           problems.push({
@@ -128,7 +128,7 @@ export function validateMermaid(source: string): readonly MermaidProblem[] {
 
       // Edge endpoints must be plain ids.
       for (const match of text.matchAll(/([A-Za-z0-9_]+)\s*-->/g)) {
-        const id = match[1] ?? '';
+        const id = match[1] as string;
         if (RESERVED_NODE_IDS.has(id.toLowerCase())) {
           problems.push({
             line,

@@ -5,7 +5,7 @@ import {
   GRAPH_NODE_KINDS,
 } from '../graph/types.js';
 import type { GraphDirection, GraphNeighbor } from '../graph/query.js';
-import type { GraphEdgeKind, GraphNodeKind } from '../graph/types.js';
+import type { GraphEdgeKind, GraphNodeKind, GraphNode } from '../graph/types.js';
 import { runExtraction } from '../pipeline.js';
 import { colors } from '../util/colors.js';
 import { DocgenError } from '../util/errors.js';
@@ -144,9 +144,9 @@ export async function runGraphPathCommand(options: GraphPathCommandOptions): Pro
   }
 
   options.logger.heading(`Graph path (${path.edges.length} edge${path.edges.length === 1 ? '' : 's'})`);
-  options.logger.info(`  ${path.nodes[0]?.id ?? options.from}`);
+  options.logger.info(`  ${options.from}`);
   for (const [indexAt, edge] of path.edges.entries()) {
-    const next = path.nodes[indexAt + 1];
-    options.logger.info(`    --${edge.kind}--> ${next?.id ?? edge.to}`);
+    const next = path.nodes[indexAt + 1] as GraphNode;
+    options.logger.info(`    --${edge.kind}--> ${next.id}`);
   }
 }

@@ -31,7 +31,7 @@ function scriptKindFor(fileName: string): ts.ScriptKind {
 }
 
 /** 1-based line/column for a node, for `path/to/file.ts:42` links. */
-export function positionOf(source: ts.SourceFile, node: ts.Node, file: string): SourceRef {
+export function positionOf(source: ts.SourceFile, node: ts.Node, file: string): SourceRef & { readonly line: number; readonly column: number } {
   const { line, character } = source.getLineAndCharacterOfPosition(node.getStart(source));
   return { file, line: line + 1, column: character + 1 };
 }

@@ -140,7 +140,7 @@ export function parseCodeJobs(
       }
 
       push({
-        id: `job:cron:${explicitName ?? spec}:${position.line ?? 0}`,
+        id: `job:cron:${explicitName ?? spec}:${position.line}`,
         source: position,
         extractionMethod: 'ast',
         certainty: 'high',
@@ -199,7 +199,7 @@ export function parseCodeJobs(
       const channel = queueByVariable.get(queueVariable);
 
       push({
-        id: `job:processor:${channel ?? queueVariable}:${position.line ?? 0}`,
+        id: `job:processor:${channel ?? queueVariable}:${position.line}`,
         source: position,
         extractionMethod: 'ast',
         certainty: 'high',

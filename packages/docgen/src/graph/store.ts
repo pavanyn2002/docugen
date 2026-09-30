@@ -121,10 +121,9 @@ export function parseEvidenceGraph(contents: string, file = 'evidence graph'): E
 
   const parsed = evidenceGraphSchema.safeParse(json);
   if (!parsed.success) {
-    const first = parsed.error.issues[0];
     throw new DocgenError({
       code: 'graph-index-schema-invalid',
-      message: `${file} does not match evidence graph schema v${EVIDENCE_GRAPH_SCHEMA_VERSION}: ${first?.message ?? 'invalid shape'}.`,
+      message: `${file} does not match evidence graph schema v${EVIDENCE_GRAPH_SCHEMA_VERSION}: ${validationMessages(parsed.error.issues)}.`,
       remedy: 'Delete the rebuildable graph index and run indexing again.',
       file,
     });

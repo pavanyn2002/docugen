@@ -175,8 +175,8 @@ export class EvidenceGraphIndex {
     const visited = new Set<string>([start.id]);
 
     while (queue.length > 0) {
-      const current = queue.shift();
-      if (current === undefined || current.edges.length >= maxDepth) continue;
+      const current = queue.shift() as QueueItem;
+      if (current.edges.length >= maxDepth) continue;
 
       for (const neighbor of this.neighbors(current.nodeId, options)) {
         if (visited.has(neighbor.node.id)) continue;

@@ -46,12 +46,12 @@ export function parseAmqpJobs(
       });
 
       entries.push({
-        id: `job:consumer:${file}:${position.line ?? 0}`,
+        id: `job:consumer:${file}:${position.line}`,
         source: position,
         extractionMethod: 'ast',
         certainty: 'high',
         // Named after its location, since the queue it serves is undetermined.
-        name: `consumer at ${file}:${position.line ?? 0}`,
+        name: `consumer at ${file}:${position.line}`,
         kind: 'queue-consumer',
         handler: position,
         runtime: 'amqplib',

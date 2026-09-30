@@ -138,9 +138,9 @@ export async function loadConfig(options: {
   if (raw === null || typeof raw !== 'object') {
     throw new DocgenError({
       code: 'config-invalid',
-      message: `${file === undefined ? 'Config' : path.basename(file)} must export an object, got ${raw === null ? 'null' : typeof raw}.`,
+      message: `${path.basename(file as string)} must export an object, got ${raw === null ? 'null' : typeof raw}.`,
       remedy: 'Export a config object as the default export, e.g. `export default defineConfig({ ... })`.',
-      ...(file === undefined ? {} : { file }),
+      file: file as string,
     });
   }
 
@@ -153,7 +153,7 @@ export async function loadConfig(options: {
       code: 'config-invalid',
       message: `Invalid docgen config:\n${issues}`,
       remedy: 'Correct the fields listed above. Unknown keys are rejected on purpose, so check for typos.',
-      ...(file === undefined ? {} : { file }),
+      file: file as string,
     });
   }
 

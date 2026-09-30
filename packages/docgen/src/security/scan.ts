@@ -224,7 +224,7 @@ async function scanRequirements(args: {
     ) {
       continue;
     }
-    const requirement = line.split(';', 1)[0]?.trim() ?? '';
+    const requirement = (line.split(';', 1)[0] as string).trim();
     const match = /^([A-Za-z0-9][A-Za-z0-9._-]*(?:\[[^\]]+\])?)\s*==\s*([^\s\\]+)(.*)$/.exec(requirement);
     if (match === null) {
       const name = /^([A-Za-z0-9][A-Za-z0-9._-]*)/.exec(requirement)?.[1] ?? `line-${logical.line}`;
@@ -241,7 +241,7 @@ async function scanRequirements(args: {
     const rawName = match[1] as string;
     const name = rawName.replace(/\[.*$/, '');
     const version = match[2] as string;
-    const suffix = match[3] ?? '';
+    const suffix = match[3] as string;
     args.components.push({
       ecosystem: 'pypi',
       name,
@@ -300,7 +300,6 @@ async function readJson<T>(root: string, relative: string, label: string): Promi
 function packageNameFromLockPath(key: string): string | undefined {
   const marker = 'node_modules/';
   const at = key.lastIndexOf(marker);
-  if (at === -1) return undefined;
   return key.slice(at + marker.length) || undefined;
 }
 

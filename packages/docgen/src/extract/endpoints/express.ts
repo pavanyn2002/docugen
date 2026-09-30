@@ -401,7 +401,7 @@ export function analyseFile(file: string, contents: string): FileAnalysis {
         if (symbol !== undefined) mounts.push({
           routerVariable, prefix: hasPrefix ? literalString(first) ?? '' : '',
           ...(hasPrefix && literalString(first) === undefined ? { prefixExpression: first } : {}),
-          symbol, line: position.line ?? 1,
+          symbol, line: position.line,
         });
       }
       return;
@@ -425,7 +425,7 @@ export function analyseFile(file: string, contents: string): FileAnalysis {
     }
     registrations.push({
       routerVariable, method: methodName.toUpperCase() as HttpMethod, path: routePath, middleware,
-      ...(requestShape === undefined ? {} : { requestShape }), line: position.line ?? 1, column: position.column ?? 1,
+      ...(requestShape === undefined ? {} : { requestShape }), line: position.line, column: position.column,
     });
   });
 

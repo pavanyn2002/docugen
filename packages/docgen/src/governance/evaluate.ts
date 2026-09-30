@@ -21,6 +21,7 @@ import { filterGitChanges, resolveGitChanges } from '../util/git.js';
 import { compareStrings } from '../util/sort.js';
 import { loadGovernanceExceptions } from './store.js';
 import type { GovernanceException, GovernancePolicyId } from './schema.js';
+import type { FeatureCriticality } from '../features/schema.js';
 
 export interface GovernanceViolation {
   readonly policy: GovernancePolicyId;
@@ -55,9 +56,9 @@ function enabledPolicyIds(config: ResolvedConfig): readonly GovernancePolicyId[]
     .map((key) => policyIdByConfig[key]);
 }
 
-function criticalityAtLeast(value: string, threshold: 'high' | 'critical'): boolean {
-  const rank: Readonly<Record<string, number>> = { low: 0, medium: 1, high: 2, critical: 3 };
-  return (rank[value] ?? -1) >= (rank[threshold] ?? Number.POSITIVE_INFINITY);
+function criticalityAtLeast(value: FeatureCriticality, threshold: 'high' | 'critical'): boolean {
+  const rank: Readonly<Record<FeatureCriticality, number>> = { low: 0, medium: 1, high: 2, critical: 3 };
+  return rank[value] >= rank[threshold];
 }
 
 function cardEvidenceFiles(card: FeatureCard): ReadonlySet<string> {

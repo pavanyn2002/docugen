@@ -301,8 +301,7 @@ function addSchema(builder: EvidenceGraphBuilder, result: SchemaResult, seed?: E
   }
 
   for (const entry of result.entries) {
-    const from = nodeByEntry.get(entry);
-    if (from === undefined) continue;
+    const from = nodeByEntry.get(entry) as string;
     for (const relation of entry.relations) {
       const matches = nodesByName.get(schemaNameKey(entry.workspace, relation.targetModel)) ?? [];
       if (matches.length !== 1) {
@@ -317,8 +316,7 @@ function addSchema(builder: EvidenceGraphBuilder, result: SchemaResult, seed?: E
         });
         continue;
       }
-      const target = matches[0];
-      if (target === undefined) continue;
+      const target = matches[0] as string;
       const provenance = extractedProvenance('schema', entry);
       builder.addEdge({
         id: graphEdgeId('references', from, target, relation.field),
@@ -370,8 +368,7 @@ function addDependencies(builder: EvidenceGraphBuilder, result: DepsResult, seed
   }
 
   for (const [module, entry] of entryByModule) {
-    const from = nodeByModule.get(module);
-    if (from === undefined) continue;
+    const from = nodeByModule.get(module) as string;
     for (const imported of entry.imports) {
       const target = nodeByModule.get(imported);
       if (target === undefined) {

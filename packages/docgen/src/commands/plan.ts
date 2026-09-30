@@ -2,7 +2,7 @@ import { loadConfig } from '../config/load.js';
 import { findFeatureRecord } from '../features/graph.js';
 import { loadFeatureRecords } from '../features/store.js';
 import { PLAN_RECORD_SCHEMA_VERSION, PLAN_STATUSES, planRecordSchema } from '../plans/schema.js';
-import type { PlanStatus } from '../plans/schema.js';
+import type { PlanStatus, PlanRecord } from '../plans/schema.js';
 import { loadPlanRecords, updatePlanStatus, writeNewPlanRecord } from '../plans/store.js';
 import { colors } from '../util/colors.js';
 import { DocgenError, validationMessages } from '../util/errors.js';
@@ -171,9 +171,9 @@ export async function runPlanStatusCommand(options: PlanStatusCommandOptions): P
     options.logger.output(JSON.stringify(updated, null, 2));
     return;
   }
-  const transition = updated.transitions.at(-1);
+  const transition = updated.transitions.at(-1) as PlanRecord['transitions'][number];
   options.logger.heading('Plan status updated');
   options.logger.info(`  plan        ${updated.id}`);
-  options.logger.info(`  transition  ${transition?.from ?? '?'} -> ${updated.status}`);
-  options.logger.info(`  recorded    ${transition?.changedBy ?? 'unknown'} at ${transition?.changedAt ?? 'unknown'}`);
+  options.logger.info(`  transition  ${transition.from} -> ${updated.status}`);
+  options.logger.info(`  recorded    ${transition.changedBy} at ${transition.changedAt}`);
 }
