@@ -23,7 +23,7 @@ export interface AtomicWriteOptions {
  */
 export async function writeFileAtomically(
   file: string,
-  contents: string,
+  contents: string | Uint8Array,
   options: AtomicWriteOptions = {},
 ): Promise<void> {
   const absolute = path.resolve(file);

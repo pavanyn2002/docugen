@@ -2,7 +2,7 @@
 import process from 'node:process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Command } from 'commander';
+import { Command, Option } from 'commander';
 import { colors, configureColors, resolveColorEnabled } from './util/colors.js';
 import { runExtractCommand } from './commands/extract.js';
 import { runReportCommand } from './commands/report.js';
@@ -58,6 +58,7 @@ import { runSecuritySbomCommand, runSecurityScanCommand } from './commands/secur
 import { runDoctorCommand } from './commands/doctor.js';
 import { runMigrateCommand } from './commands/migrate.js';
 import { runPilotCommand } from './commands/pilot.js';
+import { runWalkthroughCaptureCommand, runWalkthroughImportCommand, runWalkthroughListCommand, runWalkthroughReviewCommand, runWalkthroughShowCommand } from './commands/walkthrough.js';
 
 interface GlobalOptions {
   cwd: string;
@@ -926,6 +927,51 @@ export function buildCli(): Command {
         hooks: commandOptions.hooks === true,
         logger: createLogger({ level: resolveLogLevel(globals) }),
       });
+    });
+
+  const walkthrough = program.command('walkthrough').description('record screenshot guides, capture browser flows, and review exact UI snapshots');
+  walkthrough.command('import')
+    .argument('<manifest>', 'repo-relative JSON guide with screenshots and step instructions')
+    .option('--update', 'replace an existing guide with a new unreviewed snapshot', false)
+    .option('--dry-run', 'validate without writing records, screenshots, or pages', false)
+    .option('--json', 'machine-readable result', false)
+    .action(async (file: string, options: { update?: boolean; dryRun?: boolean; json?: boolean }) => {
+      const globals = program.opts<GlobalOptions>();
+      await runWalkthroughImportCommand({ ...repositoryContext(globals), file, update: options.update === true, dryRun: options.dryRun === true, json: options.json === true, logger: createLogger({ level: resolveLogLevel(globals) }) });
+    });
+  walkthrough.command('capture')
+    .argument('<flow>', 'repo-relative JSON browser flow; requires optional Playwright')
+    .option('--update', 'capture a replacement unreviewed snapshot', false)
+    .option('--dry-run', 'validate without opening a browser or writing files', false)
+    .option('--headed', 'show the browser during capture', false)
+    .addOption(new Option('--channel <channel>', 'use installed Chrome or Edge').choices(['chrome', 'msedge']))
+    .option('--storage-state <file>', 'repo-relative private browser authentication state; never copied into documentation')
+    .option('--json', 'machine-readable result', false)
+    .action(async (file: string, options: { update?: boolean; dryRun?: boolean; headed?: boolean; channel?: 'chrome' | 'msedge'; storageState?: string; json?: boolean }) => {
+      const globals = program.opts<GlobalOptions>();
+      await runWalkthroughCaptureCommand({ ...repositoryContext(globals), file,
+        update: options.update === true, dryRun: options.dryRun === true, headed: options.headed === true,
+        ...(options.channel === undefined ? {} : { channel: options.channel }),
+        ...(options.storageState === undefined ? {} : { storageState: options.storageState }),
+        json: options.json === true, logger: createLogger({ level: resolveLogLevel(globals) }),
+      });
+    });
+  walkthrough.command('list').description('list recorded screenshot guides')
+    .option('--json', 'machine-readable result', false)
+    .action(async (options: { json?: boolean }) => {
+      const globals = program.opts<GlobalOptions>();
+      await runWalkthroughListCommand({ ...repositoryContext(globals), json: options.json === true, logger: createLogger({ level: resolveLogLevel(globals) }) });
+    });
+  walkthrough.command('show').argument('<id>', 'walkthrough id').description('inspect steps, image hashes, and review attribution')
+    .action(async (id: string) => {
+      const globals = program.opts<GlobalOptions>();
+      await runWalkthroughShowCommand({ ...repositoryContext(globals), id, logger: createLogger({ level: resolveLogLevel(globals) }) });
+    });
+  walkthrough.command('review').argument('<id>', 'walkthrough id').description('record that this exact guide and its screenshots were reviewed')
+    .option('--json', 'machine-readable result', false)
+    .action(async (id: string, options: { json?: boolean }) => {
+      const globals = program.opts<GlobalOptions>();
+      await runWalkthroughReviewCommand({ ...repositoryContext(globals), id, json: options.json === true, logger: createLogger({ level: resolveLogLevel(globals) }) });
     });
 
   return program;

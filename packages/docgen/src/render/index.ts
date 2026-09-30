@@ -25,6 +25,7 @@ import { computeGovernanceFiles } from '../governance/expected.js';
 import { writeFileAtomically } from '../util/atomic.js';
 import { projectRenderResults } from './projection.js';
 import { assertGeneratedPath, assertGeneratedTargets, isGeneratedFile } from '../util/generated.js';
+import { computeWalkthroughFiles } from '../walkthrough/render.js';
 
 /** A file to write: repo-relative POSIX path and its full contents. */
 export interface RenderedFile {
@@ -41,7 +42,7 @@ export interface RenderedFile {
 export function renderAll(
   run: RunResult,
   findings?: FindingsReport,
-  lanes: { behaviour?: boolean; requirements?: boolean } = {},
+  lanes: { behaviour?: boolean; requirements?: boolean; walkthroughs?: boolean } = {},
 ): readonly RenderedFile[] {
   const outDir = run.config.outDir.split(path.sep).join('/').replace(/\/+$/, '');
   const context = run.context;
@@ -147,13 +148,16 @@ export interface WriteReport {
  */
 export async function writeAll(run: RunResult): Promise<WriteReport> {
   const findings = await computeFindings(run);
+  const walkthroughFiles = await computeWalkthroughFiles(run);
   const files = [
     ...renderAll(run, findings, {
       behaviour: run.graph.nodes.some((node) => node.kind === 'surface') &&
         await hasGeneratedPage(run.config.root, `${run.config.outDir}/behaviour.md`),
       requirements: await hasFilesIn(run.config.root, REQUIREMENTS_DIR),
+      walkthroughs: walkthroughFiles.length > 0,
     }),
     ...(await computeGovernanceFiles(run)),
+    ...walkthroughFiles,
   ].sort((a, b) => compareStrings(a.path, b.path));
   const written: string[] = [];
   await assertGeneratedTargets(run.config.root, files.map((file) => file.path));

@@ -107,6 +107,7 @@ describe('command surface', () => {
       'sync',
       'trace',
       'triage',
+      'walkthrough',
     ]);
   });
 

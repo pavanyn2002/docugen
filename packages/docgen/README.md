@@ -38,6 +38,7 @@ disable inference completely.
 | | |
 |---|---|
 | `extract` | Static analysis. Free. |
+| `walkthrough` | Import screenshots, capture browser steps, and review UI guides. No model call. |
 | `report` | Coverage and cross-extractor findings. Free. |
 | `legacy inventory` | Inventory stale prose and create an approval manifest. Free. |
 | `session` | Common start, after-edit, and end lifecycle for every coding agent. Free. |
@@ -60,6 +61,12 @@ disable inference completely.
 | `init` | Install agent skills, MCP, CI, and optional Git-hook adapters. Free. |
 
 Run `docgen <command> --help` for flags.
+
+Screenshot guides can be imported with `docgen walkthrough import guide.json`,
+or captured with `docgen walkthrough capture flow.json` using optional Playwright.
+They remain drafts until `docgen walkthrough review <id>` records an attributed
+review. See the [walkthrough guide](https://github.com/pavanyn2002/docugen/blob/master/docs/walkthroughs.md)
+for examples, authentication, masking, and update commands.
 
 `docgen security scan` checks lockfiles, integrity, dependency sources,
 install-time scripts, and Python pins/hashes. It does not download live

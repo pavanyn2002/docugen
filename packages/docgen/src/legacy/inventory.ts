@@ -24,6 +24,7 @@ const RECORD_PREFIXES = [
   'docs/.features/',
   'docs/.plans/',
   'docs/.changes/',
+  'docs/.walkthroughs/',
   'docs/.legacy/',
   '.docgen/',
 ];

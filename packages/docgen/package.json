@@ -1,6 +1,6 @@
 {
   "name": "@pavanyn/docugen",
-  "version": "1.0.5",
+  "version": "1.1.0",
   "description": "Deterministic codebase documentation engine. Extracts what the code proves; never states what it cannot verify.",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
@@ -65,7 +65,16 @@
     "@vitest/coverage-v8": "^4.1.10",
     "jsdom": "^25.0.1",
     "mermaid": "^11.16.1",
+    "playwright": "1.63.0",
     "vitest": "^4.1.10"
+  },
+  "peerDependencies": {
+    "playwright": ">=1.50.0 <2"
+  },
+  "peerDependenciesMeta": {
+    "playwright": {
+      "optional": true
+    }
   },
   "keywords": [
     "documentation",

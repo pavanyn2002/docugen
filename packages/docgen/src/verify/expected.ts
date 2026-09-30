@@ -18,6 +18,8 @@ import { compareStrings } from '../util/sort.js';
 import { toPosix } from '../util/paths.js';
 import { computeGovernanceFiles } from '../governance/expected.js';
 import { assertGeneratedPath, isGeneratedFile } from '../util/generated.js';
+import { computeWalkthroughFiles } from '../walkthrough/render.js';
+import type { WalkthroughRecord } from '../walkthrough/schema.js';
 
 /**
  * Every file docgen would write, given the current code and the current stores.
@@ -31,22 +33,25 @@ import { assertGeneratedPath, isGeneratedFile } from '../util/generated.js';
  * surface whose card is missing simply has no page — `check` reports drift in
  * what exists, never invents what has not been inferred.
  */
-export async function computeExpectedFiles(run: RunResult): Promise<readonly RenderedFile[]> {
+export async function computeExpectedFiles(run: RunResult, options: { readonly walkthroughRecords?: readonly WalkthroughRecord[] } = {}): Promise<readonly RenderedFile[]> {
   const root = run.config.root;
   const outDir = toPosix(run.config.outDir);
 
   const cards = activeCards([...(await loadCards(root)).values()], run.graph).slice().sort((a, b) => compareStrings(a.slug, b.slug));
   const answers = await loadAnswers(root);
   const requirements = await loadRequirements(root);
+  const walkthroughFiles = await computeWalkthroughFiles(run, options.walkthroughRecords);
 
   const findings = await computeFindings(run);
   const files: RenderedFile[] = [
     ...renderAll(run, findings, {
       behaviour: cards.length > 0,
       requirements: requirements.size > 0,
+      walkthroughs: walkthroughFiles.length > 0,
     }),
   ];
   files.push(...(await computeGovernanceFiles(run)));
+  files.push(...walkthroughFiles);
 
   for (const card of cards) {
     files.push({

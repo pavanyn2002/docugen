@@ -13,7 +13,7 @@ export function isSafeOutputDirectory(value: string): boolean {
     !/^[a-zA-Z]:/.test(relative) && normalized !== '.' && normalized !== '' &&
     !relative.split('/').includes('..') &&
     !relative.split('/').some((segment) => segment !== '.' && /[. ]$/.test(segment)) &&
-    !/(?:^|\/)(?:\.git|node_modules|\.docgen|\.cards|\.answers|\.requirements|\.features|\.plans|\.changes|\.legacy|\.governance|\.migrations|\.security)(?:\/|$)/i.test(relative);
+    !/(?:^|\/)(?:\.git|node_modules|\.docgen|\.cards|\.answers|\.requirements|\.features|\.plans|\.changes|\.walkthroughs|\.legacy|\.governance|\.migrations|\.security)(?:\/|$)/i.test(relative);
 }
 
 export function normalizeOutputDirectory(value: string): string {

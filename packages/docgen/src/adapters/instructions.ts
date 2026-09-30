@@ -55,6 +55,9 @@ export function renderAgentInstructions(args: InstructionArgs): string {
     '- Do not hand-edit anything under `docs/generated/` or `docs/.cards/`. Both are',
     '  regenerated and your changes will be lost.',
     '- Do not treat an `inferred` claim as a specification. It has not been checked.',
+    `- For screenshot guides, use \`${run} walkthrough import <manifest>\` or explicit \`${run} walkthrough capture <flow>\`.`,
+    '- Browser capture executes the supplied flow; use a development environment for actions that change data.',
+    '- Walkthroughs stay drafts until a developer explicitly reviews the exact snapshot. Never record a review on their behalf.',
     `- Do not run \`${run} bootstrap\` without asking — it calls a model and costs money.`,
   ].join('\n');
 }

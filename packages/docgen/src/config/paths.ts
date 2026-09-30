@@ -26,6 +26,9 @@ export const PLANS_DIR = 'docs/.plans';
 /** Attributed snapshots of governed code changes. */
 export const CHANGES_DIR = 'docs/.changes';
 
+/** Authored screenshot walkthrough records and immutable image assets. */
+export const WALKTHROUGHS_DIR = 'docs/.walkthroughs';
+
 /** Human-reviewed decisions for replacing, retaining, or archiving legacy documentation. */
 export const LEGACY_DIR = 'docs/.legacy';
 export const LEGACY_MIGRATION_FILE = `${LEGACY_DIR}/migration.json`;

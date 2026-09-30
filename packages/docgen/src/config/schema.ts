@@ -36,6 +36,7 @@ export const ALWAYS_EXCLUDE: readonly string[] = Object.freeze([
   '**/docs/.features/**',
   '**/docs/.plans/**',
   '**/docs/.changes/**',
+  '**/docs/.walkthroughs/**',
   '**/docs/.legacy/**',
   '**/docs/.governance/**',
   '**/docs/legacy-archive/**',

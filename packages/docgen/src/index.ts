@@ -1,5 +1,10 @@
 /** Programmatic entrypoint. The CLI is a thin wrapper over these. */
 export { defineConfig } from './config/define.js';
+export { walkthroughInputSchema, walkthroughRecordSchema, WALKTHROUGH_SCHEMA_VERSION } from './walkthrough/schema.js';
+export type { WalkthroughInput, WalkthroughRecord } from './walkthrough/schema.js';
+export { loadWalkthroughs, readWalkthroughInput, prepareWalkthrough, saveWalkthrough, reviewWalkthrough } from './walkthrough/store.js';
+export { renderWalkthrough, computeWalkthroughFiles } from './walkthrough/render.js';
+export { runWalkthroughCaptureCommand, runWalkthroughImportCommand, runWalkthroughListCommand, runWalkthroughReviewCommand, runWalkthroughShowCommand } from './commands/walkthrough.js';
 export { loadConfig, findConfigFile, CONFIG_FILENAMES } from './config/load.js';
 export { docgenConfigSchema, ALWAYS_EXCLUDE } from './config/schema.js';
 export type { DocgenConfig, DocgenUserConfig, ResolvedConfig } from './config/schema.js';

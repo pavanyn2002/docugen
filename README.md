@@ -41,6 +41,7 @@ The static lane is forbidden by an enforced import boundary from ever reaching a
 | [Command reference](docs/commands.md) | Every command, every flag |
 | [For developers](docs/for-developers.md) | The daily loop: answering questions without writing docs |
 | [For QA](docs/for-qa.md) | How to read the output, and what "inferred" means for testing |
+| [Screenshot walkthroughs](docs/walkthroughs.md) | Import screenshots or capture browser flows into reviewed guides |
 | [Configuration](docs/configuration.md) | `docgen.config.ts`, and when you need one |
 | [CI and automation](docs/ci.md) | The drift gate, and keeping documentation current |
 | [Security threat model](docs/security/threat-model.md) | Assets, trust boundaries, controls, and severity |

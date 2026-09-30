@@ -1,5 +1,22 @@
 # Command reference
 
+## `docgen walkthrough`
+
+Create screenshot walkthroughs from existing images or an explicit browser flow:
+
+```bash
+docgen walkthrough import guide.json [--update] [--dry-run] [--json]
+docgen walkthrough capture flow.json [--update] [--dry-run] [--channel chrome|msedge] [--headed] [--storage-state file] [--json]
+docgen walkthrough list [--json]
+docgen walkthrough show <id>
+docgen walkthrough review <id> [--json]
+```
+
+Capture needs optional Playwright. Import and capture produce draft guides with
+immutable screenshot hashes; review applies to an exact snapshot and resets on
+updates. `sync` and `check` validate these guides offline. See
+[Screenshot walkthroughs](walkthroughs.md) for complete input examples.
+
 Every command, every flag.
 
 **Cost:** only `bootstrap` calls a model. Everything else is free, makes no network call, and is safe to run in a loop or across a whole fleet.

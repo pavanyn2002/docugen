@@ -2,6 +2,24 @@
 
 All notable changes to Docugen are documented here.
 
+## 1.1.0 — 2026-09-30
+
+### Added
+
+- Screenshot walkthroughs from existing PNG, JPEG, or WebP images and authored
+  step notes, with generated guides linked from the documentation index.
+- Optional Playwright browser capture for declarative navigation, click, fill,
+  and wait flows, including password and configured sensitive-field masking.
+- Explicit walkthrough review receipts bound to step content and image hashes;
+  updates reset review, and documentation checks detect missing or changed assets.
+- Browser capture smoke testing in CI alongside the existing platform matrix.
+
+### Fixed
+
+- Walkthrough publication checks output collisions before writing records or
+  starting a browser, writes images atomically, and supports explicit asset repair.
+- Stored page URLs omit credentials, query parameters, and fragments.
+
 ## 1.0.5 — 2026-09-30
 
 ### Fixed
