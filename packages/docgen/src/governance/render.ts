@@ -5,6 +5,7 @@ import type { GraphNode } from '../graph/types.js';
 import type { StoredPlanRecord } from '../plans/schema.js';
 import type { GenerationContext } from '../types/core.js';
 import { compareStrings } from '../util/sort.js';
+import { GENERATED_MARKER } from '../render/markdown.js';
 
 function frontmatter(context: GenerationContext, extra: readonly string[] = []): string {
   return [
@@ -16,6 +17,8 @@ function frontmatter(context: GenerationContext, extra: readonly string[] = []):
       : [`evidence_fingerprint: sha256:${context.evidenceFingerprint}`]),
     ...extra,
     '---',
+    '',
+    GENERATED_MARKER,
     '',
   ].join('\n');
 }

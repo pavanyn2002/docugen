@@ -23,9 +23,11 @@ describe('governance page ownership', () => {
       const relative = `docs/generated/${file}`;
       expect(isGeneratedFile(relative, await fs.readFile(path.join(root, relative), 'utf8')), relative).toBe(true);
     }
-    await fs.writeFile(path.join(root, 'app/page.tsx'), 'export default function Home() { return "Updated"; }\n');
+    await fs.mkdir(path.join(root, 'app/account'), { recursive: true });
+    await fs.writeFile(path.join(root, 'app/account/page.tsx'), 'export default function Account() { return null; }\n');
     const changed = await syncGenerated({ config, logger });
     expect(changed.written).toContain('docs/generated/features/home.md');
+    expect(await fs.readFile(path.join(root, 'docs/generated/features/home.md'), 'utf8')).toContain('app/account/page.tsx');
     await fs.writeFile(path.join(root, 'docs/generated/team-guide.md'), '# Human guide\n');
     await fs.unlink(path.join(root, 'docs/.plans/home-update.json'));
     const removed = await syncGenerated({ config, logger });
