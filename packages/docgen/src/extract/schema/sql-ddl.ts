@@ -144,7 +144,10 @@ export function splitStatements(sql: string): readonly { text: string; line: num
       continue;
     }
 
-    if (buffer.length === 0 && /\S/.test(char)) startLine = line;
+    if (buffer.length === 0) {
+      if (/\s/.test(char)) continue;
+      startLine = line;
+    }
     buffer += char;
   }
 
