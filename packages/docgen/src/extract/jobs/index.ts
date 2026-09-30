@@ -144,11 +144,15 @@ function resolveDuplicates(entries: readonly JobEntry[]): {
       deduped.push(bucket[0] as JobEntry);
       continue;
     }
+    const suffixCounts = new Map<string, number>();
     for (const entry of bucket) {
-      const suffix = createHash('sha256')
+      const suffixBase = createHash('sha256')
         .update(`${entry.source.file}:${entry.source.line ?? 0}`)
         .digest('hex')
         .slice(0, 8);
+      const occurrence = (suffixCounts.get(suffixBase) ?? 0) + 1;
+      suffixCounts.set(suffixBase, occurrence);
+      const suffix = occurrence === 1 ? suffixBase : `${suffixBase}-${occurrence}`;
       deduped.push({ ...entry, id: `${entry.id}#${suffix}` });
     }
   }
