@@ -26,6 +26,11 @@ export function isDocgenError(error: unknown): error is DocgenError {
   return error instanceof DocgenError;
 }
 
+/** Report every validated issue rather than dropping all but the first field. */
+export function validationMessages(issues: readonly { readonly message: string }[]): string {
+  return issues.map((issue) => issue.message).join('; ');
+}
+
 /** Best-effort message extraction from an unknown thrown value. */
 export function describeUnknownError(error: unknown): string {
   if (error instanceof Error) return error.message;

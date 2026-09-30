@@ -5,7 +5,7 @@ import { PLAN_RECORD_SCHEMA_VERSION, PLAN_STATUSES, planRecordSchema } from '../
 import type { PlanStatus } from '../plans/schema.js';
 import { loadPlanRecords, updatePlanStatus, writeNewPlanRecord } from '../plans/store.js';
 import { colors } from '../util/colors.js';
-import { DocgenError } from '../util/errors.js';
+import { DocgenError, validationMessages } from '../util/errors.js';
 import { resolveGitUserEmail } from '../util/git.js';
 import type { Logger } from '../util/logger.js';
 
@@ -84,7 +84,7 @@ export async function runPlanCreateCommand(options: PlanCreateCommandOptions): P
   if (!parsed.success) {
     throw new DocgenError({
       code: 'plan-input-invalid',
-      message: `Cannot create plan '${options.id}': ${parsed.error.issues[0]?.message ?? 'invalid input'}.`,
+      message: `Cannot create plan '${options.id}': ${validationMessages(parsed.error.issues)}.`,
       remedy: 'Use a lowercase kebab-case id and non-empty title, summary, and repeated text values.',
     });
   }

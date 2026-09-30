@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { DocgenError } from '../util/errors.js';
+import { DocgenError, validationMessages } from '../util/errors.js';
 import { compareStrings } from '../util/sort.js';
 import type { Gap, SourceRef } from '../types/core.js';
 import { EVIDENCE_GRAPH_SCHEMA_VERSION } from './types.js';
@@ -247,7 +247,7 @@ export class EvidenceGraphBuilder {
     if (issues.length > 0) {
       throw new DocgenError({
         code: 'graph-invalid',
-        message: `The evidence graph is invalid: ${issues[0]?.message ?? 'unknown validation failure'}`,
+        message: `The evidence graph is invalid: ${validationMessages(issues)}`,
         remedy: 'Fix the extractor-to-graph adapter that produced the invalid node or edge.',
       });
     }

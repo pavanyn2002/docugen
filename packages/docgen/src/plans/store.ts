@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import fg from 'fast-glob';
 import { PLANS_DIR } from '../config/paths.js';
-import { DocgenError, describeUnknownError } from '../util/errors.js';
+import { DocgenError, describeUnknownError, validationMessages } from '../util/errors.js';
 import { toPosix } from '../util/paths.js';
 import { compareStrings } from '../util/sort.js';
 import { planRecordSchema } from './schema.js';
@@ -112,7 +112,7 @@ export async function loadPlanRecords(root: string): Promise<readonly StoredPlan
     if (!parsed.success) {
       throw new DocgenError({
         code: 'plan-record-invalid',
-        message: `${relative} is not a valid plan: ${parsed.error.issues[0]?.message ?? 'invalid shape'}.`,
+        message: `${relative} is not a valid plan: ${validationMessages(parsed.error.issues)}.`,
         remedy: 'Fix the reported field or recreate the plan with `docgen plan create`.',
         file: relative,
       });

@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import fg from 'fast-glob';
 import { CHANGES_DIR } from '../config/paths.js';
-import { DocgenError, describeUnknownError } from '../util/errors.js';
+import { DocgenError, describeUnknownError, validationMessages } from '../util/errors.js';
 import { toPosix } from '../util/paths.js';
 import { compareStrings } from '../util/sort.js';
 import { changeRecordSchema } from './schema.js';
@@ -49,7 +49,7 @@ export async function loadChangeRecords(root: string): Promise<readonly StoredCh
     if (!parsed.success) {
       throw new DocgenError({
         code: 'change-record-invalid',
-        message: `${relative} is not a valid change record: ${parsed.error.issues[0]?.message ?? 'invalid shape'}.`,
+        message: `${relative} is not a valid change record: ${validationMessages(parsed.error.issues)}.`,
         remedy: 'Fix the record or recreate it with `docgen change record`.',
         file: relative,
       });

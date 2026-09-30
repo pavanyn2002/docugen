@@ -5,7 +5,7 @@ import { addGovernanceException, loadGovernanceExceptions } from '../governance/
 import { governanceExceptionSchema } from '../governance/schema.js';
 import { runExtraction } from '../pipeline.js';
 import { colors } from '../util/colors.js';
-import { DocgenError } from '../util/errors.js';
+import { DocgenError, validationMessages } from '../util/errors.js';
 import type { Logger } from '../util/logger.js';
 
 interface PolicyBaseOptions { readonly cwd: string; readonly configFile?: string; readonly json?: boolean; readonly logger: Logger; }
@@ -50,7 +50,7 @@ export async function runPolicyExceptionAddCommand(options: PolicyExceptionAddOp
   const config = await loadConfig({ root: options.cwd, ...(options.configFile === undefined ? {} : { configFile: options.configFile }) });
   const now = parsePolicyDate(options.recordedAt, '--recorded-at');
   const parsed = governanceExceptionSchema.safeParse({ id: options.id, policy: options.policy, ...(options.subject === undefined ? {} : { subject: options.subject }), owner: options.owner, reason: options.reason, expiresAt: options.expiresAt, recordedAt: now.toISOString() });
-  if (!parsed.success) throw new DocgenError({ code: 'governance-exception-input-invalid', message: `Cannot add exception '${options.id}': ${parsed.error.issues[0]?.message ?? 'invalid input'}.`, remedy: 'Use a kebab-case id, valid policy, explicit owner and reason, and ISO-8601 expiry.' });
+  if (!parsed.success) throw new DocgenError({ code: 'governance-exception-input-invalid', message: `Cannot add exception '${options.id}': ${validationMessages(parsed.error.issues)}.`, remedy: 'Use a kebab-case id, valid policy, explicit owner and reason, and ISO-8601 expiry.' });
   const file = await addGovernanceException({ root: config.root, exception: parsed.data, now });
   const result = { file, exception: parsed.data };
   if (options.json === true) { options.logger.output(JSON.stringify(result, null, 2)); return; }

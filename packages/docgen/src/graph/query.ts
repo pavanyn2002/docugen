@@ -1,4 +1,4 @@
-import { DocgenError } from '../util/errors.js';
+import { DocgenError, validationMessages } from '../util/errors.js';
 import { compareStrings } from '../util/sort.js';
 import { validateEvidenceGraph } from './builder.js';
 import type {
@@ -63,7 +63,7 @@ export class EvidenceGraphIndex {
     if (issues.length > 0) {
       throw new DocgenError({
         code: 'graph-query-invalid',
-        message: `Cannot query an invalid evidence graph: ${issues[0]?.message ?? 'unknown validation failure'}`,
+        message: `Cannot query an invalid evidence graph: ${validationMessages(issues)}`,
         remedy: 'Rebuild the index from source or fix the graph producer.',
       });
     }

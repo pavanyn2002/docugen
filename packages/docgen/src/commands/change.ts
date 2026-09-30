@@ -10,7 +10,7 @@ import { summarizeChangeSurfaces } from '../graph/impact-summary.js';
 import { readImpactBaseline } from '../graph/session-baseline.js';
 import { runExtraction } from '../pipeline.js';
 import path from 'node:path';
-import { DocgenError } from '../util/errors.js';
+import { DocgenError, validationMessages } from '../util/errors.js';
 import {
   filterGitChanges,
   resolveCommitInfo,
@@ -138,7 +138,7 @@ export async function runChangeRecordCommand(options: ChangeRecordCommandOptions
   if (!parsed.success) {
     throw new DocgenError({
       code: 'change-input-invalid',
-      message: `Cannot record change '${options.id}': ${parsed.error.issues[0]?.message ?? 'invalid input'}.`,
+      message: `Cannot record change '${options.id}': ${validationMessages(parsed.error.issues)}.`,
       remedy: 'Use a lowercase kebab-case id and non-empty summary with valid linked records.',
     });
   }

@@ -1,5 +1,5 @@
 import fg from 'fast-glob';
-import { DocgenError } from '../util/errors.js';
+import { DocgenError, validationMessages } from '../util/errors.js';
 import { compareStrings } from '../util/sort.js';
 import { validateEvidenceGraph } from './builder.js';
 import { enrichGraphWithTypeScriptSymbols } from './symbols.js';
@@ -147,7 +147,7 @@ export async function applySymbolLanguageAdapters(options: {
     if (issues.length > 0) {
       throw new DocgenError({
         code: 'symbol-adapter-graph-invalid',
-        message: `Symbol adapter '${adapter.id}' returned an invalid evidence graph: ${issues[0]?.message ?? 'unknown validation failure'}`,
+        message: `Symbol adapter '${adapter.id}' returned an invalid evidence graph: ${validationMessages(issues)}`,
         remedy: 'Fix or disable the adapter; invalid language evidence is never accepted.',
       });
     }

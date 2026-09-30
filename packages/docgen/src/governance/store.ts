@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { GOVERNANCE_EXCEPTIONS_FILE } from '../config/paths.js';
-import { DocgenError, describeUnknownError } from '../util/errors.js';
+import { DocgenError, describeUnknownError, validationMessages } from '../util/errors.js';
 import { compareStrings } from '../util/sort.js';
 import { GOVERNANCE_EXCEPTION_SCHEMA_VERSION, governanceExceptionSchema, governanceExceptionsSchema } from './schema.js';
 import type { GovernanceException, GovernanceExceptions } from './schema.js';
@@ -25,7 +25,7 @@ export async function loadGovernanceExceptions(root: string): Promise<Governance
     throw new DocgenError({ code: 'governance-exceptions-unparseable', message: `${GOVERNANCE_EXCEPTIONS_FILE} is not valid JSON: ${describeUnknownError(cause)}`, remedy: 'Repair the human-owned exception record; invalid exceptions are never ignored.', file: GOVERNANCE_EXCEPTIONS_FILE, cause });
   }
   const parsed = governanceExceptionsSchema.safeParse(value);
-  if (!parsed.success) throw new DocgenError({ code: 'governance-exceptions-invalid', message: `${GOVERNANCE_EXCEPTIONS_FILE} is invalid: ${parsed.error.issues[0]?.message ?? 'invalid shape'}.`, remedy: 'Fix the reported exception field. Every exception needs a policy, owner, reason, and timestamped expiry.', file: GOVERNANCE_EXCEPTIONS_FILE });
+  if (!parsed.success) throw new DocgenError({ code: 'governance-exceptions-invalid', message: `${GOVERNANCE_EXCEPTIONS_FILE} is invalid: ${validationMessages(parsed.error.issues)}.`, remedy: 'Fix the reported exception field. Every exception needs a policy, owner, reason, and timestamped expiry.', file: GOVERNANCE_EXCEPTIONS_FILE });
   return parsed.data;
 }
 

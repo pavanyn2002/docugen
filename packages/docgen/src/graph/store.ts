@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
 import { EXTRACTOR_IDS } from '../types/core.js';
-import { DocgenError, describeUnknownError } from '../util/errors.js';
+import { DocgenError, describeUnknownError, validationMessages } from '../util/errors.js';
 import { validateEvidenceGraph } from './builder.js';
 import { serialiseEvidenceGraph } from './serialize.js';
 import {
@@ -135,7 +135,7 @@ export function parseEvidenceGraph(contents: string, file = 'evidence graph'): E
   if (issues.length > 0) {
     throw new DocgenError({
       code: 'graph-index-invalid',
-      message: `${file} contains an invalid relationship: ${issues[0]?.message ?? 'unknown validation failure'}`,
+      message: `${file} contains an invalid relationship: ${validationMessages(issues)}`,
       remedy: 'Delete the rebuildable graph index and run indexing again.',
       file,
     });

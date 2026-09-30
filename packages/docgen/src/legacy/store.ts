@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { LEGACY_MIGRATION_FILE } from '../config/paths.js';
-import { DocgenError } from '../util/errors.js';
+import { DocgenError, validationMessages } from '../util/errors.js';
 import { describeUnknownError } from '../util/errors.js';
 import { compareStrings } from '../util/sort.js';
 import { legacyMigrationManifestSchema } from './schema.js';
@@ -49,7 +49,7 @@ export async function loadLegacyMigrationManifest(root: string): Promise<LegacyM
   if (!parsed.success) {
     throw new DocgenError({
       code: 'legacy-migration-invalid',
-      message: `${LEGACY_MIGRATION_FILE} is invalid: ${parsed.error.issues[0]?.message ?? 'invalid shape'}.`,
+      message: `${LEGACY_MIGRATION_FILE} is invalid: ${validationMessages(parsed.error.issues)}.`,
       remedy: 'Repair the reported field; migration decisions are never skipped silently.',
       file: LEGACY_MIGRATION_FILE,
     });
