@@ -16,6 +16,8 @@ All notable changes to Docugen are documented here.
 - Status and synchronization now use matching evidence for governed features.
 - Record validation reports every invalid field, and AST evidence coordinates
   retain concrete line and column information through extraction.
+- Failed legacy-plan publication now waits for sibling writes to finish before
+  returning an error, preventing file mutations during caller recovery.
 - Governance pages now carry the generated ownership marker, allowing later
   synchronization and answer triage to update them safely.
 - Added end-to-end CLI workflows, MCP tool execution and validation cases, and

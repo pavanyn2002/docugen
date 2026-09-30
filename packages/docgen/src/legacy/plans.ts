@@ -170,10 +170,15 @@ export async function writeLegacyOperationPlans(
   root: string,
   plans: { readonly replacement: LegacyReplacementPlan; readonly archive: LegacyArchivePlan },
 ): Promise<{ readonly replacementFile: string; readonly archiveFile: string }> {
-  await Promise.all([
+  const writes = await Promise.allSettled([
     writePlan(root, LEGACY_REPLACEMENT_PLAN_FILE, `${JSON.stringify(plans.replacement, null, 2)}\n`),
     writePlan(root, LEGACY_ARCHIVE_PLAN_FILE, `${JSON.stringify(plans.archive, null, 2)}\n`),
   ]);
+  // A caller may recover or remove temporary artifacts as soon as this rejects.
+  // Finish both writes first so no sibling operation can mutate files afterward.
+  for (const write of writes) {
+    if (write.status === 'rejected') throw write.reason;
+  }
   return {
     replacementFile: LEGACY_REPLACEMENT_PLAN_FILE,
     archiveFile: LEGACY_ARCHIVE_PLAN_FILE,
