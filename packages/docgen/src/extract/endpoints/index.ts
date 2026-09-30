@@ -5,6 +5,7 @@ import type { Extractor, ExtractorContext } from '../types.js';
 import type { Workspace } from '../../detect/workspaces.js';
 import { inapplicable, skip } from '../types.js';
 import { extractExpressEndpoints } from './express.js';
+import { extractVercelEndpoints } from './vercel.js';
 import { extractNextApiEndpoints } from './next-api.js';
 import { extractNestEndpoints } from './nest.js';
 import { extractFastApiEndpoints } from './fastapi.js';
@@ -46,6 +47,13 @@ export const endpointsExtractor: Extractor<EndpointEntry> = {
       detected.push('next-api');
       entries.push(...withOwnership(nextApi.entries, 'next-api', workspaces));
       gaps.push(...nextApi.gaps);
+    }
+
+    const vercel = await extractVercelEndpoints({ root: context.root, exclude, workspaces: workspaces.map(workspace => workspace.dir) });
+    if (vercel.found) {
+      detected.push('vercel');
+      entries.push(...withOwnership(vercel.entries, 'vercel', workspaces));
+      gaps.push(...vercel.gaps);
     }
 
     const nest = await extractNestEndpoints({ root: context.root, exclude });
@@ -92,7 +100,7 @@ export const endpointsExtractor: Extractor<EndpointEntry> = {
           skip(
             'endpoints',
             'no-endpoint-source-detected',
-            'No Express router, NestJS controller, Next.js API handler, FastAPI route, or ' +
+            'No Express router, NestJS controller, Next.js API handler, Vercel function, FastAPI route, or ' +
               'Django urlconf was found.',
           ),
         ],

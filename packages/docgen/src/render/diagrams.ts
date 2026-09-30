@@ -60,6 +60,19 @@ export function renderSitemap(routes: RoutesResult | undefined, maxNodes: number
 
   lines.push(`  root[${label('/')}]`);
   emitted.add('/');
+  const ids = new Map<string, string>([['/', 'root']]);
+  const usedIds = new Set<string>(['root', 'more']);
+  const idFor = (routePath: string): string => {
+    const existing = ids.get(routePath);
+    if (existing !== undefined) return existing;
+    const base = nodeId('r', routePath);
+    let id = base;
+    let suffix = 2;
+    while (usedIds.has(id)) id = `${base}_${suffix++}`;
+    usedIds.add(id);
+    ids.set(routePath, id);
+    return id;
+  };
 
   for (const screen of shown) {
     const segments = screen.path.split('/').filter((part) => part.length > 0);
@@ -69,11 +82,11 @@ export function renderSitemap(routes: RoutesResult | undefined, maxNodes: number
       const currentPath = `/${segments.slice(0, depth + 1).join('/')}`;
       if (!emitted.has(currentPath)) {
         emitted.add(currentPath);
-        lines.push(`  ${nodeId('r', currentPath)}[${label(segments[depth] as string)}]`);
+        lines.push(`  ${idFor(currentPath)}[${label(segments[depth] as string)}]`);
       }
-      edges.add(
-        `  ${parentPath === '/' ? 'root' : nodeId('r', parentPath)} --> ${nodeId('r', currentPath)}`,
-      );
+      const from = idFor(parentPath);
+      const to = idFor(currentPath);
+      if (from !== to) edges.add(`  ${from} --> ${to}`);
       parentPath = currentPath;
     }
   }

@@ -5,6 +5,7 @@ import type { EvidenceGraph } from '../graph/types.js';
 import { redactSecrets } from '../privacy/redact.js';
 import type { Surface } from '../surface/types.js';
 import type { SourceRef } from '../types/core.js';
+import { parseSourceFile, ts, walk } from '../util/ts-ast.js';
 import { toPosix } from '../util/paths.js';
 import { compareStrings } from '../util/sort.js';
 import type { ExtractionBundleLike } from './facts.js';
@@ -89,6 +90,7 @@ export async function buildSurfaceContext(args: {
       contents,
       evidenceByFile.get(relative) ?? [],
       limits.maxBytesPerFile,
+      relative,
     );
     const redacted = args.redact === false
       ? { text: excerpt.text, count: 0, kinds: [] as readonly string[] }
@@ -173,16 +175,12 @@ function renderSourceExcerpt(
   contents: string,
   evidenceLines: readonly number[],
   maxBytes: number,
+  file: string,
 ): { readonly text: string; readonly ranges: readonly Omit<EvidenceExcerpt, 'file'>[] } {
   const lines = contents.replace(/\r\n/g, '\n').split('\n');
   const windows = evidenceLines.length === 0
     ? [{ startLine: 1, endLine: lines.length }]
-    : mergeRanges(
-        evidenceLines.map((line) => ({
-          startLine: Math.max(1, line - 20),
-          endLine: Math.min(lines.length, line + 20),
-        })),
-      );
+    : mergeRanges(componentEvidenceRanges(file, contents, evidenceLines, lines.length));
   const rendered: string[] = [];
   const ranges: Array<Omit<EvidenceExcerpt, 'file'>> = [];
   let bytes = 0;
@@ -237,4 +235,23 @@ function mergeRanges(
     }
   }
   return merged;
+}
+
+/** Expand React evidence to its enclosing component, including handlers and JSX. */
+function componentEvidenceRanges(
+  file: string, contents: string, evidenceLines: readonly number[], lineCount: number,
+): readonly Omit<EvidenceExcerpt, 'file'>[] {
+  const ranges = evidenceLines.map(line => ({ startLine: Math.max(1, line - 20), endLine: Math.min(lineCount, line + 20) }));
+  if (!/\.(?:tsx|jsx|ts|js|mjs|cjs)$/.test(file) || !contents.includes('<')) return ranges;
+  const source = parseSourceFile(file, contents);
+  walk(source, node => {
+    if (!ts.isFunctionDeclaration(node) && !ts.isArrowFunction(node) && !ts.isFunctionExpression(node)) return;
+    const startLine = source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
+    const endLine = source.getLineAndCharacterOfPosition(node.getEnd()).line + 1;
+    if (!evidenceLines.some(line => line >= startLine && line <= endLine)) return;
+    let hasJsx = false;
+    walk(node, child => { if (ts.isJsxElement(child) || ts.isJsxSelfClosingElement(child) || ts.isJsxFragment(child)) hasJsx = true; });
+    if (hasJsx) ranges.push({ startLine, endLine });
+  });
+  return ranges;
 }

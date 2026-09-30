@@ -7,6 +7,7 @@ import { toPosix } from '../../util/paths.js';
 import { parseSourceFile, positionOf, ts, walk } from '../../util/ts-ast.js';
 import type { Extractor, ExtractorContext } from '../types.js';
 import { inapplicable, skip } from '../types.js';
+import { ALWAYS_EXCLUDE } from '../../config/schema.js';
 import { owningWorkspace, workspaceLabel } from '../../detect/ownership.js';
 import { isCredentialLikeLiteral, isSecretLikeName } from '../../privacy/redact.js';
 
@@ -92,14 +93,19 @@ export const configExtractor: Extractor<ConfigEntry> = {
     }
 
     // ── declarations, from .env files ─────────────────────────────────────────
-    const envFiles = (
-      await fg(['**/.env', '**/.env.*'], {
+    const templateFiles = await fg(['**/.env.example', '**/.env.template', '**/.env.defaults'], {
+      cwd: context.root, ignore: [...ALWAYS_EXCLUDE, ...context.config.exclude, `${context.config.outDir}/**`],
+      onlyFiles: true, dot: true,
+    });
+    const envFiles = [...new Set([
+      ...templateFiles,
+      ...await fg(['**/.env', '**/.env.*'], {
         cwd: context.root,
         ignore: [...exclude],
         onlyFiles: true,
         dot: true,
-      })
-    )
+      }),
+    ])]
       .map(toPosix)
       .sort();
 

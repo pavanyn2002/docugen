@@ -157,7 +157,9 @@ export async function loadConfig(options: {
     });
   }
 
-  const gitignore = parsed.data.respectGitignore ? await readGitignore(root) : undefined;
+  const gitignore = parsed.data.respectGitignore ? await readGitignore(root, [
+    ...ALWAYS_EXCLUDE, ...parsed.data.exclude, `${parsed.data.outDir}/**`,
+  ]) : undefined;
 
   return {
     ...parsed.data,

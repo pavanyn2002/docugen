@@ -65,7 +65,7 @@ export async function extractReactRouterRoutes(args: {
 
   const entries: RouteEntry[] = [];
   const gaps: Gap[] = [];
-  const seen = new Set<string>();
+  const seen = new Map<string, number>();
   const readCache = new Map<string, string>();
 
   const read = async (relative: string): Promise<string | undefined> => {
@@ -136,13 +136,18 @@ function pushEntries(
   relative: string,
   entries: RouteEntry[],
   gaps: Gap[],
-  seen: Set<string>,
+  seen: Map<string, number>,
 ): void {
   for (const route of collected) {
       const id = `route:page:${route.path}`;
       // The same path declared twice is real duplication worth reporting, but
       // only one entry should represent it.
       if (seen.has(id)) {
+        // An index shares the address of its layout or landing route.
+        if (((seen.get(id) ?? 0) & (route.isIndex ? 1 : 2)) === 0) {
+          seen.set(id, (seen.get(id) ?? 0) | (route.isIndex ? 1 : 2));
+          continue;
+        }
         gaps.push({
           extractor: 'routes',
           kind: 'duplicate-route-path',
@@ -151,7 +156,7 @@ function pushEntries(
         });
         continue;
       }
-      seen.add(id);
+      seen.set(id, route.isIndex ? 1 : 2);
 
       entries.push({
         id,
@@ -179,8 +184,9 @@ function paramsOf(routePath: string): readonly string[] {
 /** Join a parent route path with a child's, honouring absolute child paths. */
 export function joinRoutePaths(parent: string, child: string): string {
   if (child.startsWith('/')) return normalise(child);
-  if (child === '') return normalise(parent === '' ? '/' : parent);
-  return normalise(`${parent}/${child}`);
+  const prefix = parent.replace(/(?:\/)?\*$/, '');
+  if (child === '') return normalise(prefix === '' ? '/' : prefix);
+  return normalise(`${prefix}/${child}`);
 }
 
 function normalise(value: string): string {
@@ -237,7 +243,7 @@ function walkRouteArray(
     const indexNode = getProperty(element, 'index');
     const isIndex = indexNode !== undefined && indexNode.kind === ts.SyntaxKind.TrueKeyword;
 
-    let resolved = parentPath;
+    let resolved = isIndex ? joinRoutePaths(parentPath, '') : parentPath;
     if (pathNode !== undefined) {
       const literal = literalString(pathNode);
       if (literal === undefined) {
@@ -336,6 +342,7 @@ function collectJsxRoutes(
       isRouteElement = true;
       const pathAttribute = jsxAttribute(node, 'path');
       const isIndex = jsxAttribute(node, 'index') !== undefined;
+      if (isIndex) currentPath = joinRoutePaths(inheritedPath, '');
       let pathResolved = true;
 
       if (pathAttribute !== undefined) {

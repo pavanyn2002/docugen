@@ -57,11 +57,11 @@ describe('parseGitignore', () => {
     expect(parseGitignore('# a comment\n\n   \n/dist/\n').patterns).toEqual(['dist/**']);
   });
 
-  it('reports negations instead of applying half of one', () => {
-    // Applying the ignore without the re-inclusion would hide a tracked file.
+  it('accepts negations without reporting them as unsupported', () => {
+    // Ordered matching is applied against files by readGitignore.
     const rules = parseGitignore('/build/\n!/build/keep.txt\n');
     expect(rules.patterns).toEqual(['build/**']);
-    expect(rules.unsupportedNegations).toEqual(['!/build/keep.txt']);
+    expect(rules.unsupportedNegations).toEqual([]);
   });
 
   it('unescapes a leading marker so \\#file is a real filename', () => {

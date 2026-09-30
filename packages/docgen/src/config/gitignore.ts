@@ -1,5 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import fg from 'fast-glob';
+import picomatch from 'picomatch';
+import { toPosix } from '../util/paths.js';
 
 /**
  * The repo's own ignore rules, as glob patterns.
@@ -24,11 +27,7 @@ export interface GitignoreRules {
   /** fast-glob `ignore` patterns, sorted for deterministic config output. */
   readonly patterns: readonly string[];
   /**
-   * Re-inclusion rules (`!build/keep.txt`) that were read but not applied.
-   *
-   * A flat ignore list cannot express them, and applying the ignore half alone
-   * would exclude a file the repo deliberately tracks. They are reported so
-   * the omission is visible rather than silent.
+   * Retained for compatibility. Ordered re-inclusion rules are now supported.
    */
   readonly unsupportedNegations: readonly string[];
 }
@@ -48,27 +47,34 @@ const EMPTY: GitignoreRules = Object.freeze({
  *
  * A missing or unreadable file is not an error — plenty of repos have neither.
  */
-export async function readGitignore(root: string): Promise<GitignoreRules> {
+export async function readGitignore(root: string, exclude: readonly string[] = []): Promise<GitignoreRules> {
   let contents: string;
   try {
     contents = await fs.readFile(path.join(root, '.gitignore'), 'utf8');
   } catch {
     return EMPTY;
   }
-  return parseGitignore(contents);
+  const parsed = parseGitignore(contents);
+  if (!contents.split(/\r?\n/).some(line => line.startsWith('!'))) return parsed;
+  // Fast-glob cannot restore pruned files. Evaluate ordered rules first, then
+  // pass literal ignored filenames to every existing extraction consumer.
+  const ignores = gitignoreMatcher(contents);
+  const files = await fg('**/*', { cwd: root, ignore: [...exclude], dot: true, onlyFiles: true });
+  return {
+    patterns: files.map(toPosix).filter(ignores).map(file => fg.escapePath(file)).sort(),
+    unsupportedNegations: [],
+  };
 }
 
-/** Exported for testing: the pure text-to-globs half. */
+/** Positive-rule globs; readGitignore resolves ordered negations against files. */
 export function parseGitignore(contents: string): GitignoreRules {
   const patterns = new Set<string>();
-  const negations: string[] = [];
 
   for (const rawLine of contents.split(/\r?\n/)) {
     const line = stripTrailingSpace(rawLine);
     if (line === '' || line.startsWith('#')) continue;
 
     if (line.startsWith('!')) {
-      negations.push(line);
       continue;
     }
 
@@ -79,7 +85,7 @@ export function parseGitignore(contents: string): GitignoreRules {
 
   return {
     patterns: [...patterns].sort(),
-    unsupportedNegations: negations,
+    unsupportedNegations: [],
   };
 }
 
@@ -111,4 +117,35 @@ function trimSlashes(value: string): string {
 /** Trailing whitespace is insignificant unless escaped with a backslash. */
 function stripTrailingSpace(line: string): string {
   return line.replace(/(?<!\\)\s+$/, '');
+}
+
+/** Git ignores cannot re-include a child of an excluded directory. */
+export function gitignoreMatcher(contents: string): (file: string) => boolean {
+  const rules = contents.split(/\r?\n/).map(stripTrailingSpace)
+    .filter(line => line !== '' && !line.startsWith('#'))
+    .map(line => {
+      const negate = line.startsWith('!');
+      const raw = negate ? line.slice(1) : line;
+      const directoryOnly = raw.endsWith('/');
+      const body = trimSlashes(raw);
+      const anchored = raw.startsWith('/') || body.includes('/');
+      // Git treats braces and extglobs literally, and matches dotfiles.
+      const match = picomatch(anchored ? body : `**/${body}`, {
+        dot: true, nonegate: true, noext: true, nobrace: true, strictSlashes: true,
+      });
+      return { negate, directoryOnly, match };
+    });
+  return file => {
+    const parts = toPosix(file).split('/');
+    for (let depth = 1; depth <= parts.length; depth += 1) {
+      const candidate = parts.slice(0, depth).join('/');
+      const isDirectory = depth < parts.length;
+      let ignored = false;
+      for (const rule of rules) {
+        if ((!rule.directoryOnly || isDirectory) && rule.match(candidate)) ignored = !rule.negate;
+      }
+      if (ignored) return true;
+    }
+    return false;
+  };
 }

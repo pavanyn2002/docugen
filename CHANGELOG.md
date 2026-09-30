@@ -2,6 +2,21 @@
 
 All notable changes to Docugen are documented here.
 
+## 1.1.1 — 2026-09-30
+
+### Fixed
+
+- React Router child and index paths strip parent wildcard suffixes; legitimate
+  index routes no longer produce duplicate-path warnings.
+- Sitemap node IDs remain unique when route paths sanitize to the same name,
+  and self-referencing edges are omitted.
+- Standalone Vercel functions under repository and workspace api directories
+  appear as source-linked endpoints, including dynamic and catch-all paths.
+- Gitignore re-inclusion rules are applied in order, and environment example,
+  template, and defaults files contribute configuration declarations.
+- React evidence excerpts expand to enclosing component handlers and JSX
+  within configured source limits.
+
 ## 1.1.0 — 2026-09-30
 
 ### Added
