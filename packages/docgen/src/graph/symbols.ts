@@ -399,13 +399,9 @@ function resolveExportedSymbol(
   const bindings = context.bindingsByFile.get(file);
   const explicit = bindings?.exports.get(name);
   if (explicit?.kind === 'local') {
-    const matches = module.symbols.filter(
-      (symbol) =>
-        symbol.scope.length === 0 &&
-        symbol.name === explicit.localName &&
-        (kinds === undefined || kinds.has(symbol.kind)),
-    );
-    return matches.length === 1 ? matches[0] : undefined;
+    // Local export aliases were attached during analysis. A failed direct lookup
+    // means the export is ambiguous or not a supported callable; never choose a star export instead.
+    return undefined;
   }
   if (explicit?.kind === 'reexport') {
     const target = resolveImport(file, explicit.specifier, context.files, context.aliases);
