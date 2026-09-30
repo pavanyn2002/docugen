@@ -51,7 +51,7 @@ When it is not a dependency — a Python or Go repo, say — the workflow fetche
 
 ```yaml
       - name: Check documentation is current
-        run: npx --yes @pavanyn/docugen@1.0.1 check
+        run: npx --yes @pavanyn/docugen@1.0.4 check --base "$DOCGEN_BASE"
 ```
 
 ## Why the version is pinned
@@ -79,7 +79,7 @@ It never touches a repo that already has an update policy of its own.
 |---|---|---|
 | `changed` | A generated file would be rewritten | `docgen sync` |
 | `missing` | A generated file should exist and does not | `docgen sync` |
-| `orphaned` | A page documents something that no longer exists | `docgen sync` deletes it |
+| `orphaned` | A marked generated page documents something that no longer exists | `docgen sync` deletes it |
 
 `orphaned` is the one that matters most. A page describing a deleted feature is worse than a stale one, because nothing about it looks wrong.
 
@@ -107,13 +107,20 @@ For an earlier local signal, `docgen init --hooks` installs an opt-in pre-push
 hook that runs the same non-mutating check. It refuses to replace a team-owned
 hook or a different configured hooks path.
 
+The hook reads Git's pushed-ref list and supplies the existing remote revision
+as `--base`. For a new branch, it uses the merge base with the remote default
+branch when available, otherwise the empty tree. Deleted refs are skipped.
+The pushed commit must be checked out, and an unavailable remote revision must
+be fetched before retrying. Running the hook manually without a ref list uses
+`HEAD`. Change-scoped handoffs must be generated for the same comparison base.
+
 **GitLab CI**
 
 ```yaml
 documentation:
   image: node:22
   script:
-    - npx --yes @pavanyn/docugen@1.0.1 check
+    - npx --yes @pavanyn/docugen@1.0.4 check --base "$CI_MERGE_REQUEST_DIFF_BASE_SHA"
 ```
 
 **A git pre-push hook**

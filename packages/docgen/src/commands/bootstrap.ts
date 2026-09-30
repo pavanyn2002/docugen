@@ -5,8 +5,7 @@ import { chunkSurfaces } from '../surface/chunk.js';
 import { resolveBackend, probeBackends } from '../agents/registry.js';
 import { inferCards } from '../infer/cards.js';
 import { loadCards, saveCards } from '../infer/store.js';
-import { writeBehaviourPages } from '../infer/write-behaviour.js';
-import { writeAll } from '../render/index.js';
+import { syncGenerated } from '../verify/write.js';
 import { loadAnswers } from '../questions/store.js';
 import { buildQueue, resolveOwners } from '../questions/queue.js';
 import type {
@@ -156,26 +155,24 @@ export async function runBootstrapCommand(options: BootstrapCommandOptions): Pro
     logger: options.logger,
   });
 
-  const written = await saveCards(config.root, result.cards);
-  const pages = await writeBehaviourPages({
-    root: config.root,
-    outDir: toPosix(config.outDir),
-    cards: result.cards,
-    answers,
-    context: run.context,
-  });
-
-  // Rewrite the static docs too, so the README links the behaviour pages in the
-  // same run that created them. This is the static lane doing static work — it
-  // reads only that the card directory is non-empty, never what is in it.
-  await writeAll(run);
+  // A bounded run replaces only its targets. Untargeted live cards survive,
+  // while failed targets and deleted surfaces must not be resurrected from disk.
+  const liveIds = new Set(surfaceSet.surfaces.map((surface) => surface.id));
+  const targetIds = new Set(surfaceSet.surfaces.slice(0, targetCount).map((surface) => surface.id));
+  const cards = [
+    ...[...previous.values()].filter((card) => liveIds.has(card.surfaceId) && !targetIds.has(card.surfaceId)),
+    ...result.cards,
+  ];
+  const written = await saveCards(config.root, cards, { replace: true });
+  const sync = await syncGenerated({ config, logger: options.logger });
+  const pages = sync.written.filter((file) => file.startsWith(`${toPosix(config.outDir)}/`));
 
   const filesBySurface = new Map(surfaceSet.surfaces.map((s) => [s.id, s.sourceFiles]));
-  const owners = await resolveOwners({ root: config.root, cards: result.cards, filesBySurface });
-  const queue = buildQueue({ cards: result.cards, answers, ownersBySurface: owners });
+  const owners = await resolveOwners({ root: config.root, cards, filesBySurface });
+  const queue = buildQueue({ cards, answers, ownersBySurface: owners });
 
   options.logger.heading('Result');
-  options.logger.info(`  cards     ${result.cards.length} (${result.reused.length} reused unchanged)`);
+  options.logger.info(`  cards     ${cards.length} (${result.reused.length} reused unchanged)`);
   options.logger.info(`  written   ${written.length} card(s) under docs/.cards/`);
   options.logger.info(`  pages     ${pages.length} under ${toPosix(config.outDir)}/`);
   options.logger.info(`  questions ${queue.questions.length} open`);

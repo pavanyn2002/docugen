@@ -7,6 +7,7 @@ import { BLOCK_END, BLOCK_START, upsertManagedBlock } from '../src/adapters/bloc
 import { installAdapters } from '../src/adapters/install.js';
 import { renderAgentInstructions, renderCursorRule } from '../src/adapters/instructions.js';
 import { resolveInvocation } from '../src/commands/init.js';
+import { ENGINE_VERSION } from '../src/util/version.js';
 import { renderDocgenSkill } from '../src/adapters/skills.js';
 import { renderPrePushHook } from '../src/adapters/hooks.js';
 
@@ -309,18 +310,18 @@ describe('invocation detection', () => {
     await expect(resolveInvocation(root)).resolves.toBe('npx docgen');
   });
 
-  it('falls back to the bare command when it is installed globally', async () => {
+  it('uses a pinned package invocation when there is no local dependency', async () => {
     const root = await makeRepo({ 'package.json': JSON.stringify({ name: 'app' }) });
-    await expect(resolveInvocation(root)).resolves.toBe('docgen');
+    await expect(resolveInvocation(root)).resolves.toBe(`npx --yes @pavanyn/docugen@${ENGINE_VERSION}`);
   });
 
   it('does not fail on a repo with no package.json', async () => {
     const root = await makeRepo();
-    await expect(resolveInvocation(root)).resolves.toBe('docgen');
+    await expect(resolveInvocation(root)).resolves.toBe(`npx --yes @pavanyn/docugen@${ENGINE_VERSION}`);
   });
 
   it('does not fail on a malformed package.json', async () => {
     const root = await makeRepo({ 'package.json': '{ not json' });
-    await expect(resolveInvocation(root)).resolves.toBe('docgen');
+    await expect(resolveInvocation(root)).resolves.toBe(`npx --yes @pavanyn/docugen@${ENGINE_VERSION}`);
   });
 });

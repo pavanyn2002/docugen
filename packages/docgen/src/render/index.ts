@@ -17,13 +17,14 @@ import { renderRoutesPage } from './pages/routes.js';
 import { renderSchemaPage } from './pages/schema.js';
 import { renderErd, renderIntegrations, renderModules, renderSitemap } from './diagrams.js';
 import { chunkSurfaces } from '../surface/chunk.js';
-import { CARDS_DIR, REQUIREMENTS_DIR } from '../config/paths.js';
+import { REQUIREMENTS_DIR } from '../config/paths.js';
 import { compareStrings } from '../util/sort.js';
 import { computeFindings } from '../analysis/findings.js';
 import type { FindingsReport } from '../analysis/findings.js';
 import { computeGovernanceFiles } from '../governance/expected.js';
 import { writeFileAtomically } from '../util/atomic.js';
 import { projectRenderResults } from './projection.js';
+import { assertGeneratedPath, assertGeneratedTargets, isGeneratedFile } from '../util/generated.js';
 
 /** A file to write: repo-relative POSIX path and its full contents. */
 export interface RenderedFile {
@@ -148,12 +149,14 @@ export async function writeAll(run: RunResult): Promise<WriteReport> {
   const findings = await computeFindings(run);
   const files = [
     ...renderAll(run, findings, {
-      behaviour: await hasFilesIn(run.config.root, CARDS_DIR),
+      behaviour: run.graph.nodes.some((node) => node.kind === 'surface') &&
+        await hasGeneratedPage(run.config.root, `${run.config.outDir}/behaviour.md`),
       requirements: await hasFilesIn(run.config.root, REQUIREMENTS_DIR),
     }),
     ...(await computeGovernanceFiles(run)),
   ].sort((a, b) => compareStrings(a.path, b.path));
   const written: string[] = [];
+  await assertGeneratedTargets(run.config.root, files.map((file) => file.path));
 
   for (const file of files) {
     const absolute = path.join(run.config.root, file.path);
@@ -170,12 +173,18 @@ export async function writeAll(run: RunResult): Promise<WriteReport> {
 }
 
 /**
- * Whether any surface has been described by the LLM lane.
- *
- * Checked on the filesystem rather than by importing the card store, which
- * lives on the other side of the import boundary. The README only needs to know
- * that inferred pages exist, not what is in them.
+ * Link only an existing generated index, not orphaned card caches. The static
+ * renderer reads an ownership header and never consumes inferred claims.
  */
+async function hasGeneratedPage(root: string, file: string): Promise<boolean> {
+  await assertGeneratedPath(root, file);
+  try { return isGeneratedFile(file, await fs.readFile(path.join(root, file), 'utf8')); }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+    throw error;
+  }
+}
+
 async function hasFilesIn(root: string, directory: string): Promise<boolean> {
   try {
     const entries = await fs.readdir(path.join(root, directory));

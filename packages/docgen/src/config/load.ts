@@ -165,6 +165,7 @@ export async function loadConfig(options: {
     ...(file === undefined ? {} : { configFile: file }),
     effectiveExclude: [
       ...ALWAYS_EXCLUDE,
+      ...(parsed.data.outDir === 'docs/generated' ? [] : [`${parsed.data.outDir}/**`]),
       ...parsed.data.exclude,
       ...(gitignore?.patterns ?? []),
     ],

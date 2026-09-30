@@ -104,7 +104,7 @@ describe('docgen check', () => {
   it('reports a page left behind for something that no longer exists', async () => {
     const root = await makeRepo();
     await generate(root);
-    await fs.writeFile(path.join(root, 'docs/generated/orphan.md'), '# gone\n', 'utf8');
+    await fs.writeFile(path.join(root, 'docs/generated/orphan.md'), '<!-- docgen:generated -->\n# gone\n', 'utf8');
 
     const captured = capture();
     await expect(
@@ -149,7 +149,7 @@ describe('docgen sync', () => {
   it('deletes a page for something that no longer exists', async () => {
     const root = await makeRepo();
     await generate(root);
-    await fs.writeFile(path.join(root, 'docs/generated/orphan.md'), '# gone\n', 'utf8');
+    await fs.writeFile(path.join(root, 'docs/generated/orphan.md'), '<!-- docgen:generated -->\n# gone\n', 'utf8');
 
     await runSyncCommand({ cwd: root, json: false, logger: quiet });
 

@@ -3,7 +3,7 @@ import { loadConfig } from '../config/load.js';
 import { deriveFeatureCommitHistory } from '../features/history.js';
 import { loadFeatureRecords } from '../features/store.js';
 import { analyzeChangeImpact } from '../graph/impact.js';
-import { DEFAULT_GRAPH_INDEX, readEvidenceGraphIfExists } from '../graph/store.js';
+import { readImpactBaseline } from '../graph/session-baseline.js';
 import type { GraphNodeKind } from '../graph/types.js';
 import { renderTesterHandoff } from '../handoff/render.js';
 import { loadPlanRecords } from '../plans/store.js';
@@ -60,7 +60,7 @@ export async function runHandoffCommand(options: HandoffCommandOptions): Promise
   );
   const [run, baseline, head, featureRecords, planRecords, requirements, testReferences] = await Promise.all([
     runExtraction({ config, logger: options.logger, includeSymbols: true }),
-    readEvidenceGraphIfExists(path.join(config.root, DEFAULT_GRAPH_INDEX)),
+    readImpactBaseline(config.root, options.base ?? 'HEAD'),
     resolveCommitInfo(config.root),
     loadFeatureRecords(config.root),
     loadPlanRecords(config.root),

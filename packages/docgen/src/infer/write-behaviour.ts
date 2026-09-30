@@ -5,6 +5,7 @@ import { compareStrings } from '../util/sort.js';
 import type { SurfaceAnswers } from '../questions/store.js';
 import { BEHAVIOUR_DIR, renderBehaviourIndex, renderBehaviourPage } from './behaviour.js';
 import type { FeatureCard } from './types.js';
+import { assertGeneratedTargets, isGeneratedFile } from '../util/generated.js';
 
 export interface WriteBehaviourArgs {
   readonly root: string;
@@ -29,6 +30,10 @@ export interface WriteBehaviourArgs {
  */
 export async function writeBehaviourPages(args: WriteBehaviourArgs): Promise<readonly string[]> {
   const directory = path.join(args.root, args.outDir, BEHAVIOUR_DIR);
+  await assertGeneratedTargets(args.root, [
+    ...args.cards.map((card) => `${args.outDir}/${BEHAVIOUR_DIR}/${card.slug}.md`),
+    `${args.outDir}/${BEHAVIOUR_DIR}.md`,
+  ]);
   await fs.mkdir(directory, { recursive: true });
 
   const written: string[] = [];
@@ -83,7 +88,10 @@ async function removeStalePages(directory: string, expected: ReadonlySet<string>
 
   for (const entry of entries) {
     if (!entry.endsWith('.md') || expected.has(entry)) continue;
-    await fs.rm(path.join(directory, entry), { force: true });
+    const file = path.join(directory, entry);
+    if ((await fs.lstat(file)).isFile() && isGeneratedFile(entry, await fs.readFile(file, 'utf8'))) {
+      await fs.rm(file);
+    }
   }
 }
 

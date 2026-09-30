@@ -3,6 +3,7 @@ import { loadConfig } from '../config/load.js';
 import { runExtraction } from '../pipeline.js';
 import { computeExpectedFiles, findDrift } from '../verify/expected.js';
 import { loadCards } from '../infer/store.js';
+import { activeCards } from '../infer/active.js';
 import { loadAnswers } from '../questions/store.js';
 import { loadRequirements } from '../requirements/store.js';
 import { buildQueue } from '../questions/queue.js';
@@ -52,7 +53,7 @@ export async function runCheckCommand(options: CheckCommandOptions): Promise<voi
   const expected = await computeExpectedFiles(run);
   const drift = await findDrift(config.root, toPosix(config.outDir), expected);
 
-  const cards = [...(await loadCards(config.root)).values()];
+  const cards = activeCards([...(await loadCards(config.root)).values()], run.graph);
   const answers = await loadAnswers(config.root);
   const requirements = await loadRequirements(config.root);
   const openQuestions = buildQueue({ cards, answers }).questions.length;

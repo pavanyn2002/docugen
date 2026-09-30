@@ -2,6 +2,24 @@
 
 All notable changes to Docugen are documented here.
 
+## Unreleased
+
+### Fixed
+
+- Generated output now validates its directory and rejects symlink traversal,
+  preserves unmarked documents, and refuses human-file collisions before writing.
+- Sessions retain a graph baseline for their Git comparison revision so repeated
+  indexing cannot erase deleted-feature impact, handoffs, or plan-policy failures.
+- Critical behavior cards require attributed human confirmation, with an explicit
+  `behavior-confirmation` answer supported for cards that raise no questions.
+- Synchronization excludes cards for removed surfaces. Bounded bootstrap retains
+  unselected live cards and prevents failed regeneration from reviving old cards.
+- Agent and MCP adapters use a pinned npx invocation without a local dependency;
+  CI correctly distinguishes fetched packages from installed dependencies.
+- Pre-push checks use a Git comparison base and skip remote-ref deletions.
+- Unknown extractor keys are rejected, and the CLI drift test uses an isolated
+  repository instead of an outdated, working-directory-dependent expectation.
+
 ## 1.0.4 — 2026-08-24
 
 Next.js monorepo and Python correctness patch.

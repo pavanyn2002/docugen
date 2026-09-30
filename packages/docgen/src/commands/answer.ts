@@ -1,6 +1,7 @@
 import { colors } from '../util/colors.js';
 import { loadConfig } from '../config/load.js';
 import { loadCards } from '../infer/store.js';
+import { BEHAVIOR_CONFIRMATION } from '../infer/verification.js';
 import { syncGenerated } from '../verify/write.js';
 import { toPosix } from '../util/paths.js';
 import { loadAnswers, recordAnswer } from '../questions/store.js';
@@ -52,7 +53,8 @@ export async function runAnswerCommand(options: AnswerCommandOptions): Promise<v
     });
   }
 
-  const unknown = card.body.unknowns.find((candidate) => candidate.id === options.questionId);
+  const unknown = card.body.unknowns.find((candidate) => candidate.id === options.questionId)
+    ?? (options.questionId === BEHAVIOR_CONFIRMATION.id ? BEHAVIOR_CONFIRMATION : undefined);
   if (unknown === undefined) {
     const ids = card.body.unknowns.map((candidate) => candidate.id);
     throw new DocgenError({

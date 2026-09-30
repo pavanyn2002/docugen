@@ -9,6 +9,7 @@ import type { Logger } from '../util/logger.js';
 import { computeExpectedFiles, findDrift } from './expected.js';
 import { loadFeatureRecords } from '../features/store.js';
 import { writeFileAtomically } from '../util/atomic.js';
+import { assertGeneratedTargets } from '../util/generated.js';
 
 export interface SyncReport {
   readonly written: readonly string[];
@@ -48,6 +49,8 @@ export async function syncGenerated(args: {
     drift.some((item) => item.file === file.path && item.kind !== 'orphaned'),
   );
   const toDelete = drift.filter((item) => item.kind === 'orphaned').map((item) => item.file);
+
+  await assertGeneratedTargets(config.root, toWrite.map((file) => file.path));
 
   if (args.dryRun !== true) {
     for (const file of toWrite) {

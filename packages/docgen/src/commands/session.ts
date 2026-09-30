@@ -1,4 +1,5 @@
 import { loadConfig } from '../config/load.js';
+import { preserveSessionBaseline } from '../graph/session-baseline.js';
 import { loadCards } from '../infer/store.js';
 import { loadPlanRecords } from '../plans/store.js';
 import { loadAnswers } from '../questions/store.js';
@@ -21,12 +22,17 @@ interface SessionOptions {
 }
 
 async function index(options: SessionOptions): Promise<unknown> {
-  return captureJson((logger) => runIndexGraphCommand({
+  const config = await loadConfig({ root: options.cwd, ...(options.configFile === undefined ? {} : { configFile: options.configFile }) });
+  const base = options.base ?? 'HEAD';
+  await preserveSessionBaseline(config.root, base);
+  const result = await captureJson((logger) => runIndexGraphCommand({
     cwd: options.cwd,
     ...(options.configFile === undefined ? {} : { configFile: options.configFile }),
     json: true,
     logger,
   }));
+  await preserveSessionBaseline(config.root, base);
+  return result;
 }
 
 export async function runSessionStartCommand(options: SessionOptions): Promise<void> {
@@ -84,7 +90,7 @@ export async function runSessionEndCommand(options: SessionOptions & { readonly 
     cwd: options.cwd,
     ...(options.configFile === undefined ? {} : { configFile: options.configFile }),
     strict: options.strict === true,
-    ...(options.base === undefined ? {} : { base: options.base }),
+    base: options.base ?? 'HEAD',
     json: true,
     logger,
   }));

@@ -1,7 +1,7 @@
 ---
 generated: true
 engine_version: 1.0.4
-evidence_fingerprint: sha256:72d9718c324813a56cdcced7ef51488b9f69960d6be72f5493694891ec7f204f
+evidence_fingerprint: sha256:04702ea8d016da72bd9fc8453264d9e84abc236402995bdc5e153de2116d448a
 confidence: verified
 ---
 
@@ -19,7 +19,7 @@ Everything here is derived from the code by static analysis. No part of it was w
 | --- | --- | --- |
 | [Routes and screens](routes.md) | _not applicable_ | — |
 | [Database schema](schema.md) | _not applicable_ | — |
-| Module dependency graph | 181 | 1 |
+| Module dependency graph | 185 | 1 |
 | [API endpoints](api.md) | 0 | — |
 | [Background jobs](jobs.md) | _not applicable_ | — |
 | [Environment and configuration](config.md) | 1 | 1 |
@@ -43,7 +43,7 @@ Nothing has been triaged yet. Answer questions with `docgen ask`, then run `docg
 | [Modules](diagrams/modules.mmd) | Internal dependency graph |
 | [Integrations](diagrams/integrations.mmd) | External services this system talks to |
 
-## Findings (2)
+## Findings (3)
 
 These compare one extractor's output against another's. They are observations for a human to
 judge, not defects.
@@ -52,12 +52,13 @@ judge, not defects.
 
 _Not run: No routes were extracted from this repository._
 
-### Modules nothing imports (1)
+### Modules nothing imports (2)
 
 No other module in the repository imports these. Files another extractor proved are a route, an endpoint or a job are excluded, as are tests, entry points and config files — all of those are reached by a framework or a runner rather than by an import. A dynamic import built from a variable would still make a module reachable in a way this cannot see.
 
 | Item | Detail | Source |
 | --- | --- | --- |
+| `packages/docgen/src/infer/write-behaviour.ts` | — | — |
 | `packages/docgen/src/util/boundaries.ts` | — | — |
 
 ### Tables never mentioned outside their definition

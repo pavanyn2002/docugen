@@ -1,7 +1,6 @@
-import path from 'node:path';
 import { loadConfig } from '../config/load.js';
 import { analyzeChangeImpact } from '../graph/impact.js';
-import { DEFAULT_GRAPH_INDEX, readEvidenceGraphIfExists } from '../graph/store.js';
+import { readImpactBaseline } from '../graph/session-baseline.js';
 import { runExtraction } from '../pipeline.js';
 import { colors } from '../util/colors.js';
 import { DocgenError } from '../util/errors.js';
@@ -72,7 +71,7 @@ export async function runImpactCommand(options: ImpactCommandOptions): Promise<v
 
   const [run, baseline, head] = await Promise.all([
     runExtraction({ config, logger: options.logger, includeSymbols: true }),
-    readEvidenceGraphIfExists(path.join(config.root, DEFAULT_GRAPH_INDEX)),
+    readImpactBaseline(config.root, options.base ?? 'HEAD'),
     resolveCommitInfo(config.root),
   ]);
   const report = analyzeChangeImpact({

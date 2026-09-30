@@ -300,6 +300,11 @@ docgen bootstrap --force       # ignore the cache
 
 **Caching.** A surface is re-inferred only when its code or its recorded answers changed, or when the prompt version changed. Everything else is reused for free. This is what makes it affordable to run repeatedly.
 
+A bounded run preserves cards and pages for live surfaces outside its limit.
+Failed targets lose their old generated card so a later `sync` cannot resurrect
+the failed result. Generated pages are synchronized from the complete live card
+set, and human answers are retained.
+
 **Grounding.** Before each call, Docugen starts at that surface in the static
 evidence graph and selects a deterministic, bounded neighborhood. Only
 `extracted` nodes and relationships are eligible; human requirements and prior
@@ -376,6 +381,16 @@ docgen answer checkout currency "GBP only" --note "EUR is planned for Q3."
 Written to `docs/.answers/<surface>.yaml` under your git identity. Re-answering replaces the previous answer rather than appending — two conflicting answers to one question would leave a reader unable to tell which is current.
 
 Re-renders on the spot, so the answer shows as `verified` immediately without waiting for the next paid run. No model call.
+
+`behavior-confirmation` is a reserved question ID for an explicit human review,
+including when the model raised no questions:
+
+```bash
+docgen answer checkout behavior-confirmation "Reviewed and confirmed the documented checkout behavior."
+```
+
+Critical-feature governance requires an attributed answer on every matched
+behavior card and requires all current questions to have attributed answers.
 
 ---
 
@@ -471,6 +486,11 @@ docgen sync --json
 | `--json` | Machine-readable output on stdout. |
 
 Re-renders from the current code and the committed cards and answers, writes only files whose bytes actually differ, and deletes pages for surfaces that no longer exist.
+
+Cards for deleted surfaces are excluded from rendering even if their cache files
+remain on disk. Human answers and requirements survive. Orphan deletion applies
+only to files carrying Docgen's generated marker. Unmarked files are preserved,
+and collisions with expected generated filenames fail before any page is written.
 
 It deliberately does not re-infer. Inference costs money and belongs to `bootstrap`. The routine command has to be the cheap one, or it gets removed from CI.
 
@@ -802,6 +822,11 @@ argument for a read-only preview.
 ---
 
 ## `docgen init`
+
+Local dependencies use `npx docgen`. Otherwise, installed instructions, skills,
+MCP settings, and hooks use `npx --yes @pavanyn/docugen@<engine-version>` so the
+documented npx setup does not require a separate global installation. CI uses the
+same pinned package version and skips `npm ci` when there is no local dependency.
 
 Make the question queue reachable from the tools the team already uses.
 

@@ -3,6 +3,7 @@ import { colors } from '../util/colors.js';
 import { EXTRACTOR_IDS } from '../types/core.js';
 import type { ExtractorId } from '../types/core.js';
 import { loadConfig } from '../config/load.js';
+import { normalizeOutputDirectory } from '../util/generated.js';
 import { runExtraction } from '../pipeline.js';
 import type { RunResult } from '../pipeline.js';
 import { writeAll } from '../render/index.js';
@@ -57,7 +58,8 @@ export async function runExtractCommand(options: ExtractCommandOptions): Promise
     ...(options.configFile === undefined ? {} : { configFile: options.configFile }),
   });
 
-  const config = options.outDir === undefined ? loaded : { ...loaded, outDir: options.outDir };
+  const override = options.outDir === undefined ? undefined : normalizeOutputDirectory(options.outDir);
+  const config = override === undefined ? loaded : { ...loaded, outDir: override, effectiveExclude: [...loaded.effectiveExclude, `${override}/**`] };
 
   const result = await runExtraction({
     config,

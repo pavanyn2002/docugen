@@ -7,7 +7,7 @@ import { loadFeatureRecords } from '../features/store.js';
 import { loadPlanRecords } from '../plans/store.js';
 import { analyzeChangeImpact } from '../graph/impact.js';
 import { summarizeChangeSurfaces } from '../graph/impact-summary.js';
-import { DEFAULT_GRAPH_INDEX, readEvidenceGraphIfExists } from '../graph/store.js';
+import { readImpactBaseline } from '../graph/session-baseline.js';
 import { runExtraction } from '../pipeline.js';
 import path from 'node:path';
 import { DocgenError } from '../util/errors.js';
@@ -61,7 +61,7 @@ export async function runChangeRecordCommand(options: ChangeRecordCommandOptions
     resolveGitChanges(config.root, options.base ?? 'HEAD'),
     resolveCommitInfo(config.root),
     runExtraction({ config, logger: options.logger, includeSymbols: true }),
-    readEvidenceGraphIfExists(path.join(config.root, DEFAULT_GRAPH_INDEX)),
+    readImpactBaseline(config.root, options.base ?? 'HEAD'),
   ]);
   const scopedChanges = filterGitChanges(changes, config.effectiveExclude);
   if (scopedChanges.changes.length === 0) {

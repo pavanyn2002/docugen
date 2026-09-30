@@ -67,9 +67,9 @@ export async function runInitCommand(options: InitCommandOptions): Promise<void>
   );
 
   options.logger.heading('Next');
-  options.logger.info('  1. `docgen session start` - evidence, plans, and questions');
-  options.logger.info('  2. `docgen bootstrap`     - optional behaviour inference; costs money');
-  options.logger.info('  3. `docgen session end`   - docs, tester handoff, and gate');
+  options.logger.info('  1. `' + invocation + ' session start` - evidence, plans, and questions');
+  options.logger.info('  2. `' + invocation + ' bootstrap` - optional behaviour inference; costs money');
+  options.logger.info('  3. `' + invocation + ' session end` - docs, tester handoff, and gate');
 }
 
 /**
@@ -111,7 +111,7 @@ export async function resolveDefaultBranch(root: string): Promise<string> {
  * How this repo should invoke docgen.
  *
  * A local dependency is invoked through the package manager so it resolves to
- * the pinned version; otherwise the bare command is assumed to be on PATH.
+ * the pinned version; otherwise a version-pinned package invocation works even after an npx install.
  * Guessing wrong here means every instruction file tells the agent to run a
  * command that does not exist.
  */
@@ -125,7 +125,7 @@ export async function resolveInvocation(root: string): Promise<string> {
       manifest.dependencies?.['@pavanyn/docugen'] ?? manifest.devDependencies?.['@pavanyn/docugen'];
     if (declared !== undefined) return 'npx docgen';
   } catch {
-    // No manifest, or unreadable — fall through to the bare command.
+    // No manifest, or unreadable — use the pinned package invocation.
   }
-  return 'docgen';
+  return `npx --yes @pavanyn/docugen@${ENGINE_VERSION}`;
 }

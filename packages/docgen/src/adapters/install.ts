@@ -97,8 +97,8 @@ export async function installAdapters(args: InstallArgs): Promise<readonly Adapt
           defaultBranch: args.defaultBranch ?? 'main',
           // `npx docgen` is what `resolveInvocation` produces for a repo that
           // declares docgen as a dependency; anything else means CI has to
-          // fetch it.
-          local: args.invocation.startsWith('npx '),
+          // fetch it. The pinned npx package invocation is not a local dependency.
+          local: args.invocation === 'npx docgen',
           version: args.version ?? 'latest',
         }),
       ),
@@ -109,7 +109,7 @@ export async function installAdapters(args: InstallArgs): Promise<readonly Adapt
   // update policy of its own. Rewriting a team's dependabot config to add one
   // ecosystem is not something an install command should do.
   if (
-    args.invocation.startsWith('npx ') &&
+    args.invocation === 'npx docgen' &&
     (await exists(path.join(args.root, '.github'))) &&
     !(await exists(path.join(args.root, DEPENDABOT_PATH)))
   ) {

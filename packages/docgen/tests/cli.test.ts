@@ -438,9 +438,12 @@ describe('process exit codes', () => {
     await expect(main(argv('extract', '--cwd', root, '--quiet'))).resolves.toBe(0);
   });
 
-  // CI wired to `docgen check` must fail rather than pass on an unbuilt gate.
-  it('returns 1 for a not-implemented command', async () => {
-    await expect(main(argv('check', '--quiet'))).resolves.toBe(1);
+  it('returns 0 for the implemented check on current docs and 1 for drift', async () => {
+    const root = await makeRepo();
+    await expect(main(argv('extract', '--cwd', root, '--quiet'))).resolves.toBe(0);
+    await expect(main(argv('check', '--cwd', root, '--quiet'))).resolves.toBe(0);
+    await fs.appendFile(path.join(root, 'docs/generated/README.md'), '\nStale content.\n');
+    await expect(main(argv('check', '--cwd', root, '--quiet'))).resolves.toBe(1);
   }, 20_000);
 
   it('returns 1 for a malformed config', async () => {

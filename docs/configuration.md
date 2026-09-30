@@ -110,6 +110,16 @@ export default defineConfig({
 
 Unknown keys are rejected rather than ignored, so a typo fails loudly instead of silently doing nothing.
 
+`outDir` must be a repository-relative directory. The repository root, parent
+paths, absolute paths, control characters, and protected stores such as `.git/`
+and `docs/.answers/` are rejected. The selected output directory is excluded
+from extraction, including when supplied through `extract --out`.
+
+Only files carrying Docgen's generated marker may be overwritten or removed.
+Unmarked documents in a shared output directory are preserved; a collision with
+an expected generated filename fails before any generated page is written.
+Generated output cannot traverse symbolic links.
+
 ## Always excluded
 
 These cannot be switched off:
@@ -199,12 +209,22 @@ the generated GitHub workflow supplies the pull-request base automatically.
   changed file set.
 - `criticalFeaturesRequireVerification` requires sufficiently critical active
   features to have an owner, matched code evidence, a behavior card, and no
-  unanswered verification questions.
+  unanswered verification questions. Every matched card also needs an attributed
+  human answer to one of its current questions or an explicit behavior confirmation.
 - `requirementsRequireTests` requires every confirmed testable requirement or
   bug to be cited by a test, and rejects citations to unknown requirements.
 
 Record exceptions explicitly with an owner, reason, and expiry using
 `docgen policy exception add`; permanent exceptions are unsupported.
+
+When a model card raises no questions, a developer can confirm reviewed behavior
+without making a model call:
+
+```bash
+docgen answer <surface> behavior-confirmation "Reviewed and confirmed: describe the intended behavior."
+```
+
+Empty, unattributed, undated, and unrelated answers do not satisfy verification.
 
 ### `privacy.*`
 

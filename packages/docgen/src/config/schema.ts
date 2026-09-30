@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { DEFAULT_TEST_GLOBS } from './paths.js';
 import { EXTRACTOR_IDS } from '../types/core.js';
+import { isSafeOutputDirectory, normalizeOutputDirectory } from '../util/generated.js';
 
 /**
  * Directories that are never source code. Excluded before globbing so large
@@ -77,12 +78,12 @@ const extractorToggles = z.object(
   Object.fromEntries(EXTRACTOR_IDS.map((id) => [id, z.boolean().default(true)])) as {
     [K in (typeof EXTRACTOR_IDS)[number]]: z.ZodDefault<z.ZodBoolean>;
   },
-);
+).strict();
 
 export const docgenConfigSchema = z
   .object({
     /** Where generated markdown and diagrams are written, relative to the repo root. */
-    outDir: z.string().min(1).default('docs/generated'),
+    outDir: z.string().min(1).refine(isSafeOutputDirectory, { message: 'must be a repository-relative output directory outside the repository root and protected stores' }).transform(normalizeOutputDirectory).default('docs/generated'),
 
     /** Source globs to scan. Defaults to the whole repo minus ALWAYS_EXCLUDE. */
     include: globList.default(['**/*']),

@@ -3,6 +3,7 @@ import { loadConfig } from '../config/load.js';
 import { runExtraction } from '../pipeline.js';
 import { chunkSurfaces } from '../surface/chunk.js';
 import { loadCards } from '../infer/store.js';
+import { activeCards } from '../infer/active.js';
 import { loadAnswers } from '../questions/store.js';
 import { buildQueue } from '../questions/queue.js';
 import { loadRequirements } from '../requirements/store.js';
@@ -85,7 +86,7 @@ export async function collectStatus(args: {
     apiBasePaths: config.surfaces.apiBasePaths,
   });
 
-  const cards = [...(await loadCards(config.root)).values()];
+  const cards = activeCards([...(await loadCards(config.root)).values()], run.graph);
   const answers = await loadAnswers(config.root);
   const requirements = await loadRequirements(config.root);
 

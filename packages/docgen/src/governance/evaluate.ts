@@ -6,10 +6,12 @@ import type { ResolvedConfig } from '../config/schema.js';
 import { loadFeatureRecords } from '../features/store.js';
 import { featureNodeId } from '../features/graph.js';
 import { analyzeChangeImpact } from '../graph/impact.js';
-import { DEFAULT_GRAPH_INDEX, readEvidenceGraphIfExists } from '../graph/store.js';
+import { readImpactBaseline } from '../graph/session-baseline.js';
 import type { EvidenceGraph } from '../graph/types.js';
 import { DEFAULT_HANDOFF_FILE } from '../commands/handoff.js';
 import { loadCards } from '../infer/store.js';
+import { activeCards } from '../infer/active.js';
+import { hasHumanConfirmation, isAttributedAnswer } from '../infer/verification.js';
 import type { FeatureCard } from '../infer/types.js';
 import { loadPlanRecords } from '../plans/store.js';
 import { loadRequirements } from '../requirements/store.js';
@@ -113,7 +115,7 @@ export async function evaluateGovernance(args: { readonly config: ResolvedConfig
     } else {
       const changes = filterGitChanges(await resolveGitChanges(args.config.root, args.base), args.config.effectiveExclude);
       changeFiles = changes.changes.map((change) => change.file);
-      const baseline = await readEvidenceGraphIfExists(path.join(args.config.root, DEFAULT_GRAPH_INDEX));
+      const baseline = await readImpactBaseline(args.config.root, args.base);
       const impact = analyzeChangeImpact({ current: args.graph, ...(baseline === undefined ? {} : { baseline }), changes });
       changedFeatureIds = new Set(impact.files.flatMap((fileImpact) => fileImpact.impacted)
         .filter((item) => item.node.kind === 'feature')
@@ -135,7 +137,7 @@ export async function evaluateGovernance(args: { readonly config: ResolvedConfig
 
   if (args.config.governance.policies.criticalFeaturesRequireVerification) {
     const nodeById = new Map(args.graph.nodes.map((node) => [node.id, node]));
-    const cardList = [...cards.values()];
+    const cardList = activeCards([...cards.values()], args.graph);
     for (const feature of features.filter((item) => item.status === 'active' && criticalityAtLeast(item.criticality, args.config.governance.criticalityAtLeast))) {
       const memberFiles = new Set(args.graph.edges
         .filter((edge) => edge.kind === 'belongs-to-feature' && edge.to === featureNodeId(feature.id))
@@ -146,11 +148,13 @@ export async function evaluateGovernance(args: { readonly config: ResolvedConfig
       if (memberFiles.size === 0) gaps.push('selectors match no code evidence');
       if (matchedCards.length === 0) gaps.push('has no code-grounded behaviour card');
       const open = matchedCards.reduce((total, card) => {
-        const resolved = new Set((answers.get(card.surfaceId)?.answers ?? []).map((answer) => answer.questionId));
+        const resolved = new Set((answers.get(card.surfaceId)?.answers ?? []).filter(isAttributedAnswer).map((answer) => answer.questionId));
         return total + card.body.unknowns.filter((unknown) => !resolved.has(unknown.id)).length;
       }, 0);
       if (open > 0) gaps.push(`has ${open} unanswered verification question(s)`);
-      if (gaps.length > 0) violations.push({ policy: 'critical-feature-verification', subject: feature.id, message: `Critical feature '${feature.id}' ${gaps.join(', ')}.`, remedy: 'Assign an owner, correct selectors, run approved inference if needed, and record developer answers before merging.' });
+      const unconfirmed = matchedCards.filter((card) => !hasHumanConfirmation(card, answers.get(card.surfaceId)?.answers ?? []));
+      if (unconfirmed.length > 0) gaps.push(`has ${unconfirmed.length} behavior card(s) without attributed human confirmation`);
+      if (gaps.length > 0) violations.push({ policy: 'critical-feature-verification', subject: feature.id, message: `Critical feature '${feature.id}' ${gaps.join(', ')}.`, remedy: 'Assign an owner, correct selectors, and record attributed answers for every behavior card. For a card with no questions, use `docgen answer <surface> behavior-confirmation "reviewed behavior"`.' });
     }
   }
 

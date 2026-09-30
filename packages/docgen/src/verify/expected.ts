@@ -5,6 +5,7 @@ import { renderAll } from '../render/index.js';
 import type { RenderedFile } from '../render/index.js';
 import { BEHAVIOUR_DIR, renderBehaviourIndex, renderBehaviourPage } from '../infer/behaviour.js';
 import { loadCards } from '../infer/store.js';
+import { activeCards } from '../infer/active.js';
 import { loadAnswers } from '../questions/store.js';
 import { loadRequirements } from '../requirements/store.js';
 import { buildPending } from '../requirements/pending.js';
@@ -16,6 +17,7 @@ import type { RunResult } from '../pipeline.js';
 import { compareStrings } from '../util/sort.js';
 import { toPosix } from '../util/paths.js';
 import { computeGovernanceFiles } from '../governance/expected.js';
+import { assertGeneratedPath, isGeneratedFile } from '../util/generated.js';
 
 /**
  * Every file docgen would write, given the current code and the current stores.
@@ -33,7 +35,7 @@ export async function computeExpectedFiles(run: RunResult): Promise<readonly Ren
   const root = run.config.root;
   const outDir = toPosix(run.config.outDir);
 
-  const cards = [...(await loadCards(root)).values()].sort((a, b) => compareStrings(a.slug, b.slug));
+  const cards = activeCards([...(await loadCards(root)).values()], run.graph).slice().sort((a, b) => compareStrings(a.slug, b.slug));
   const answers = await loadAnswers(root);
   const requirements = await loadRequirements(root);
 
@@ -122,8 +124,10 @@ export async function findDrift(
 ): Promise<readonly Drift[]> {
   const drift: Drift[] = [];
   const expectedPaths = new Set(expected.map((file) => file.path));
+  await assertGeneratedPath(root, outDir);
 
   for (const file of expected) {
+    await assertGeneratedPath(root, file.path);
     let actual: string;
     try {
       actual = await fs.readFile(path.join(root, file.path), 'utf8');
@@ -143,9 +147,10 @@ export async function findDrift(
   return drift.sort((a, b) => compareStrings(a.file, b.file) || compareStrings(a.kind, b.kind));
 }
 
-/** Every file under the output directory, repo-relative POSIX. */
+/** Only explicitly marked generated files are eligible for orphan deletion. */
 async function listGenerated(root: string, outDir: string): Promise<readonly string[]> {
   const found: string[] = [];
+  await assertGeneratedPath(root, outDir);
 
   async function walk(relative: string): Promise<void> {
     let entries: import('node:fs').Dirent[];
@@ -156,8 +161,9 @@ async function listGenerated(root: string, outDir: string): Promise<readonly str
     }
     for (const entry of entries) {
       const next = `${relative}/${entry.name}`;
+      if (entry.isSymbolicLink()) continue;
       if (entry.isDirectory()) await walk(next);
-      else found.push(next);
+      else if (entry.isFile() && /\.(md|mmd)$/.test(entry.name) && isGeneratedFile(next, await fs.readFile(path.join(root, next), 'utf8'))) found.push(next);
     }
   }
 
