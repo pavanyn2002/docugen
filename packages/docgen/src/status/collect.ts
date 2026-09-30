@@ -13,6 +13,7 @@ import { scanTestReferences } from '../trace/scan.js';
 import { buildMatrix } from '../trace/matrix.js';
 import { computeExpectedFiles, findDrift } from '../verify/expected.js';
 import { ENGINE_VERSION } from '../util/version.js';
+import { loadFeatureRecords } from '../features/store.js';
 import { toPosix } from '../util/paths.js';
 import type { RequirementKind } from '../requirements/types.js';
 import type { Logger } from '../util/logger.js';
@@ -71,7 +72,11 @@ export async function collectStatus(args: {
     ...(args.configFile === undefined ? {} : { configFile: args.configFile }),
   });
 
-  const run = await runExtraction({ config, logger: args.logger });
+  const run = await runExtraction({
+    config,
+    logger: args.logger,
+    includeSymbols: (await loadFeatureRecords(config.root)).length > 0,
+  });
 
   const surfaceSet = chunkSurfaces({
     routes: (run.results.get('routes') as RoutesResult | undefined)?.entries ?? [],
