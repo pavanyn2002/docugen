@@ -121,7 +121,7 @@ export function methodsOfView(source: string, viewName: string): readonly HttpMe
 
   // @api_view(["GET", "POST"]) above a function view.
   const decorated = new RegExp(
-    `@api_view\\s*\\(\\s*\\[([^\\]]*)\\][\\s\\S]{0,200}?def\\s+${name}\\b`,
+    `@api_view\\s*\\(\\s*\\[([^\\]]*)\\]\\s*\\)\\s*(?:@[^\\n]+\\n\\s*)*(?:async\\s+)?def\\s+${name}\\b`,
   ).exec(stripped);
   if (decorated?.[1] !== undefined) {
     const verbs = [...decorated[1].matchAll(/["'](\w+)["']/g)]
