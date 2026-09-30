@@ -10,6 +10,9 @@ export default defineConfig({
     // logical CPU gets a worker. A small fixed pool is faster and avoids
     // intermittent Windows worker stalls in the full verification run.
     maxWorkers: 4,
+    // Repository integration tests spawn Git repeatedly; shared Windows runners
+    // can exceed Vitest's five-second default under concurrent fixture setup.
+    testTimeout: process.platform === 'win32' ? 15_000 : 5_000,
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],
