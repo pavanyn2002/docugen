@@ -114,7 +114,7 @@ function analyseModule(file: string, contents: string): ParsedModule {
   const visit = (node: ts.Node, scope: readonly string[]): void => {
     if (ts.isFunctionDeclaration(node)) {
       const name = node.name?.text ?? (isDefaultExport(node) ? 'default' : undefined);
-      if (name !== undefined) {
+      if (name !== undefined && name.length > 0) {
         const record = add({
           node,
           name,
@@ -131,7 +131,7 @@ function analyseModule(file: string, contents: string): ParsedModule {
 
     if (ts.isClassDeclaration(node)) {
       const name = node.name?.text ?? (isDefaultExport(node) ? 'default' : undefined);
-      if (name !== undefined) {
+      if (name !== undefined && name.length > 0) {
         const record = add({
           node,
           name,
@@ -633,8 +633,7 @@ function methodOnType(
     owner = resolveTopLevelSymbol(module, typeName, context, new Set<SymbolKind>(['class', 'interface']));
   }
   if (owner === undefined) return undefined;
-  const targetModule = context.moduleByFile.get(owner.file);
-  if (targetModule === undefined) return undefined;
+  const targetModule = context.moduleByFile.get(owner.file) as ParsedModule;
   const matches = targetModule.symbols.filter(
     (symbol) => symbol.kind === 'method' && symbol.scope.join('.') === owner.qualifiedName && symbol.name === method,
   );
@@ -756,7 +755,7 @@ function addValueReferenceEdges(builder: EvidenceGraphBuilder, context: SymbolRe
 
     const visit = (node: ts.Node): void => {
       if (ts.isPropertyAccessExpression(node)) {
-        if (!ts.isPropertyAccessExpression(node.parent) || node.parent.expression !== node) add(node);
+        add(node);
         return;
       }
       if (ts.isIdentifier(node)) {
