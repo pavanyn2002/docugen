@@ -12,6 +12,7 @@ const identity = { surfaceId: 'screen:checkout', slug: 'checkout' };
 const date = '2026-10-12T00:00:00.000Z';
 const answer = { questionId: 'tax', question: 'Tax?', answer: 'Included', answeredBy: 'dev@example.com', answeredAt: date };
 const requirement = { ...identity, kind: 'requirement' as const, title: 'Tax?', statement: 'Included', questionId: 'tax', recordedBy: 'dev@example.com', recordedAt: date };
+const storedRequirement = { id: 'REQ-checkout-01', kind: 'requirement', title: 'Tax?', statement: 'Included', questionId: 'tax', recordedBy: 'dev@example.com', recordedAt: date, status: 'confirmed' };
 
 async function repo(): Promise<string> {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'docgen-human-reliability-'));
@@ -42,9 +43,9 @@ describe('human record validation', () => {
   });
 
   it.each([null, 'text', {}, { surfaceId: 1 }, { ...identity, requirements: 'wrong' },
-    { ...identity, requirements: [{ ...requirement, id: 'REQ-checkout-01', statement: 123 }] },
-    { ...identity, requirements: [{ ...requirement, id: 'REQ-checkout-01', kind: 'typo' }] },
-    { ...identity, requirements: [{ ...requirement, id: 'REQ-checkout-01', status: 'typo' }] },
+    { ...identity, requirements: [{ ...storedRequirement, statement: 123 }] },
+    { ...identity, requirements: [{ ...storedRequirement, kind: 'typo' }] },
+    { ...identity, requirements: [{ ...storedRequirement, status: 'typo' }] },
   ])('rejects malformed requirement data %# instead of dropping it', async value => {
     const root = await repo();
     await write(root, 'docs/.requirements/checkout.yaml', value);
@@ -100,7 +101,7 @@ describe('durable requirement identities', () => {
 
   it('reserves existing legacy ids before a reclassification removes them', async () => {
     const root = await repo();
-    await write(root, 'docs/.requirements/checkout.yaml', { ...identity, requirements: [{ ...requirement, id: 'REQ-checkout-07', status: 'confirmed' }] });
+    await write(root, 'docs/.requirements/checkout.yaml', { ...identity, requirements: [{ ...storedRequirement, id: 'REQ-checkout-07' }] });
     await recordRequirement({ root, ...requirement, kind: 'bug' });
     const next = await recordRequirement({ root, ...requirement, questionId: 'new-tax' });
     expect(next.id).toBe('REQ-checkout-08');

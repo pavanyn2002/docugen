@@ -140,28 +140,26 @@ describe('human-owned record publication', () => {
 });
 
 describe('partially populated human YAML', () => {
-  it('skips non-record answers while applying conservative metadata defaults', async () => {
+  it('preserves absent legacy answer metadata without accepting malformed entries', async () => {
     const root = await repo();
-    const values = [null, 'text', {}, { surfaceId: 'empty' }, { surfaceId: 'a', answers: [null, 'text', {}, { questionId: 1, answer: 'A' }, { questionId: 'q', answer: 1 }, { questionId: 'q', answer: 'A' }] }];
+    const values = [{ surfaceId: 'empty' }, { surfaceId: 'a', answers: [{ questionId: 'q', answer: 'A' }] }];
     for (const [index, value] of values.entries()) await write(root, `${ANSWERS_DIR}/${index}.yml`, YAML.stringify(value));
     const loaded = await loadAnswers(root);
     expect(loaded.size).toBe(2);
-    expect(loaded.get('a')).toMatchObject({ slug: '4', answers: [{ question: '', answeredBy: 'unknown', answeredAt: '' }] });
+    expect(loaded.get('a')).toMatchObject({ slug: '1', answers: [{ question: '', answeredBy: 'unknown', answeredAt: '' }] });
     expect(renderAnswersForPrompt(loaded.get('a')!.answers)).toContain('**q**');
-    await fs.rename(path.join(root, `${ANSWERS_DIR}/4.yml`), path.join(root, `${ANSWERS_DIR}/4.yaml`));
-    await recordAnswer({ root, surfaceId: 'a', slug: '4', answer: { questionId: 'next', question: 'Next?', answer: 'yes', answeredBy: 'owner', answeredAt: date, note: 'reviewed' } });
+    await recordAnswer({ root, surfaceId: 'a', slug: '1', answer: { questionId: 'next', question: 'Next?', answer: 'yes', answeredBy: 'owner', answeredAt: date, note: 'reviewed' } });
     expect((await loadAnswers(root)).get('a')?.answers).toHaveLength(2);
   });
-  it('loads only minimally valid requirements and preserves explicit metadata', async () => {
+  it('preserves absent legacy requirement metadata and explicit valid metadata', async () => {
     const root = await repo();
-    const entries = [null, 'text', {}, { id: 'a', questionId: 1, statement: 'A' }, { id: 'a', questionId: 'q', statement: 1 }, { id: 'REQ-a-01', questionId: 'q', statement: 'A' }, { id: 'REQ-a-02', questionId: 'q2', statement: 'B', kind: 'requirement', status: 'confirmed', title: 'B', surfaceId: 'explicit', recordedBy: 'owner', recordedAt: date, note: 'reviewed' }];
-    for (const [index, value] of [null, 'text', {}, { surfaceId: 'empty' }, { surfaceId: 'a', requirements: entries }].entries()) await write(root, `${REQUIREMENTS_DIR}/${index}.yml`, YAML.stringify(value));
+    const entries = [{ id: 'REQ-a-01', questionId: 'q', statement: 'A' }, { id: 'REQ-a-02', questionId: 'q2', statement: 'B', kind: 'requirement', status: 'confirmed', title: 'B', surfaceId: 'a', recordedBy: 'owner', recordedAt: date, note: 'reviewed' }];
+    for (const [index, value] of [{ surfaceId: 'empty' }, { surfaceId: 'a', requirements: entries }].entries()) await write(root, `${REQUIREMENTS_DIR}/${index}.yml`, YAML.stringify(value));
     const loaded = await loadRequirements(root);
     expect(loaded.size).toBe(2);
-    expect(loaded.get('a')).toMatchObject({ slug: '4', requirements: [{ kind: 'context', status: 'confirmed', title: 'q', recordedBy: 'unknown', recordedAt: '' }, { surfaceId: 'explicit', note: 'reviewed' }] });
+    expect(loaded.get('a')).toMatchObject({ slug: '1', requirements: [{ kind: 'context', status: 'confirmed', title: 'q', recordedBy: 'unknown', recordedAt: '' }, { surfaceId: 'a', note: 'reviewed' }] });
     expect(nextRequirementId([{ id: 'REQ-a-not-a-number' }, { id: 'REQ-a-03' }], 'requirement', 'a')).toBe('REQ-a-04');
-    await fs.rename(path.join(root, `${REQUIREMENTS_DIR}/4.yml`), path.join(root, `${REQUIREMENTS_DIR}/4.yaml`));
-    await recordRequirement({ root, surfaceId: 'a', slug: '4', kind: 'requirement', title: 'A', statement: 'updated', questionId: 'q', recordedBy: 'owner', recordedAt: date, status: 'disputed', note: 'reviewed' });
-    expect((await loadRequirements(root)).get('a')?.requirements.find(item => item.questionId === 'q')).toMatchObject({ id: 'REQ-4-01', note: 'reviewed' });
+    await recordRequirement({ root, surfaceId: 'a', slug: '1', kind: 'requirement', title: 'A', statement: 'updated', questionId: 'q', recordedBy: 'owner', recordedAt: date, status: 'disputed', note: 'reviewed' });
+    expect((await loadRequirements(root)).get('a')?.requirements.find(item => item.questionId === 'q')).toMatchObject({ id: 'REQ-1-01', note: 'reviewed' });
   });
 });

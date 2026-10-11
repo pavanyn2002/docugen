@@ -2,10 +2,29 @@ import fg from 'fast-glob';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import YAML from 'yaml';
+import { z } from 'zod';
 import { DocgenError, describeUnknownError } from '../util/errors.js';
 import { ANSWERS_DIR } from '../config/paths.js';
 import { toPosix } from '../util/paths.js';
 import { compareStrings } from '../util/sort.js';
+import { writeFileAtomically } from '../util/atomic.js';
+import { assertGeneratedPath } from '../util/generated.js';
+import { assertUniqueHumanValues, humanRecordSlugSchema, parseHumanRecord } from '../util/human-records.js';
+
+const answerSchema = z.object({
+  questionId: z.string().min(1),
+  question: z.string().default(''),
+  answer: z.string().min(1),
+  answeredBy: z.string().default('unknown'),
+  answeredAt: z.string().default(''),
+  note: z.string().optional(),
+}).strict();
+
+const surfaceAnswersSchema = z.object({
+  surfaceId: z.string().min(1),
+  slug: humanRecordSlugSchema.optional(),
+  answers: z.array(answerSchema).default([]),
+}).strict();
 
 /**
  * Developer answers, on record.
@@ -35,6 +54,7 @@ export interface SurfaceAnswers {
   readonly surfaceId: string;
   readonly slug: string;
   readonly answers: readonly Answer[];
+  readonly sourceFile?: string;
 }
 
 /** Answers live beside the docs but are authored by humans, not generated. */
@@ -61,6 +81,7 @@ export async function loadAnswers(root: string): Promise<ReadonlyMap<string, Sur
   const bySurface = new Map<string, SurfaceAnswers>();
 
   for (const relative of files) {
+    await assertGeneratedPath(root, relative);
     const absolute = path.join(root, relative);
     let parsed: unknown;
     try {
@@ -77,32 +98,15 @@ export async function loadAnswers(root: string): Promise<ReadonlyMap<string, Sur
       });
     }
 
-    if (parsed === null || typeof parsed !== 'object') continue;
-    const record = parsed as Record<string, unknown>;
-    const surfaceId = typeof record['surfaceId'] === 'string' ? record['surfaceId'] : undefined;
-    const slug = typeof record['slug'] === 'string' ? record['slug'] : path.posix.basename(relative, path.posix.extname(relative));
-    if (surfaceId === undefined) continue;
-
-    const rawAnswers = Array.isArray(record['answers']) ? record['answers'] : [];
-    const answers: Answer[] = [];
-    for (const entry of rawAnswers) {
-      if (entry === null || typeof entry !== 'object') continue;
-      const value = entry as Record<string, unknown>;
-      const questionId = value['questionId'];
-      const answer = value['answer'];
-      if (typeof questionId !== 'string' || typeof answer !== 'string') continue;
-
-      answers.push({
-        questionId,
-        question: typeof value['question'] === 'string' ? value['question'] : '',
-        answer,
-        answeredBy: typeof value['answeredBy'] === 'string' ? value['answeredBy'] : 'unknown',
-        answeredAt: typeof value['answeredAt'] === 'string' ? value['answeredAt'] : '',
-        ...(typeof value['note'] === 'string' ? { note: value['note'] } : {}),
-      });
+    const record = parseHumanRecord(surfaceAnswersSchema, parsed, relative, 'answers');
+    const slug = record.slug ?? path.posix.basename(relative, path.posix.extname(relative));
+    parseHumanRecord(humanRecordSlugSchema, slug, relative, 'answers');
+    assertUniqueHumanValues(record.answers.map(answer => answer.questionId), relative, 'answers');
+    if (bySurface.has(record.surfaceId)) {
+      throw new DocgenError({ code: 'answers-duplicate-surface', message: `${relative} duplicates answers for '${record.surfaceId}'.`, remedy: 'Merge the conflicting human records into one file without discarding answers.', file: relative });
     }
-
-    bySurface.set(surfaceId, { surfaceId, slug, answers });
+    const answers: Answer[] = record.answers.map(({ note, ...fields }) => ({ ...fields, ...(note === undefined ? {} : { note }) }));
+    bySurface.set(record.surfaceId, { surfaceId: record.surfaceId, slug, answers, sourceFile: relative });
   }
 
   return bySurface;
@@ -121,6 +125,7 @@ export async function recordAnswer(args: {
   slug: string;
   answer: Answer;
 }): Promise<void> {
+  parseHumanRecord(surfaceAnswersSchema, { surfaceId: args.surfaceId, slug: args.slug, answers: [args.answer] }, `${ANSWERS_DIR}/${args.slug}.yaml`, 'answers');
   const existing = (await loadAnswers(args.root)).get(args.surfaceId);
   const kept = (existing?.answers ?? []).filter(
     (candidate) => candidate.questionId !== args.answer.questionId,
@@ -128,13 +133,13 @@ export async function recordAnswer(args: {
 
   const merged: SurfaceAnswers = {
     surfaceId: args.surfaceId,
-    slug: args.slug,
+    slug: existing?.slug ?? args.slug,
     answers: [...kept, args.answer].sort((a, b) => compareStrings(a.questionId, b.questionId)),
   };
 
-  const file = answerFile(args.root, args.slug);
-  await fs.mkdir(path.dirname(file), { recursive: true });
-  await fs.writeFile(file, renderAnswersFile(merged), 'utf8');
+  const file = existing?.sourceFile === undefined ? answerFile(args.root, args.slug) : path.join(args.root, existing.sourceFile);
+  await assertGeneratedPath(args.root, toPosix(path.relative(args.root, file)));
+  await writeFileAtomically(file, renderAnswersFile(merged));
 }
 
 /** YAML with a header explaining what the file is for, since humans edit it. */

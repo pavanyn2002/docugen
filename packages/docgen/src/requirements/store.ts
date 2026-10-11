@@ -2,12 +2,36 @@ import fg from 'fast-glob';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import YAML from 'yaml';
+import { z } from 'zod';
 import { REQUIREMENTS_DIR } from '../config/paths.js';
 import { DocgenError, describeUnknownError } from '../util/errors.js';
 import { toPosix } from '../util/paths.js';
 import { compareStrings } from '../util/sort.js';
 import { KIND_PREFIXES, REQUIREMENT_KINDS, REQUIREMENT_STATUSES } from './types.js';
 import type { Requirement, RequirementKind, RequirementStatus, SurfaceRequirements } from './types.js';
+import { assertUniqueHumanValues, humanRecordSlugSchema, parseHumanRecord } from '../util/human-records.js';
+import { assertGeneratedPath } from '../util/generated.js';
+import { writeFileAtomically } from '../util/atomic.js';
+import { requirementIdSchema, reserveRequirementId } from './ids.js';
+
+const requirementSchema = z.object({
+  id: requirementIdSchema,
+  questionId: z.string().min(1),
+  statement: z.string().min(1),
+  kind: z.enum(REQUIREMENT_KINDS).default('context'),
+  status: z.enum(REQUIREMENT_STATUSES).default('confirmed'),
+  title: z.string().optional(),
+  surfaceId: z.string().min(1).optional(),
+  recordedBy: z.string().default('unknown'),
+  recordedAt: z.string().default(''),
+  note: z.string().optional(),
+}).strict();
+
+const surfaceRequirementsSchema = z.object({
+  surfaceId: z.string().min(1),
+  slug: humanRecordSlugSchema.optional(),
+  requirements: z.array(requirementSchema).default([]),
+}).strict().refine(record => record.requirements.every(requirement => requirement.surfaceId === undefined || requirement.surfaceId === record.surfaceId), 'requirement surfaceId must match the containing record');
 
 export { REQUIREMENTS_DIR } from '../config/paths.js';
 
@@ -34,8 +58,10 @@ export async function loadRequirements(root: string): Promise<ReadonlyMap<string
     .sort(compareStrings);
 
   const bySurface = new Map<string, SurfaceRequirements>();
+  const ids: string[] = [];
 
   for (const relative of files) {
+    await assertGeneratedPath(root, relative);
     let parsed: unknown;
     try {
       parsed = YAML.parse(await fs.readFile(path.join(root, relative), 'utf8'));
@@ -54,26 +80,18 @@ export async function loadRequirements(root: string): Promise<ReadonlyMap<string
       });
     }
 
-    if (parsed === null || typeof parsed !== 'object') continue;
-    const record = parsed as Record<string, unknown>;
-    const surfaceId = record['surfaceId'];
-    if (typeof surfaceId !== 'string') continue;
-
-    const slug =
-      typeof record['slug'] === 'string'
-        ? record['slug']
-        : path.posix.basename(relative, path.posix.extname(relative));
-
-    const raw = Array.isArray(record['requirements']) ? record['requirements'] : [];
-    const requirements: Requirement[] = [];
-
-    for (const entry of raw) {
-      const requirement = parseRequirement(entry, surfaceId);
-      if (requirement !== undefined) requirements.push(requirement);
+    const record = parseHumanRecord(surfaceRequirementsSchema, parsed, relative, 'requirements');
+    const slug = record.slug ?? path.posix.basename(relative, path.posix.extname(relative));
+    parseHumanRecord(humanRecordSlugSchema, slug, relative, 'requirements');
+    const requirements: Requirement[] = record.requirements.map(({ note, ...fields }) => ({ ...fields, title: fields.title ?? fields.questionId, surfaceId: record.surfaceId, ...(note === undefined ? {} : { note }) }));
+    ids.push(...requirements.map(requirement => requirement.id));
+    assertUniqueHumanValues(ids, relative, 'requirements');
+    assertUniqueHumanValues(requirements.map(requirement => requirement.questionId), relative, 'requirements');
+    if (bySurface.has(record.surfaceId)) {
+      throw new DocgenError({ code: 'requirements-duplicate-surface', message: `${relative} duplicates requirements for '${record.surfaceId}'.`, remedy: 'Merge conflicting human records into one file without discarding requirements.', file: relative });
     }
-
-    bySurface.set(surfaceId, {
-      surfaceId,
+    bySurface.set(record.surfaceId, {
+      surfaceId: record.surfaceId,
       slug,
       sourceFile: relative,
       requirements: requirements.sort((a, b) => compareStrings(a.id, b.id)),
@@ -83,39 +101,11 @@ export async function loadRequirements(root: string): Promise<ReadonlyMap<string
   return bySurface;
 }
 
-function parseRequirement(entry: unknown, surfaceId: string): Requirement | undefined {
-  if (entry === null || typeof entry !== 'object') return undefined;
-  const value = entry as Record<string, unknown>;
-
-  const id = value['id'];
-  const questionId = value['questionId'];
-  const statement = value['statement'];
-  if (typeof id !== 'string' || typeof questionId !== 'string' || typeof statement !== 'string') {
-    return undefined;
-  }
-
-  const kind = REQUIREMENT_KINDS.find((candidate) => candidate === value['kind']);
-  const status = REQUIREMENT_STATUSES.find((candidate) => candidate === value['status']);
-
-  return {
-    id,
-    kind: kind ?? 'context',
-    status: status ?? 'confirmed',
-    title: typeof value['title'] === 'string' ? value['title'] : questionId,
-    statement,
-    questionId,
-    surfaceId: typeof value['surfaceId'] === 'string' ? value['surfaceId'] : surfaceId,
-    recordedBy: typeof value['recordedBy'] === 'string' ? value['recordedBy'] : 'unknown',
-    recordedAt: typeof value['recordedAt'] === 'string' ? value['recordedAt'] : '',
-    ...(typeof value['note'] === 'string' ? { note: value['note'] } : {}),
-  };
-}
-
 /**
  * Allocate the next id for a kind within a surface.
  *
- * Numbering never reuses a value, even when an entry is removed: an id that has
- * been quoted in a test or a ticket must not later point at something else.
+ * This helper only sees its input. Persistent allocation also supplies immutable
+ * reservations, so deleting a record cannot release a previously issued ID.
  */
 export function nextRequirementId(
   /** Only the ids matter here, so that is all this asks for. */
@@ -154,14 +144,25 @@ export interface RecordRequirementArgs {
  * a reclassification does not orphan anything that referenced it.
  */
 export async function recordRequirement(args: RecordRequirementArgs): Promise<Requirement> {
+  const relative = `${REQUIREMENTS_DIR}/${args.slug}.yaml`;
+  const { root, slug, ...fields } = args;
+  parseHumanRecord(surfaceRequirementsSchema, { surfaceId: args.surfaceId, slug, requirements: [{ ...fields, id: 'REQ-validation-01' }] }, relative, 'requirements');
   const all = await loadRequirements(args.root);
   const existing = all.get(args.surfaceId);
   const previous = existing?.requirements.find(
     (requirement) => requirement.questionId === args.questionId,
   );
 
+  const id = await reserveRequirementId({
+    root,
+    surfaces: [...all.values()],
+    surfaceId: args.surfaceId,
+    slug: existing?.slug ?? slug,
+    kind: args.kind,
+    ...(previous !== undefined && previous.kind === args.kind ? { existingId: previous.id } : {}),
+  });
   const requirement: Requirement = {
-    id: previous?.id ?? nextRequirementId(existing?.requirements ?? [], args.kind, args.slug),
+    id,
     kind: args.kind,
     status: args.status ?? 'confirmed',
     title: args.title,
@@ -173,29 +174,21 @@ export async function recordRequirement(args: RecordRequirementArgs): Promise<Re
     ...(args.note === undefined ? {} : { note: args.note }),
   };
 
-  // A reclassification changes the prefix, so the id would no longer match its
-  // kind. Keeping the original id is the lesser evil — it stays resolvable —
-  // but only when the kind is unchanged; otherwise a fresh id is issued.
-  const resolved =
-    previous !== undefined && previous.kind !== args.kind
-      ? { ...requirement, id: nextRequirementId(existing?.requirements ?? [], args.kind, args.slug) }
-      : requirement;
-
   const kept = (existing?.requirements ?? []).filter(
     (candidate) => candidate.questionId !== args.questionId,
   );
 
   const merged: SurfaceRequirements = {
     surfaceId: args.surfaceId,
-    slug: args.slug,
-    requirements: [...kept, resolved].sort((a, b) => compareStrings(a.id, b.id)),
+    slug: existing?.slug ?? slug,
+    requirements: [...kept, requirement].sort((a, b) => compareStrings(a.id, b.id)),
   };
 
-  const file = requirementFile(args.root, args.slug);
-  await fs.mkdir(path.dirname(file), { recursive: true });
-  await fs.writeFile(file, renderRequirementsFile(merged), 'utf8');
+  const file = existing?.sourceFile === undefined ? requirementFile(root, slug) : path.join(root, existing.sourceFile);
+  await assertGeneratedPath(root, toPosix(path.relative(root, file)));
+  await writeFileAtomically(file, renderRequirementsFile(merged));
 
-  return resolved;
+  return requirement;
 }
 
 /** YAML with a header, since a developer may well edit this by hand. */
