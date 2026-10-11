@@ -69,6 +69,13 @@ It also states its own coverage: if answers are still untriaged, the page says h
 - Never treat an OpenAPI or Swagger annotation as truth. It is cross-checked against the code, and disagreements are reported both ways. Code is what runs; an annotation is a claim about the code that may have rotted.
 - Fail loudly on malformed input, silently on absent input. A corrupt `docs/.answers/` file is an error, not a file to skip — skipping one would silently demote confirmed knowledge back to a guess.
 
+Human YAML is validated as data as well as syntax: malformed fields, invalid
+requirement kinds or statuses, and duplicate record identities stop the command
+and name the affected file. Legacy records may omit optional attribution
+metadata, retaining the existing `unknown` or empty defaults; explicitly invalid
+values are never converted into those defaults. Updates publish complete files
+atomically and retain an existing `.yml` filename.
+
 ## What this costs you
 
 Precision, in exchange for a lot of "not determined". A page full of gaps looks worse than a page full of confident prose. It is worth it: a gap is a question someone can answer in ten seconds, and a wrong confident sentence is a bug report six months from now that nobody can resolve.

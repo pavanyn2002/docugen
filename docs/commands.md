@@ -446,6 +446,13 @@ Interactive mode needs a terminal. In a pipe it fails with instructions rather t
 
 **Ids** are scoped to their surface — `REQ-checkout-01`, `BUG-orders-02` — so two developers triaging different surfaces never collide and no shared counter needs coordinating. Ids are never reused, including numbers freed by a deletion, because a test or a ticket may already quote one. Reclassifying issues a fresh id so the prefix cannot contradict the kind.
 
+Each issued ID has an immutable reservation in `docs/.requirements/.ids/`.
+Commit these files with the YAML records and retain them when deleting or
+reclassifying a requirement. Existing YAML IDs are reserved before an explicit
+triage update; IDs deleted before this protection was installed cannot be
+recovered automatically. A failed publication may leave a reserved but unused
+number, which is deliberately never recycled.
+
 ---
 
 ## `docgen trace`

@@ -2,6 +2,23 @@
 
 All notable changes to Docugen are documented here.
 
+## Unreleased
+
+### Fixed
+
+- Human answer and requirement stores reject malformed fields and duplicate
+  identities instead of silently discarding entries. Missing legacy metadata
+  retains its existing defaults; explicitly invalid values fail with the file
+  and field to correct.
+- Answer and requirement updates publish atomically and preserve the original
+  `.yml` or `.yaml` destination rather than creating competing records.
+- Requirement IDs are reserved in immutable records under
+  `docs/.requirements/.ids/`, preventing reuse after deletion or reclassification.
+  Existing IDs are reserved before an explicit triage update replaces them.
+- The static-to-inference import boundary uses the TypeScript parser to detect
+  multiline imports, re-exports, import types, and dynamic imports while ignoring
+  import-like text in comments and strings.
+
 ## 1.1.1 — 2026-09-30
 
 ### Fixed

@@ -1,7 +1,7 @@
 ---
 generated: true
 engine_version: 1.1.1
-evidence_fingerprint: sha256:9e6307bc9372d9fe0745a647cd9c47f600d6296c27770233f5c965309943a794
+evidence_fingerprint: sha256:24ecb8194cfea7971a788f30d12b7ff997edb1123d375064f2c3bd14467240cd
 confidence: verified
 ---
 
@@ -19,7 +19,7 @@ The structural inventories below are derived from the code by static analysis. N
 | --- | --- | --- |
 | [Routes and screens](routes.md) | _not applicable_ | — |
 | [Database schema](schema.md) | _not applicable_ | — |
-| Module dependency graph | 191 | 1 |
+| Module dependency graph | 193 | 1 |
 | [API endpoints](api.md) | 0 | — |
 | [Background jobs](jobs.md) | _not applicable_ | — |
 | [Environment and configuration](config.md) | 1 | 1 |
