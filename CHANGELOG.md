@@ -4,6 +4,11 @@ All notable changes to Docugen are documented here.
 
 ## Unreleased
 
+### Changed
+
+- Licensed the repository and npm package under MIT, replacing the TatvaOps-only
+  internal-use restriction. Added a root license and aligned package metadata.
+
 ### Fixed
 
 - Human answer and requirement stores reject malformed fields and duplicate

@@ -220,4 +220,4 @@ Full guides live in the repository under `docs/`:
 
 ## Licence
 
-See `LICENSE`.
+MIT licensed. See [LICENSE](LICENSE).

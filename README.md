@@ -144,3 +144,7 @@ npm run build
 `src/extract/`, `src/surface/`, and `src/render/` are the static lane and must never import from `src/infer/`, `src/questions/`, or `src/agents/`. This is enforced by a test rather than a convention: output from the static lane is stamped `verified`, and a `verified` claim produced by a model is precisely the failure this tool exists to prevent.
 
 See [SPEC.md](SPEC.md) for the full design rationale.
+
+## Licence
+
+MIT licensed. See [LICENSE](LICENSE).
