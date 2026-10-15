@@ -8,3 +8,6 @@ coverage/
 # it would mean a fixture change silently passes review as a docs diff.
 packages/docgen/tests/fixtures/*/docs/generated/
 packages/docgen/tests/fixtures/*/.gitattributes
+
+# Stray Windows env-var directory
+%SystemDrive%/
